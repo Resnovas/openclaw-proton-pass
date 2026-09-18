@@ -1,0 +1,14 @@
+{
+  "name": "@resnovas/opp-telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "dependencies": {
+    "@resnovas/opp-config": "workspace:*",
+    "effect": "^3.22.2",
+    "posthog-node": "^5.52.4"
+  }
+}

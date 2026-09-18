@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "telemetry",
+  "projectType": "library",
+  "sourceRoot": "libs/telemetry/src",
+  "tags": [
+    "type:service",
+    "scope:shared"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -b libs/telemetry/tsconfig.json"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -b libs/telemetry/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run tests/libs/telemetry --passWithNoTests",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}
