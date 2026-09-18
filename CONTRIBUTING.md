@@ -58,3 +58,29 @@ node --experimental-strip-types scripts/check-headers.ts --write  # apply
 
 Only the `File` and `Last Modified` lines differ between files. The licence text
 itself never varies.
+
+## Releasing
+
+Releases are automated. Run the **Release** workflow from the Actions tab,
+optionally giving an explicit version; leaving it blank derives the bump from
+conventional commits since the last tag.
+
+The workflow runs `pnpm verify` before it tags anything, so a failing suite or a
+missing licence header stops the release rather than shipping.
+
+In order it: versions the package and writes `CHANGELOG.md`, commits and tags,
+opens the GitHub release, publishes `@resnovas/openclaw-proton-pass` to npm with
+provenance, attaches the bundled binaries to the release, then validates and
+publishes the plugin to ClawHub.
+
+Required repository secrets:
+
+| Secret | Used for |
+| --- | --- |
+| `NPM_TOKEN` | npm publish (automation token with publish rights to `@resnovas`) |
+| `CLAWHUB_TOKEN` | ClawHub package publish |
+
+`GITHUB_TOKEN` is provided by Actions and needs no configuration.
+
+Tick **dry run** to rehearse the whole sequence without tagging, publishing or
+pushing anything.
