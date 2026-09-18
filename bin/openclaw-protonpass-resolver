@@ -1,0 +1,270 @@
+#!/usr/bin/env python3
+"""
+openclaw-protonpass-resolver — OpenClaw `exec` secret provider backed by Proton Pass.
+
+OpenClaw's exec provider contract (docs.openclaw.ai/gateway/secrets/secretref-contract):
+
+  stdin   {"protocolVersion":1,"provider":"protonpass","ids":["DEX_API_KEY"]}
+  stdout  {"protocolVersion":1,"values":{"DEX_API_KEY":"<secret>"}}
+
+Ids are opaque names, not vault paths: the id -> `pass://` mapping lives in
+SECRET_MAP so that openclaw.json never records where a secret is stored, and a
+vault reshuffle is a one-file edit rather than a config migration.
+
+A map entry is either a bare `pass://` string, or an object that decorates the
+resolved value:
+
+    {
+      "DEX_API_KEY":           "pass://OpenClaw/getdex.com/API Key",
+      "DEX_MCP_AUTHORIZATION": {"ref": "pass://OpenClaw/getdex.com/API Key",
+                                "prefix": "Bearer "}
+    }
+
+The prefix/suffix form exists because a SecretRef resolves to exactly one value,
+while an HTTP Authorization header needs a scheme in front of the token. Doing
+the decoration here keeps a single copy of the secret in the vault; the
+alternative is storing "Bearer <token>" as a second field that then has to be
+rotated in lockstep with the first.
+
+Authentication uses a dedicated `openclaw-gateway` agent token rather than a
+human user session. The Gateway starts at boot, long before any terminal runs
+the shell login hook, so it cannot assume a user session exists. The agent token
+is scoped to the OpenClaw vault and every read it performs is recorded in
+`pass-cli agent monitor openclaw-gateway`.
+
+The session lives in its own PROTON_PASS_SESSION_DIR. pass-cli keeps one session
+per directory, so sharing the default directory would mean this resolver and the
+user's terminal session continually log each other out.
+
+Environment overrides (all optional):
+
+  PASS_CLI                          path to the pass-cli binary
+  OPENCLAW_PROTONPASS_CONFIG_DIR    directory holding the secret map and PAT
+  OPENCLAW_PROTONPASS_SECRET_MAP    path to the secret map itself
+  OPENCLAW_PROTONPASS_AGENT_PAT     path to the agent token file
+  OPENCLAW_PROTONPASS_SESSION_DIR   pass-cli session directory for this provider
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+XDG_CONFIG = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+XDG_STATE = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+
+
+def find_pass_cli():
+    """Locate pass-cli.
+
+    PATH is searched first so an operator can override the binary without
+    editing anything, then the two locations the Proton Pass installer uses.
+    A service unit often runs with a minimal PATH, which is why the explicit
+    fallbacks exist at all.
+    """
+    override = os.environ.get("PASS_CLI")
+    if override:
+        return override
+
+    found = shutil.which("pass-cli")
+    if found:
+        return found
+
+    for candidate in (
+        os.path.expanduser("~/.local/bin/pass-cli"),
+        "/usr/local/bin/pass-cli",
+        "/usr/bin/pass-cli",
+    ):
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    return "pass-cli"
+
+
+CONFIG_DIR = os.environ.get(
+    "OPENCLAW_PROTONPASS_CONFIG_DIR", os.path.join(XDG_CONFIG, "proton-pass-cli")
+)
+PASS = find_pass_cli()
+SECRET_MAP = os.environ.get(
+    "OPENCLAW_PROTONPASS_SECRET_MAP",
+    os.path.join(CONFIG_DIR, "openclaw-secret-map.json"),
+)
+AGENT_PAT = os.environ.get(
+    "OPENCLAW_PROTONPASS_AGENT_PAT", os.path.join(CONFIG_DIR, "openclaw-agent-pat")
+)
+SESSION_DIR = os.environ.get(
+    "OPENCLAW_PROTONPASS_SESSION_DIR",
+    os.path.join(XDG_STATE, "openclaw-protonpass"),
+)
+
+PROTOCOL_VERSION = 1
+TIMEOUT = 60
+
+
+def fail(message):
+    """Protocol-level failure: no values could be produced at all."""
+    json.dump({"protocolVersion": PROTOCOL_VERSION, "error": message}, sys.stdout)
+    sys.stdout.write("\n")
+    sys.exit(1)
+
+
+def pass_env():
+    env = dict(os.environ)
+    env["PROTON_PASS_SESSION_DIR"] = SESSION_DIR
+    # Agent tokens require an audit reason on every audited read (item view).
+    env.setdefault("PROTON_PASS_AGENT_REASON", "OpenClaw Gateway secret resolution")
+    return env
+
+
+def attempt_login(env, token):
+    """One logout+login cycle.
+
+    The logout is not optional: `pass-cli login --pat` refuses with "Already
+    authenticated" (exit 1) whenever a session file exists, including a stale
+    one that `info` can no longer read.
+    """
+    subprocess.run([PASS, "logout"], env=env, capture_output=True, timeout=TIMEOUT)
+    return subprocess.run(
+        [PASS, "login", "--pat", token], env=env, capture_output=True, timeout=TIMEOUT
+    )
+
+
+def ensure_session(env):
+    """Guarantee a usable pass-cli session in our isolated session directory.
+
+    `pass-cli login --pat` refuses with "Already authenticated" (exit 1) whenever
+    a session file exists, including a stale one that `info` can no longer read,
+    so a failed `info` must be followed by an explicit logout before retrying.
+    """
+    probe = subprocess.run([PASS, "info"], env=env, capture_output=True, timeout=TIMEOUT)
+    if probe.returncode == 0:
+        return
+
+    if not os.path.exists(AGENT_PAT):
+        fail(
+            f"no agent token at {AGENT_PAT}; run: "
+            "pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw"
+        )
+
+    with open(AGENT_PAT) as handle:
+        token = handle.read().strip()
+
+    login = attempt_login(env, token)
+    if login.returncode == 0:
+        return
+
+    # pass-cli keeps an encrypted SQLite database in the session directory whose
+    # key is derived from the token. `logout` leaves that database behind, so
+    # after the agent token is rotated the old database can no longer be
+    # decrypted and every login fails with an opaque sqlcipher "hmac check
+    # failed" error. This directory belongs solely to the resolver, so the
+    # correct repair is simply to rebuild it.
+    shutil.rmtree(SESSION_DIR, ignore_errors=True)
+    os.makedirs(SESSION_DIR, mode=0o700, exist_ok=True)
+
+    login = attempt_login(env, token)
+    if login.returncode != 0:
+        detail = (login.stderr or login.stdout).decode("utf8", "replace").strip().splitlines()
+        fail("agent PAT login failed: " + (detail[-1] if detail else "unknown error"))
+
+
+def resolve(refs, env):
+    """Resolve ordered `pass://` references to their values in one pass-cli call.
+
+    `pass-cli run` substitutes any environment variable whose value is a pass://
+    URI, so a single invocation covers every requested id. --no-masking is
+    required because the whole point is to emit the value on stdout; that stdout
+    is consumed by the Gateway, never written to a terminal or log.
+    """
+    run_env = dict(env)
+    names = []
+    for index, ref in enumerate(refs):
+        name = f"OPENCLAW_SECRET_{index}"
+        run_env[name] = ref
+        names.append(name)
+
+    printf_args = " ".join(f'"${name}"' for name in names)
+    child = f'printf "%s\\0" {printf_args}'
+
+    proc = subprocess.run(
+        [PASS, "run", "--no-masking", "--", "bash", "-c", child],
+        env=run_env,
+        capture_output=True,
+        timeout=TIMEOUT,
+    )
+    if proc.returncode != 0:
+        detail = (proc.stderr or b"").decode("utf8", "replace").strip().splitlines()
+        fail("pass-cli run failed: " + (detail[-1] if detail else "unknown error"))
+
+    # printf emits a trailing NUL after the last value, so drop the empty tail.
+    parts = proc.stdout.decode("utf8", "replace").split("\0")
+    if parts and parts[-1] == "":
+        parts.pop()
+    return parts
+
+
+def main():
+    # `--ensure-session` exposes the session bootstrap on its own so that other
+    # tools (openclaw-pass-run, the MCP auth proxy) can guarantee a usable agent
+    # session without reimplementing the stale-session and undecryptable-database
+    # recovery below. Keeping one implementation avoids the two copies drifting.
+    if "--ensure-session" in sys.argv[1:]:
+        ensure_session(pass_env())
+        return
+
+    try:
+        request = json.load(sys.stdin)
+    except Exception as exc:
+        fail(f"could not parse request: {exc}")
+
+    ids = request.get("ids") or []
+    if not ids:
+        json.dump({"protocolVersion": PROTOCOL_VERSION, "values": {}}, sys.stdout)
+        sys.stdout.write("\n")
+        return
+
+    try:
+        with open(SECRET_MAP) as handle:
+            mapping = json.load(handle)
+    except Exception as exc:
+        fail(f"could not read secret map {SECRET_MAP}: {exc}")
+
+    known = [i for i in ids if i in mapping]
+    values = {}
+    errors = {i: "NOT_FOUND" for i in ids if i not in mapping}
+
+    def entry_parts(spec):
+        """Normalise a map entry to (ref, prefix, suffix)."""
+        if isinstance(spec, str):
+            return spec, "", ""
+        return spec.get("ref", ""), spec.get("prefix", ""), spec.get("suffix", "")
+
+    if known:
+        env = pass_env()
+        ensure_session(env)
+        parts = [entry_parts(mapping[i]) for i in known]
+
+        malformed = [n for n, (ref, _, _) in zip(known, parts) if not ref]
+        for name in malformed:
+            errors[name] = "NOT_FOUND"
+        wanted = [(n, p) for n, p in zip(known, parts) if p[0]]
+
+        if wanted:
+            resolved = resolve([p[0] for _, p in wanted], env)
+            for (name, (_, prefix, suffix)), value in zip(wanted, resolved):
+                if value == "":
+                    # An unresolved reference comes back empty rather than failing.
+                    errors[name] = "NOT_FOUND"
+                else:
+                    values[name] = f"{prefix}{value}{suffix}"
+
+    response = {"protocolVersion": PROTOCOL_VERSION, "values": values}
+    if errors:
+        response["errors"] = errors
+    json.dump(response, sys.stdout)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    main()

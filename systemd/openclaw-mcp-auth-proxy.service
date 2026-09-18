@@ -1,0 +1,22 @@
+[Unit]
+Description=OpenClaw MCP auth proxy (Proton Pass credential injection)
+Documentation=https://github.com/TGTGamer/openclaw-proton-pass
+After=network-online.target
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+# %h is the unit owner's home directory, so this unit needs no rewriting for a
+# default install. install.sh substitutes an absolute path only when --prefix
+# puts the binaries somewhere else.
+ExecStart=%h/.local/bin/openclaw-mcp-auth-proxy
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+Environment=HOME=%h
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:%h/.local/bin
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
