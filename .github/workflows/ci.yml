@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Nx needs history to work out which projects are affected.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Typecheck, licence headers, 100% coverage thresholds, and the
+      # execution-depth report, in that order.
+      - name: Verify
+        run: pnpm verify
+
+      - name: Build the publishable package
+        run: pnpm exec nx run openclaw-proton-pass:build
+
+      - name: Check the published file list
+        working-directory: packages/openclaw-proton-pass
+        run: npm pack --dry-run
+
+      # The integration suite is skipped without a vault, but it must still
+      # compile and collect — a broken integration test should fail CI rather
+      # than be discovered at release time.
+      - name: Collect the integration suite
+        run: pnpm exec vitest run tests/integration --passWithNoTests

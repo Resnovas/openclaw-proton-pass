@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      specifier:
+        description: Explicit version or bump (blank = derive from conventional commits)
+        required: false
+        type: string
+      dry_run:
+        description: Preview only; nothing is tagged, pushed or published
+        required: false
+        type: boolean
+        default: false
+      first_release:
+        description: Tick for the first ever release, when no previous tag exists
+        required: false
+        type: boolean
+        default: false
+
+# contents: write creates the tag and the GitHub release.
+# id-token: write mints npm provenance and the ClawHub trusted-publishing token.
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # nx release pushes the version commit and tag back.
+          persist-credentials: true
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Identify the release commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Versions from conventional commits, writes CHANGELOG.md, commits, tags,
+      # pushes, and opens the GitHub release. preVersionCommand runs the full
+      # verify first, so a failing suite stops the release before it tags.
+      - name: Version, changelog, tag and GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm exec nx release ${{ inputs.specifier }} \
+            --yes \
+            --skip-publish \
+            ${{ inputs.first_release && '--first-release' || '' }} \
+            ${{ inputs.dry_run && '--dry-run' || '' }}
+
+      - name: Read the released version
+        id: version
+        run: echo "value=$(node -p "require('./packages/openclaw-proton-pass/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build the publishable package
+        run: pnpm exec nx run openclaw-proton-pass:build
+
+      - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: pnpm exec nx release publish --projects openclaw-proton-pass --access public
+
+      - name: Attach artefacts to the GitHub release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: packages/openclaw-proton-pass
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          # The bundles are the thing a non-npm user actually wants: four
+          # self-contained scripts that need only Node.
+          zip -j "$RUNNER_TEMP/openclaw-proton-pass-bin-${{ steps.version.outputs.value }}.zip" bin/*.mjs
+          gh release upload "v${{ steps.version.outputs.value }}" \
+            "$RUNNER_TEMP"/*.tgz \
+            "$RUNNER_TEMP/openclaw-proton-pass-bin-${{ steps.version.outputs.value }}.zip" \
+            --clobber
+
+      # ClawHub keeps a release out of public install surfaces until its
+      # security checks finish, so a failure here does not undo the npm release.
+      - name: Validate the plugin package
+        run: npx -y clawhub@0.23 package validate ./packages/openclaw-proton-pass
+
+      - name: Preview the ClawHub publish
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass --owner resnovas --dry-run --json
+
+      - name: Publish to ClawHub
+        if: ${{ !inputs.dry_run }}
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass --owner resnovas --json
