@@ -37,6 +37,7 @@
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { NodeContext } from "@effect/platform-node"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { PassSession } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Layer } from "effect"
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
@@ -52,7 +53,10 @@ afterEach(() => {
 
 const layer = Layer.provideMerge(
   PassSession.Default,
-  Layer.provideMerge(Paths.Default, NodeContext.layer)
+  Layer.provideMerge(
+    Layer.mergeAll(Paths.Default, Telemetry.Default),
+    NodeContext.layer
+  )
 )
 
 const ensureWith = (stub: StubBehaviour, options: { agentToken?: string | null } = {}) =>

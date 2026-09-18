@@ -175,3 +175,103 @@ describe("Telemetry when enabled", () => {
     expect(collector.received.length).toBeGreaterThan(0)
   })
 })
+
+describe("Telemetry when enabled: every capture kind", () => {
+  const enable = (url: string) => {
+    process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "true"
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_KEY"] = "phc_test"
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = url
+  }
+
+  it("reports an error by tag", async () => {
+    const collector = await startCollector()
+    enable(collector.url)
+    const result = await use((telemetry) =>
+      telemetry
+        .captureError("SessionError", "Error: x\n    at f (/home/someone/a.ts:1:1)")
+        .pipe(Effect.zipRight(telemetry.flush), Effect.as("sent"))
+    )
+    expect(result).toBe("sent")
+    expect(collector.received.length).toBeGreaterThan(0)
+  })
+
+  it("reports an error with no stack", async () => {
+    const collector = await startCollector()
+    enable(collector.url)
+    const result = await use((telemetry) =>
+      telemetry.captureError("Unknown").pipe(Effect.zipRight(telemetry.flush), Effect.as("sent"))
+    )
+    expect(result).toBe("sent")
+  })
+
+  it("reports a structured diagnostic", async () => {
+    const collector = await startCollector()
+    enable(collector.url)
+    await use((telemetry) =>
+      telemetry
+        .diagnostic("session.login_failed", "warn")
+        .pipe(Effect.zipRight(telemetry.flush))
+    )
+    expect(collector.received.length).toBeGreaterThan(0)
+  })
+
+  it("reports a diagnostic with an explicit count", async () => {
+    const collector = await startCollector()
+    enable(collector.url)
+    await use((telemetry) =>
+      telemetry
+        .diagnostic("resolver.empty_value", "warn", 4)
+        .pipe(Effect.zipRight(telemetry.flush))
+    )
+    expect(collector.received.length).toBeGreaterThan(0)
+  })
+
+  it("records a span around a succeeding effect and returns its value", async () => {
+    const collector = await startCollector()
+    enable(collector.url)
+    const value = await use((telemetry) =>
+      telemetry
+        .span("session.ensure", Effect.succeed("result"))
+        .pipe(Effect.tap(() => telemetry.flush))
+    )
+    expect(value).toBe("result")
+    expect(collector.received.length).toBeGreaterThan(0)
+  })
+
+  it("records a span around a failing effect and preserves the failure", async () => {
+    const collector = await startCollector()
+    enable(collector.url)
+    const outcome = await use((telemetry) =>
+      telemetry
+        .span("resolver.load_map", Effect.fail("boom" as const))
+        .pipe(Effect.either, Effect.tap(() => telemetry.flush))
+    )
+    expect(outcome._tag).toBe("Left")
+  })
+
+  it("records a span even when reporting is inert", async () => {
+    // The span wrapper must behave identically either way, or enabling
+    // telemetry would change program behaviour rather than just observation.
+    const value = await use((telemetry) => telemetry.span("cli.doctor", Effect.succeed(7)))
+    expect(value).toBe(7)
+  })
+
+  it("preserves a failure through an inert span", async () => {
+    const outcome = await use((telemetry) =>
+      telemetry.span("cli.setup", Effect.fail("nope" as const)).pipe(Effect.either)
+    )
+    expect(outcome._tag).toBe("Left")
+  })
+
+  it("accepts an inert diagnostic and error report", async () => {
+    const result = await use((telemetry) =>
+      telemetry
+        .diagnostic("cli.check_failed", "warn", 2)
+        .pipe(
+          Effect.zipRight(telemetry.captureError("ProtocolError")),
+          Effect.as("ok")
+        )
+    )
+    expect(result).toBe("ok")
+  })
+})

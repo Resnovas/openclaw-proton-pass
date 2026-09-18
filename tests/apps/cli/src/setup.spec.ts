@@ -37,6 +37,7 @@
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { NodeContext } from "@effect/platform-node"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Layer } from "effect"
 import { readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
@@ -50,7 +51,10 @@ afterEach(() => {
   workspace = undefined
 })
 
-const layer = Layer.provideMerge(Paths.Default, NodeContext.layer)
+const layer = Layer.provideMerge(
+  Layer.mergeAll(Paths.Default, Telemetry.Default),
+  NodeContext.layer
+)
 const run = () => Effect.runPromise(setup.pipe(Effect.provide(layer)))
 
 describe("systemdUnit", () => {

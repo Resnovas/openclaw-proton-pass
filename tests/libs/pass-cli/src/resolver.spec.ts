@@ -37,6 +37,7 @@
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { NodeContext } from "@effect/platform-node"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import type { SecretId } from "@resnovas/opp-domain"
 import { SecretResolver } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Layer, Redacted } from "effect"
@@ -51,7 +52,10 @@ afterEach(() => {
 
 const layer = Layer.provideMerge(
   SecretResolver.Default,
-  Layer.provideMerge(Paths.Default, NodeContext.layer)
+  Layer.provideMerge(
+    Layer.mergeAll(Paths.Default, Telemetry.Default),
+    NodeContext.layer
+  )
 )
 
 const id = (name: string) => name as SecretId

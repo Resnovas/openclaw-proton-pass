@@ -37,6 +37,7 @@
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { NodeContext } from "@effect/platform-node"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Fiber, Layer } from "effect"
 import { EventEmitter } from "node:events"
@@ -59,7 +60,12 @@ afterEach(async () => {
   workspace = undefined
 })
 
-const layer = Layer.mergeAll(SecretResolver.Default, PassSession.Default, Paths.Default).pipe(
+const layer = Layer.mergeAll(
+  SecretResolver.Default,
+  PassSession.Default,
+  Paths.Default,
+  Telemetry.Default
+).pipe(
   Layer.provideMerge(NodeContext.layer)
 )
 
@@ -302,6 +308,44 @@ describe("serve", () => {
     await expect(
       fetch(`http://127.0.0.1:${port}/example`).then((response) => response.text())
     ).rejects.toThrow()
+  })
+
+  it("relays a non-401 error status from the upstream", async () => {
+    // Reported as a failed request, but still relayed: the proxy does not
+    // reinterpret an upstream's application errors.
+    upstream = await startUpstream((_request, response) => {
+      response.writeHead(503)
+      response.end("unavailable")
+    })
+    const port = freePort()
+    workspace = makeWorkspace({
+      secretMap: '{"S":"pass://V/i/f"}',
+      proxyConfig: configure(port, upstream.url),
+      stub: { values: ["tok"] }
+    })
+    await startProxy(port)
+
+    const response = await fetch(`http://127.0.0.1:${port}/example`)
+    expect(response.status).toBe(503)
+    expect(await response.text()).toBe("unavailable")
+  })
+
+  it("relays a non-401 error after a credential refresh", async () => {
+    upstream = await startUpstream((_request, response, index) => {
+      response.writeHead(index === 0 ? 401 : 500)
+      response.end(index === 0 ? "stale" : "upstream broke")
+    })
+    const port = freePort()
+    workspace = makeWorkspace({
+      secretMap: '{"S":"pass://V/i/f"}',
+      proxyConfig: configure(port, upstream.url),
+      stub: { values: ["tok"] }
+    })
+    await startProxy(port)
+
+    const response = await fetch(`http://127.0.0.1:${port}/example`)
+    expect(response.status).toBe(500)
+    expect(upstream.requests).toHaveLength(2)
   })
 
   it("serves a DELETE as well as GET and POST", async () => {

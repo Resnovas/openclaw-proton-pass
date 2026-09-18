@@ -36,7 +36,7 @@
 
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { Effect, Exit } from "effect"
-import { existsSync, statSync } from "node:fs"
+import { existsSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { layer, run } from "../../../../apps/cli/src/app.js"
 import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
@@ -87,6 +87,16 @@ describe("cli", () => {
     workspace = makeWorkspace({ secretMap: "{}" })
     const result = await invoke([])
     expect(Exit.isSuccess(result)).toBe(true)
+  })
+
+  it("records a failed command rather than swallowing the failure", async () => {
+    // setup cannot create its directory under a regular file, so the command
+    // fails and the failure outcome is what gets reported.
+    workspace = makeWorkspace({})
+    writeFileSync(join(workspace.dir, "blocker"), "not a directory")
+    process.env["OPENCLAW_PROTONPASS_CONFIG_DIR"] = join(workspace.dir, "blocker", "config")
+    const result = await invoke(["setup"])
+    expect(Exit.isFailure(result)).toBe(true)
   })
 
   it("setup then doctor reports a healthy workspace", async () => {

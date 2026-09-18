@@ -37,6 +37,7 @@
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { NodeContext } from "@effect/platform-node"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Layer } from "effect"
 import { mkdirSync, rmSync } from "node:fs"
 import { doctor, renderChecks } from "../../../../apps/cli/src/doctor.js"
@@ -49,7 +50,10 @@ afterEach(() => {
   workspace = undefined
 })
 
-const layer = Layer.provideMerge(Paths.Default, NodeContext.layer)
+const layer = Layer.provideMerge(
+  Layer.mergeAll(Paths.Default, Telemetry.Default),
+  NodeContext.layer
+)
 const run = () => Effect.runPromise(doctor.pipe(Effect.provide(layer)))
 
 describe("renderChecks", () => {
