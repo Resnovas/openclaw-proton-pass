@@ -240,6 +240,15 @@ Events carry shape, never content: counts and durations. A denylist drops any
 property whose name suggests a secret, a vault path, a hostname or a URL, so the
 failure mode is a missing property rather than a leaked one.
 
+It covers product analytics, metrics, structured logs, tracing and error
+tracking. It cannot carry a secret: every event field is a number, a boolean, or
+a string from a fixed list declared in the source, so there is no field an
+arbitrary value can travel in.
+
+**[TELEMETRY.md](TELEMETRY.md) explains exactly how that works**, in plain
+language first and then precisely, along with what is collected, what can never
+be collected, and how both are tested.
+
 To report somewhere else, set `OPENCLAW_PROTONPASS_POSTHOG_KEY` and
 `OPENCLAW_PROTONPASS_POSTHOG_HOST`. To keep telemetry enabled while sending
 nothing anywhere, set the key to an empty string.
