@@ -34,7 +34,20 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { Config } from "effect"
+import { Config, Option, Redacted } from "effect"
+
+/**
+ * The project this build reports to when telemetry is switched on.
+ *
+ * A PostHog project API key is a write-only ingestion key, designed to ship
+ * inside clients, so embedding it is not a disclosure: it can send events and
+ * read nothing back. Shipping it means an operator who opts in gets working
+ * telemetry without first having to stand up a PostHog project.
+ */
+const DEFAULT_PROJECT_KEY = "phc_yfq4iNbRQcM3rs2DQFK5PXostffCAdx9DgGePjFZTvG3"
+
+/** The region that project lives in. */
+const DEFAULT_HOST = "https://eu.i.posthog.com"
 
 /**
  * Whether usage telemetry may leave this machine.
@@ -47,12 +60,24 @@ export const telemetryEnabled = Config.boolean("OPENCLAW_PROTONPASS_TELEMETRY").
   Config.withDefault(false)
 )
 
-/** PostHog project key, required only when telemetry is enabled. */
-export const telemetryProjectKey = Config.option(
-  Config.redacted("OPENCLAW_PROTONPASS_POSTHOG_KEY")
+/**
+ * The PostHog project key events are sent to.
+ *
+ * Set the variable to point a fork at its own project, or to the empty string
+ * to keep telemetry enabled while sending nowhere — which leaves an operator a
+ * way to switch off reporting to the default project without having to run a
+ * PostHog instance of their own.
+ */
+export const telemetryProjectKey = Config.string(
+  "OPENCLAW_PROTONPASS_POSTHOG_KEY"
+).pipe(
+  Config.withDefault(DEFAULT_PROJECT_KEY),
+  Config.map((value) =>
+    value.trim() === "" ? Option.none() : Option.some(Redacted.make(value.trim()))
+  )
 )
 
 /** PostHog ingestion host. */
 export const telemetryHost = Config.string("OPENCLAW_PROTONPASS_POSTHOG_HOST").pipe(
-  Config.withDefault("https://eu.i.posthog.com")
+  Config.withDefault(DEFAULT_HOST)
 )

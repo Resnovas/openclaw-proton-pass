@@ -96,9 +96,18 @@ describe("Telemetry when disabled", () => {
     expect(result).toBe("flushed")
   })
 
-  it("stays inert when enabled but given no project key", async () => {
-    // Enabling without a key must not half-configure the client.
+  it("stays inert when the project key is explicitly emptied", async () => {
+    // An operator who wants telemetry on but no reporting to the default
+    // project clears the key rather than having to run their own PostHog.
     process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "true"
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_KEY"] = ""
+    const active = await use((telemetry) => Effect.succeed(telemetry.active))
+    expect(active).toBe(false)
+  })
+
+  it("stays inert when the key is only whitespace", async () => {
+    process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "true"
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_KEY"] = "   "
     const active = await use((telemetry) => Effect.succeed(telemetry.active))
     expect(active).toBe(false)
   })
@@ -107,6 +116,14 @@ describe("Telemetry when disabled", () => {
     process.env["OPENCLAW_PROTONPASS_POSTHOG_KEY"] = "phc_test"
     const active = await use((telemetry) => Effect.succeed(telemetry.active))
     expect(active).toBe(false)
+  })
+
+  it("carries a default project so opting in needs no further setup", async () => {
+    // Enabling alone is enough: the build ships a write-only ingestion key.
+    process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "true"
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = "http://127.0.0.1:1"
+    const active = await use((telemetry) => Effect.succeed(telemetry.active))
+    expect(active).toBe(true)
   })
 })
 
