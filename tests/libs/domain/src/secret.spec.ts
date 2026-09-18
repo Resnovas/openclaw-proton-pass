@@ -51,7 +51,7 @@ const decodeMap = Schema.decodeUnknownEither(SecretMap)
 
 describe("SecretId", () => {
   it("accepts a non-empty name", () => {
-    expect(Either.isRight(decodeId("DEX_API_KEY"))).toBe(true)
+    expect(Either.isRight(decodeId("EXAMPLE_API_KEY"))).toBe(true)
   })
 
   it("rejects an empty name, which would silently match nothing", () => {

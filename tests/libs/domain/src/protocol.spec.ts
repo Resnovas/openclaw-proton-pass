@@ -45,7 +45,7 @@ describe("ResolveRequest", () => {
     const result = decode({
       protocolVersion: 1,
       provider: "protonpass",
-      ids: ["DEX_API_KEY"]
+      ids: ["EXAMPLE_API_KEY"]
     })
     expect(Either.isRight(result)).toBe(true)
   })
