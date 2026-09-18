@@ -34,4 +34,6 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+export * from "./events.js"
+export * from "./payload.js"
 export * from "./telemetry.js"

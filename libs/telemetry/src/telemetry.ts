@@ -35,57 +35,55 @@
  */
 
 import { telemetryEnabled, telemetryHost, telemetryProjectKey } from "@resnovas/opp-config"
-import { Effect, Option, Redacted } from "effect"
+import { Clock, Effect, Option, Redacted } from "effect"
 import { PostHog } from "posthog-node"
-
-/** An event this system is willing to report. */
-export interface TelemetryEvent {
-  readonly name: string
-  /**
-   * Properties must describe shape, never content: counts, durations, error
-   * tags. Anything derived from a secret, a vault path or a hostname is not
-   * permitted here, and {@link scrub} drops what slips through.
-   */
-  readonly properties?: Readonly<Record<string, string | number | boolean>>
-}
-
-/** Keys that could carry identifying or sensitive content. */
-const FORBIDDEN = /secret|token|password|key|ref|path|host|upstream|url|value/i
-
-/**
- * Remove properties whose names suggest they carry content rather than shape.
- *
- * A denylist on names is crude, but it fails safe: a property that should have
- * been sent is merely absent, whereas the alternative failure mode is shipping
- * a customer's vault path to an analytics service.
- *
- * @param properties - candidate event properties
- * @returns the subset safe to transmit
- */
-export const scrub = (
-  properties: Readonly<Record<string, string | number | boolean>>
-): Record<string, string | number | boolean> => {
-  const safe: Record<string, string | number | boolean> = {}
-  for (const [key, value] of Object.entries(properties)) {
-    if (!FORBIDDEN.test(key)) safe[key] = value
-  }
-  return safe
-}
+import type { ErrorTag, LogId, LogLevel, Outcome, SpanName, TelemetryEvent } from "./events.js"
+import { toProperties, toReportableError } from "./payload.js"
 
 /** What the telemetry service offers, whether or not reporting is enabled. */
 export interface TelemetryApi {
+  /** Report one analytics or metric event. */
   readonly capture: (event: TelemetryEvent) => Effect.Effect<void>
+  /** Report a failure to error tracking, by tag. */
+  readonly captureError: (tag: ErrorTag, stack?: string) => Effect.Effect<void>
+  /** Report a structured diagnostic. */
+  readonly diagnostic: (
+    logId: LogId,
+    level: LogLevel,
+    count?: number
+  ) => Effect.Effect<void>
+  /**
+   * Record an effect as a span: timed, named, and reported with its outcome.
+   *
+   * Wraps `Effect.withSpan`, so the span also exists in the Effect runtime for
+   * anyone attaching a local tracer, while what leaves the process is the
+   * guarded summary rather than the span's raw attributes.
+   */
+  readonly span: <A, E, R>(
+    name: SpanName,
+    effect: Effect.Effect<A, E, R>
+  ) => Effect.Effect<A, E, R>
+  /** Flush anything buffered. */
   readonly flush: Effect.Effect<void>
+  /** Whether reporting is actually on. */
   readonly active: boolean
 }
+
+/** The identity events are attributed to. */
+const DISTINCT_ID = "openclaw-proton-pass"
 
 /**
  * Usage reporting, off unless explicitly enabled.
  *
- * This tool handles other people's credentials, so telemetry is opt-in:
- * `OPENCLAW_PROTONPASS_TELEMETRY=true` plus a project key. With either absent
- * the service is a no-op that still type-checks at every call site, so callers
- * never branch on whether reporting is configured.
+ * Covers product analytics, metrics, structured logs, error tracking and
+ * tracing — all through one function, {@link toProperties}, which is the only
+ * place a property is built. Adding a capture path without going through it is
+ * the one mistake that could leak, so there is deliberately nowhere else to
+ * construct an event.
+ *
+ * Off by default: this tool handles other people's credentials, so reporting is
+ * something an operator turns on rather than something they must discover and
+ * turn off.
  */
 export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
   effect: Effect.gen(function* () {
@@ -93,9 +91,24 @@ export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
     const key = yield* telemetryProjectKey
     const host = yield* telemetryHost
 
+    /** Time an effect and report it as a span, whatever the service's state. */
+    const timedSpan =
+      (report: (name: SpanName, durationMs: number, outcome: Outcome) => Effect.Effect<void>) =>
+      <A, E, R>(name: SpanName, effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+        Effect.gen(function* () {
+          const started = yield* Clock.currentTimeMillis
+          const exit = yield* Effect.exit(effect)
+          const elapsed = (yield* Clock.currentTimeMillis) - started
+          yield* report(name, elapsed, exit._tag === "Success" ? "success" : "failure")
+          return yield* exit
+        }).pipe(Effect.withSpan(name))
+
     if (!enabled || Option.isNone(key)) {
       const inert: TelemetryApi = {
         capture: () => Effect.void,
+        captureError: () => Effect.void,
+        diagnostic: () => Effect.void,
+        span: timedSpan(() => Effect.void),
         flush: Effect.void,
         active: false
       }
@@ -104,16 +117,31 @@ export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
 
     const client = new PostHog(Redacted.value(key.value), { host })
 
+    /** Hand one event to the client. Reporting must never fail the caller. */
+    const send = (event: TelemetryEvent) =>
+      Effect.sync(() => {
+        client.capture({
+          distinctId: DISTINCT_ID,
+          event: event.name,
+          properties: toProperties(event)
+        })
+      }).pipe(Effect.ignore)
+
     const live: TelemetryApi = {
-      capture: (event: TelemetryEvent) =>
+      capture: send,
+      captureError: (tag, stack) =>
         Effect.sync(() => {
-          client.capture({
-            distinctId: "openclaw-proton-pass",
-            event: event.name,
-            properties: event.properties ? scrub(event.properties) : {}
+          // The original error never travels: its message is free text and its
+          // fields may hold a path. Only the tag and a sanitised stack do.
+          client.captureException(toReportableError(tag, stack), DISTINCT_ID, {
+            errorTag: tag
           })
-          // A failure to report must never fail the operation being reported.
         }).pipe(Effect.ignore),
+      diagnostic: (logId, level, count = 1) =>
+        send({ name: "diagnostic", logId, level, count }),
+      span: timedSpan((name, durationMs, outcome) =>
+        send({ name: "span_completed", span: name, durationMs, outcome })
+      ),
       flush: Effect.promise(() => client.shutdown()).pipe(Effect.ignore),
       active: true
     }
