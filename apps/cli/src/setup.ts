@@ -40,11 +40,18 @@ import { Effect } from "effect"
 import { execPath } from "node:process"
 import { fileURLToPath } from "node:url"
 
-/** The example secret map written when none exists. */
+/**
+ * The example secret map written when none exists.
+ *
+ * The example is Context7 because it is a real, free, open-source MCP server
+ * that takes an `Authorization: Bearer` key — so the entry demonstrates the
+ * decorated form against something a reader can actually try, rather than a
+ * placeholder they have to mentally substitute.
+ */
 const EXAMPLE_SECRET_MAP = `{
-  "EXAMPLE_API_KEY": "pass://OpenClaw/example.com/API Key",
-  "EXAMPLE_MCP_AUTHORIZATION": {
-    "ref": "pass://OpenClaw/example.com/API Key",
+  "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key",
+  "CONTEXT7_MCP_AUTHORIZATION": {
+    "ref": "pass://OpenClaw/context7.com/API Key",
     "prefix": "Bearer "
   }
 }
@@ -54,10 +61,10 @@ const EXAMPLE_SECRET_MAP = `{
 const EXAMPLE_PROXY_CONFIG = `{
   "listen": "127.0.0.1:18890",
   "routes": {
-    "/example": {
-      "upstream": "https://mcp.example.com/mcp",
+    "/context7": {
+      "upstream": "https://mcp.context7.com/mcp",
       "header": "Authorization",
-      "secretId": "EXAMPLE_MCP_AUTHORIZATION",
+      "secretId": "CONTEXT7_MCP_AUTHORIZATION",
       "timeoutSeconds": 120
     }
   }

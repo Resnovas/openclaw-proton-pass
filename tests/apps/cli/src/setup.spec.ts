@@ -87,7 +87,7 @@ describe("setup", () => {
   it("seeds both configuration files when absent", async () => {
     workspace = makeWorkspace({})
     await run()
-    expect(readFileSync(workspace.secretMap, "utf8")).toContain("EXAMPLE_API_KEY")
+    expect(readFileSync(workspace.secretMap, "utf8")).toContain("CONTEXT7_API_KEY")
     expect(readFileSync(workspace.proxyConfig, "utf8")).toContain("127.0.0.1:18890")
   })
 

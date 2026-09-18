@@ -120,13 +120,17 @@ Every read that token performs is recorded in `pass-cli agent monitor openclaw-g
 
 ```json
 {
-  "EXAMPLE_API_KEY": "pass://OpenClaw/example.com/API Key",
-  "EXAMPLE_MCP_AUTHORIZATION": {
-    "ref": "pass://OpenClaw/example.com/API Key",
+  "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key",
+  "CONTEXT7_MCP_AUTHORIZATION": {
+    "ref": "pass://OpenClaw/context7.com/API Key",
     "prefix": "Bearer "
   }
 }
 ```
+
+The examples use [Context7](https://github.com/upstash/context7), a free and
+open-source MCP server that authenticates with `Authorization: Bearer <key>`, so
+every example below can be run as written.
 
 The `prefix`/`suffix` form exists because one secret resolves to exactly one value, while an
 `Authorization` header needs a scheme in front of the token. Decorating at resolution keeps a single
@@ -154,7 +158,7 @@ Restart the Gateway afterwards.
 
 ```bash
 openclaw config set models.providers.openai.apiKey \
-  --ref-provider protonpass --ref-source exec --ref-id EXAMPLE_API_KEY
+  --ref-provider protonpass --ref-source exec --ref-id CONTEXT7_API_KEY
 ```
 
 ### Local (stdio) MCP servers
@@ -162,8 +166,8 @@ openclaw config set models.providers.openai.apiKey \
 ```json
 {
   "command": "openclaw-pass-run",
-  "args": ["npx", "-y", "some-mcp-server"],
-  "env": { "SOME_API_KEY": "pass://OpenClaw/example.com/API Key" }
+  "args": ["npx", "-y", "@upstash/context7-mcp"],
+  "env": { "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key" }
 }
 ```
 
@@ -175,10 +179,10 @@ Add a route to `~/.config/proton-pass-cli/openclaw-mcp-proxy.json`:
 {
   "listen": "127.0.0.1:18890",
   "routes": {
-    "/example": {
-      "upstream": "https://mcp.example.com/mcp",
+    "/context7": {
+      "upstream": "https://mcp.context7.com/mcp",
       "header": "Authorization",
-      "secretId": "EXAMPLE_MCP_AUTHORIZATION",
+      "secretId": "CONTEXT7_MCP_AUTHORIZATION",
       "timeoutSeconds": 120
     }
   }
@@ -187,7 +191,7 @@ Add a route to `~/.config/proton-pass-cli/openclaw-mcp-proxy.json`:
 
 ```bash
 systemctl --user enable --now openclaw-mcp-auth-proxy
-openclaw mcp add example --url http://127.0.0.1:18890/example --transport streamable-http
+openclaw mcp add context7 --url http://127.0.0.1:18890/context7 --transport streamable-http
 ```
 
 ## Verify
@@ -195,11 +199,11 @@ openclaw mcp add example --url http://127.0.0.1:18890/example --transport stream
 The resolver speaks the Gateway's protocol on stdin and stdout:
 
 ```bash
-echo '{"protocolVersion":1,"provider":"protonpass","ids":["EXAMPLE_API_KEY"]}' \
+echo '{"protocolVersion":1,"provider":"protonpass","ids":["CONTEXT7_API_KEY"]}' \
   | openclaw-protonpass-resolver
 ```
 
-A working provider answers `{"protocolVersion":1,"values":{"EXAMPLE_API_KEY":"..."}}`. An id missing
+A working provider answers `{"protocolVersion":1,"values":{"CONTEXT7_API_KEY":"..."}}`. An id missing
 from the map comes back under `errors` as `NOT_FOUND` rather than failing the batch.
 
 **stdout carries only protocol JSON.** All diagnostics go to stderr, because a log line interleaved
