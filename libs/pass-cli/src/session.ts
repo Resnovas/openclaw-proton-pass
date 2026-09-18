@@ -37,7 +37,8 @@
 import { Command, FileSystem } from "@effect/platform"
 import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import { MissingAgentTokenError, SessionError } from "@resnovas/opp-domain"
-import { Effect, Redacted } from "effect"
+import { Telemetry, type SessionPath } from "@resnovas/opp-telemetry"
+import { Clock, Effect, Redacted } from "effect"
 
 /**
  * A pass-cli session scoped to this provider alone.
@@ -53,6 +54,7 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
   effect: Effect.gen(function* () {
     const paths = yield* Paths
     const timeoutMillis = yield* commandTimeoutMillis
+    const telemetry = yield* Telemetry
     const fs = yield* FileSystem.FileSystem
 
     const baseEnv = {
@@ -121,10 +123,22 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
      * provider, so the correct repair is simply to rebuild it.
      */
     const ensure = Effect.gen(function* () {
-        if (yield* probe) return
+        const started = yield* Clock.currentTimeMillis
+
+        /** Report which of the three paths the bootstrap actually took. */
+        const settled = (sessionOutcome: SessionPath) =>
+          Effect.gen(function* () {
+            const durationMs = (yield* Clock.currentTimeMillis) - started
+            yield* telemetry.capture({ name: "session_established", sessionOutcome, durationMs })
+            return sessionOutcome
+          })
+
+        if (yield* probe) return yield* settled("reused")
+        yield* telemetry.diagnostic("session.probe_failed", "info")
 
         const token = yield* readToken
-        if (yield* attemptLogin(token)) return
+        if (yield* attemptLogin(token)) return yield* settled("logged-in")
+        yield* telemetry.diagnostic("session.login_failed", "warn")
 
         yield* fs.remove(paths.sessionDir, { recursive: true }).pipe(Effect.ignore)
         yield* fs
@@ -136,13 +150,14 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
             )
           )
 
-        if (yield* attemptLogin(token)) return
+        yield* telemetry.diagnostic("session.directory_rebuilt", "warn")
+        if (yield* attemptLogin(token)) return yield* settled("rebuilt")
         return yield* new SessionError({
           reason: "agent token login failed after rebuilding the session directory"
         })
-      })
+      }).pipe((self) => telemetry.span("session.ensure", self))
 
     return { ensure, baseEnv } as const
   }),
-  dependencies: [Paths.Default]
+  dependencies: [Paths.Default, Telemetry.Default]
 }) {}

@@ -45,6 +45,7 @@ import {
   type PassRef,
   type SecretId
 } from "@resnovas/opp-domain"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Redacted, Schema, Stream } from "effect"
 import { PassSession } from "./session.js"
 
@@ -67,11 +68,13 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
     const timeoutMillis = yield* commandTimeoutMillis
     const fs = yield* FileSystem.FileSystem
     const session = yield* PassSession
+    const telemetry = yield* Telemetry
     const decodeMap = Schema.decodeUnknown(SecretMap)
 
     /** Read and validate the secret map. */
     const loadMap = Effect.gen(function* () {
       const raw = yield* fs.readFileString(paths.secretMap).pipe(
+        Effect.tapError(() => telemetry.diagnostic("resolver.map_unreadable", "error")),
         Effect.mapError(
           (cause) => new SecretMapError({ path: paths.secretMap, reason: String(cause) })
         )
@@ -159,7 +162,10 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
         const map = yield* loadMap
         const known = ids.filter((id) => Object.hasOwn(map, id))
         for (const id of ids) {
-          if (!known.includes(id)) outcomes.set(id, { _tag: "NotFound" })
+          if (!known.includes(id)) {
+            outcomes.set(id, { _tag: "NotFound" })
+            yield* telemetry.diagnostic("resolver.id_not_in_map", "warn")
+          }
         }
         if (known.length === 0) return outcomes
 
@@ -169,12 +175,14 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
           entries.map((entry) => normaliseEntry(entry).ref)
         )
 
+        let notFoundFromEmpty = 0
         known.forEach((id, index) => {
           const raw = values[index]
           const entry = entries[index]!
           // An unresolved reference comes back empty rather than failing.
           if (raw === undefined || Redacted.value(raw) === "") {
             outcomes.set(id, { _tag: "NotFound" })
+            notFoundFromEmpty += 1
             return
           }
           outcomes.set(id, {
@@ -183,10 +191,13 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
           })
         })
 
+        if (notFoundFromEmpty > 0) {
+          yield* telemetry.diagnostic("resolver.empty_value", "warn", notFoundFromEmpty)
+        }
         return outcomes
-      })
+      }).pipe((self) => telemetry.span("resolver.resolve_refs", self))
 
     return { resolve, loadMap } as const
   }),
-  dependencies: [Paths.Default, PassSession.Default]
+  dependencies: [Paths.Default, PassSession.Default, Telemetry.Default]
 }) {}

@@ -39,12 +39,31 @@ import { Command as Cli } from "@effect/cli"
 import { NodeContext } from "@effect/platform-node"
 import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
 import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
-import { Effect, Layer } from "effect"
+import { Telemetry, type CommandName } from "@resnovas/opp-telemetry"
+import { Clock, Effect, Layer } from "effect"
 import { doctor } from "./doctor.js"
 import { setup } from "./setup.js"
 
-const doctorCommand = Cli.make("doctor", {}, () => doctor.pipe(Effect.asVoid))
-const setupCommand = Cli.make("setup", {}, () => setup)
+/** Time a subcommand and report its name and outcome — never its arguments. */
+const instrumented = <A, E, R>(command: CommandName, effect: Effect.Effect<A, E, R>) =>
+  Effect.gen(function* () {
+    const telemetry = yield* Telemetry
+    const started = yield* Clock.currentTimeMillis
+    const exit = yield* Effect.exit(effect)
+    yield* telemetry.capture({
+      name: "command_run",
+      command,
+      outcome: exit._tag === "Success" ? "success" : "failure",
+      durationMs: (yield* Clock.currentTimeMillis) - started
+    })
+    yield* telemetry.flush
+    return yield* exit
+  })
+
+const doctorCommand = Cli.make("doctor", {}, () =>
+  instrumented("doctor", doctor.pipe(Effect.asVoid))
+)
+const setupCommand = Cli.make("setup", {}, () => instrumented("setup", setup))
 
 const root = Cli.make("openclaw-proton-pass", {}, () =>
   Effect.logInfo("run `openclaw-proton-pass --help` to see the available commands")
@@ -58,5 +77,6 @@ export const run = Cli.run(root, {
 export const layer = Layer.mergeAll(
   SecretResolver.Default,
   PassSession.Default,
-  Paths.Default
+  Paths.Default,
+  Telemetry.Default
 ).pipe(Layer.provideMerge(NodeContext.layer), Layer.merge(StderrLoggerLive))

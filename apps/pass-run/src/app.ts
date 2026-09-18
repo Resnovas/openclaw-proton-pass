@@ -39,7 +39,8 @@ import { Command } from "@effect/platform"
 import { NodeContext } from "@effect/platform-node"
 import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
 import { PassSession } from "@resnovas/opp-pass-cli"
-import { Effect, Layer } from "effect"
+import { Telemetry } from "@resnovas/opp-telemetry"
+import { Clock, Effect, Layer } from "effect"
 import { parseArgv } from "./argv.js"
 
 /** Exit codes, following sysexits so a supervisor can tell the cases apart. */
@@ -67,6 +68,8 @@ export const main = Effect.gen(function* () {
 
   const paths = yield* Paths
   const session = yield* PassSession
+  const telemetry = yield* Telemetry
+  const started = yield* Clock.currentTimeMillis
 
   // Bootstrapping the session before exec means a credential failure is
   // reported as itself, rather than as the child mysteriously failing later.
@@ -93,12 +96,20 @@ export const main = Effect.gen(function* () {
     Command.exitCode
   )
 
+  yield* telemetry.capture({
+    name: "mcp_server_launched",
+    outcome: exitCode === 0 ? "success" : "failure",
+    exitCode,
+    durationMs: (yield* Clock.currentTimeMillis) - started
+  })
+  yield* telemetry.flush
+
   yield* Effect.sync(() => {
     process.exitCode = exitCode
   })
 })
 
-export const layer = Layer.mergeAll(PassSession.Default, Paths.Default).pipe(
+export const layer = Layer.mergeAll(PassSession.Default, Paths.Default, Telemetry.Default).pipe(
   Layer.provideMerge(NodeContext.layer),
   Layer.merge(StderrLoggerLive)
 )

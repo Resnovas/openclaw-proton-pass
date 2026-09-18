@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": { "openclaw-proton-pass": "./dist/main.js" },
+  "bin": {
+    "openclaw-proton-pass": "./dist/main.js"
+  },
   "dependencies": {
     "@effect/cli": "^0.77.2",
     "@effect/platform": "^0.97.2",
@@ -11,6 +13,7 @@
     "@resnovas/opp-config": "workspace:*",
     "@resnovas/opp-domain": "workspace:*",
     "@resnovas/opp-pass-cli": "workspace:*",
+    "@resnovas/opp-telemetry": "workspace:*",
     "effect": "^3.22.2"
   }
 }

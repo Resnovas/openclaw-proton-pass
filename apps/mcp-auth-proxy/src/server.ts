@@ -45,7 +45,8 @@ import {
   type SecretId
 } from "@resnovas/opp-domain"
 import { SecretResolver } from "@resnovas/opp-pass-cli"
-import { Cache, Duration, Effect, Option, Redacted, Runtime, Schema } from "effect"
+import { Telemetry } from "@resnovas/opp-telemetry"
+import { Cache, Clock, Duration, Effect, Option, Redacted, Runtime, Schema } from "effect"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import {
   matchRoute,
@@ -145,6 +146,7 @@ const respondJson = (response: ServerResponse, status: number, body: unknown) =>
 export const serve = Effect.gen(function* () {
   const config = yield* loadConfig
   const resolver = yield* SecretResolver
+  const telemetry = yield* Telemetry
   const { host, port } = splitAddress(config.listen)
 
   const cache = yield* Cache.make({
@@ -213,8 +215,36 @@ export const serve = Effect.gen(function* () {
 
   const handle = (request: IncomingMessage, response: ServerResponse) =>
     Effect.gen(function* () {
+      const started = yield* Clock.currentTimeMillis
+      let retried = false
+
+      /** Report the request's shape once its outcome is known. */
+      const report = (status: number, outcome: "success" | "failure") =>
+        telemetry.capture({
+          name: "proxy_request",
+          status,
+          durationMs: 0,
+          credentialRetried: retried,
+          outcome
+        }).pipe(
+          Effect.zipRight(
+            Clock.currentTimeMillis.pipe(
+              Effect.flatMap((now) =>
+                telemetry.capture({
+                  name: "span_completed",
+                  span: "proxy.handle_request",
+                  durationMs: now - started,
+                  outcome
+                })
+              )
+            )
+          )
+        )
+
       const route = matchRoute(config, requestUrl(request))
       if (Option.isNone(route)) {
+        yield* telemetry.diagnostic("proxy.route_not_found", "warn")
+        yield* report(404, "failure")
         return yield* respondJson(response, 404, {
           error: `no route for ${requestUrl(request)}`
         })
@@ -225,24 +255,34 @@ export const serve = Effect.gen(function* () {
       const first = yield* forward(route.value, request, body, secret)
 
       if (first.status !== 401) {
+        yield* report(first.status, first.status < 400 ? "success" : "failure")
         return yield* relay(first, response)
       }
 
       // A rejected credential is the one failure re-resolving can fix, so it is
       // distinguished from an ordinary application error.
       yield* Effect.logInfo(`upstream returned 401, refreshing credential`)
+      retried = true
+      yield* telemetry.diagnostic("proxy.credential_refreshed", "info")
       yield* cache.invalidate(route.value.secretId)
       const refreshed = yield* cache.get(route.value.secretId)
       const second = yield* forward(route.value, request, body, refreshed)
       if (second.status === 401) {
+        yield* report(401, "failure")
         return yield* respondJson(response, 401, {
           error: "upstream rejected the credential after refresh"
         })
       }
+      yield* report(second.status, second.status < 400 ? "success" : "failure")
       return yield* relay(second, response)
     }).pipe(
       Effect.catchAll((cause) =>
-        respondJson(response, 502, { error: `upstream error: ${cause}` })
+        telemetry
+          .diagnostic("proxy.upstream_unreachable", "error")
+          .pipe(
+            Effect.zipRight(telemetry.captureError("ProxyIoError")),
+            Effect.zipRight(respondJson(response, 502, { error: `upstream error: ${cause}` }))
+          )
       )
     )
 
@@ -262,6 +302,10 @@ export const serve = Effect.gen(function* () {
       yield* Effect.logInfo(
         `listening on ${host}:${port}; routes: ${Object.keys(config.routes).sort().join(", ")}`
       )
+      yield* telemetry.capture({
+        name: "proxy_started",
+        routes: Object.keys(config.routes).length
+      })
       return server
     }),
     (server) =>

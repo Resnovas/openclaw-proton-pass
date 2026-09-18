@@ -226,6 +226,9 @@ importers:
       '@resnovas/opp-pass-cli':
         specifier: workspace:*
         version: link:../../libs/pass-cli
+      '@resnovas/opp-telemetry':
+        specifier: workspace:*
+        version: link:../../libs/telemetry
       effect:
         specifier: ^3.22.2
         version: 3.22.2
@@ -247,6 +250,9 @@ importers:
       '@resnovas/opp-pass-cli':
         specifier: workspace:*
         version: link:../../libs/pass-cli
+      '@resnovas/opp-telemetry':
+        specifier: workspace:*
+        version: link:../../libs/telemetry
       effect:
         specifier: ^3.22.2
         version: 3.22.2
@@ -265,6 +271,9 @@ importers:
       '@resnovas/opp-pass-cli':
         specifier: workspace:*
         version: link:../../libs/pass-cli
+      '@resnovas/opp-telemetry':
+        specifier: workspace:*
+        version: link:../../libs/telemetry
       effect:
         specifier: ^3.22.2
         version: 3.22.2
@@ -322,6 +331,9 @@ importers:
       '@resnovas/opp-domain':
         specifier: workspace:*
         version: link:../domain
+      '@resnovas/opp-telemetry':
+        specifier: workspace:*
+        version: link:../telemetry
       effect:
         specifier: ^3.22.2
         version: 3.22.2

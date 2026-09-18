@@ -36,6 +36,7 @@
 
 import { FileSystem } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect } from "effect"
 
 /** One checked condition and whether it holds. */
@@ -68,6 +69,7 @@ export const renderChecks = (checks: ReadonlyArray<Check>): ReadonlyArray<string
 export const doctor = Effect.gen(function* () {
   const paths = yield* Paths
   const fs = yield* FileSystem.FileSystem
+  const telemetry = yield* Telemetry
 
   const present = (path: string) =>
     fs.exists(path).pipe(Effect.orElseSucceed(() => false))
@@ -92,6 +94,13 @@ export const doctor = Effect.gen(function* () {
   const failed = checks.filter((check) => !check.ok).length
   if (failed > 0) {
     yield* Effect.logWarning(`${failed} check(s) need attention`)
+    yield* telemetry.diagnostic("cli.check_failed", "warn", failed)
   }
+  // Counts only: which check failed is shape, the paths in its label are not.
+  yield* telemetry.capture({
+    name: "doctor_report",
+    passed: checks.length - failed,
+    failed
+  })
   return checks
-})
+}).pipe((self) => Effect.flatMap(Telemetry, (t) => t.span("cli.doctor", self)))

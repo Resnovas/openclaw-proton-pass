@@ -88,16 +88,24 @@ const ensureSessionOnly = Effect.gen(function* () {
 )
 
 const resolveRequest = Effect.gen(function* () {
+  const telemetry = yield* Telemetry
   const raw = yield* readStdin
   const request = yield* parseRequest(raw)
   const response = yield* handle(request)
   yield* writeResponse(response)
+  // The resolver is short-lived: the Gateway reads one response and the
+  // process exits. Without an explicit flush the client's buffer is discarded
+  // on exit and nothing is ever reported.
+  yield* telemetry.flush
   // A protocol-level failure exits non-zero even though a response was written,
   // so a supervisor sees the failure rather than an apparently clean run.
   if (response.error !== undefined) yield* failQuietly
 }).pipe(
   Effect.catchTag("ProtocolError", (cause) =>
-    writeResponse(protocolFailure(cause.reason)).pipe(Effect.zipRight(failQuietly))
+    writeResponse(protocolFailure(cause.reason)).pipe(
+      Effect.zipRight(Effect.flatMap(Telemetry, (telemetry) => telemetry.flush)),
+      Effect.zipRight(failQuietly)
+    )
   )
 )
 

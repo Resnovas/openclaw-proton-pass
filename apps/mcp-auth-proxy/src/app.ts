@@ -38,6 +38,7 @@
 import { NodeContext } from "@effect/platform-node"
 import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
 import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Layer } from "effect"
 import { serve } from "./server.js"
 
@@ -58,5 +59,6 @@ export const main = serve.pipe(
 export const layer = Layer.mergeAll(
   SecretResolver.Default,
   PassSession.Default,
-  Paths.Default
+  Paths.Default,
+  Telemetry.Default
 ).pipe(Layer.provideMerge(NodeContext.layer), Layer.merge(StderrLoggerLive))

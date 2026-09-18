@@ -42,8 +42,9 @@ import {
   type ResolveResponse
 } from "@resnovas/opp-domain"
 import { SecretResolver } from "@resnovas/opp-pass-cli"
+import type { ErrorTag } from "@resnovas/opp-telemetry"
 import { Telemetry } from "@resnovas/opp-telemetry"
-import { Effect, Redacted, Schema } from "effect"
+import { Clock, Effect, Redacted, Schema } from "effect"
 
 const decodeRequest = Schema.decodeUnknown(ResolveRequest)
 
@@ -79,20 +80,28 @@ export const handle = (request: ResolveRequest) =>
   Effect.gen(function* () {
     const resolver = yield* SecretResolver
     const telemetry = yield* Telemetry
+    const started = yield* Clock.currentTimeMillis
 
+    // The tag is the only part of a domain error that may be reported: the
+    // fields carry paths and the message is free text.
+    let failureTag: ErrorTag = "Unknown"
     const outcomes = yield* resolver.resolve(request.ids).pipe(
       Effect.catchAll((cause) =>
-        Effect.succeed(cause).pipe(
-          Effect.tap(() => Effect.logError(`resolution failed: ${cause._tag}`)),
-          Effect.as(undefined)
-        )
+        Effect.gen(function* () {
+          failureTag = cause._tag
+          yield* Effect.logError(`resolution failed: ${cause._tag}`)
+          yield* telemetry.captureError(cause._tag, cause.stack)
+          return undefined
+        })
       )
     )
 
     if (outcomes === undefined) {
       yield* telemetry.capture({
-        name: "resolve_failed",
-        properties: { requested: request.ids.length }
+        name: "provider_failed",
+        requested: request.ids.length,
+        errorTag: failureTag,
+        durationMs: (yield* Clock.currentTimeMillis) - started
       })
       const failure: ResolveResponse = {
         protocolVersion: PROTOCOL_VERSION,
@@ -109,12 +118,13 @@ export const handle = (request: ResolveRequest) =>
     }
 
     yield* telemetry.capture({
-      name: "resolve_completed",
-      properties: {
-        requested: request.ids.length,
-        resolved: Object.keys(values).length,
-        missing: Object.keys(errors).length
-      }
+      name: "provider_resolved",
+      requested: request.ids.length,
+      resolved: Object.keys(values).length,
+      missing: Object.keys(errors).length,
+      decorated: 0,
+      durationMs: (yield* Clock.currentTimeMillis) - started,
+      sessionOutcome: "reused"
     })
 
     const response: ResolveResponse =

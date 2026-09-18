@@ -36,6 +36,7 @@
 
 import { FileSystem, Path } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
+import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect } from "effect"
 import { execPath } from "node:process"
 import { fileURLToPath } from "node:url"
@@ -112,6 +113,7 @@ export const setup = Effect.gen(function* () {
   const paths = yield* Paths
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
+  const telemetry = yield* Telemetry
 
   yield* fs.makeDirectory(paths.configDir, { recursive: true })
   yield* fs.chmod(paths.configDir, 0o700)
@@ -126,6 +128,7 @@ export const setup = Effect.gen(function* () {
       }
       yield* fs.writeFileString(target, contents)
       yield* fs.chmod(target, 0o600)
+      yield* telemetry.diagnostic("cli.config_seeded", "info")
       yield* Effect.logInfo(
         `${path.basename(target)} seeded from the example — edit it before use`
       )
