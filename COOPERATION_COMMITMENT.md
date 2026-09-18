@@ -1,41 +1,46 @@
 # Resnovas Cooperation Commitment
 
-Adapted from the [GPL Cooperation Commitment][gplcc], which exists so that an
-inadvertent, curable licence violation does not become a lawsuit.
-
-## The commitment
+Version 1.1
 
 Before filing or continuing to prosecute any legal proceeding or claim (other
-than a Defensive Action) arising from termination of a Covered Licence, we
-commit to extending to the person or entity ("you") accused of violating the
-licence the following provisions, adapted from GPLv3:
+than a Defensive Action) arising from termination of a Covered License, we
+commit to extend to the person or entity ('you') accused of violating the
+Covered License the following provisions regarding cure and reinstatement, taken
+from GPL version 3. As used here, the term 'this License' refers to the specific
+Covered License being enforced.
 
-> However, if you cease all violation of this Licence, then your licence from a
+> However, if you cease all violation of this License, then your license from a
 > particular copyright holder is reinstated (a) provisionally, unless and until
-> the copyright holder explicitly and finally terminates your licence, and (b)
+> the copyright holder explicitly and finally terminates your license, and (b)
 > permanently, if the copyright holder fails to notify you of the violation by
 > some reasonable means prior to 60 days after the cessation.
 >
-> Moreover, your licence from a particular copyright holder is reinstated
+> Moreover, your license from a particular copyright holder is reinstated
 > permanently if the copyright holder notifies you of the violation by some
 > reasonable means, this is the first time you have received notice of violation
-> of this Licence (for any work) from that copyright holder, and you cure the
+> of this License (for any work) from that copyright holder, and you cure the
 > violation prior to 30 days after your receipt of the notice.
 
-We intend this commitment to be irrevocable and binding, and enforceable by you
-against us.
+We intend this Commitment to be irrevocable, and binding and enforceable against
+us and assignees of or successors to our copyrights.
 
 ## Definitions
 
-**Covered Licence** — the Fair Core License, Version 1.0, MIT Future License
-(FCL-1.0-MIT) under which this project is released.
+'Covered License' means the GNU General Public License, version 2 (GPLv2), the
+GNU Lesser General Public License, version 2.1 (LGPLv2.1), or the GNU Library
+General Public License, version 2 (LGPLv2), all as published by the Free Software
+Foundation; or the Functional Source License, Version 1.1, MIT Future License
+(FSL-1.1-MIT), or the Fair Core License, Version 1.0, MIT Future License
+(FCL-1.0-MIT) as published by Fair.io.
 
-**Defensive Action** — a legal proceeding or claim brought in response to a
-proceeding or claim you brought first, or brought against us by you or an
-affiliate of yours.
+'Defensive Action' means a legal proceeding or claim that We bring against you in
+response to a prior proceeding or claim initiated by you or your affiliate.
 
-## Questions
+'We' means each contributor to this repository as of the date of inclusion of
+this file, including subsidiaries of a corporate contributor.
 
-Write to **hello@resnovas.com**.
+---
 
-[gplcc]: https://gplcc.github.io/gplcc/
+This work is available under a
+[Creative Commons Attribution-ShareAlike 4.0 International license](https://creativecommons.org/licenses/by-sa/4.0/).
+It is the Eventiva Cooperation Commitment, Version 1.1, adopted for this project.
