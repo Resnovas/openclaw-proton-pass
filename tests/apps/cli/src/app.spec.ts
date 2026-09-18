@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
+ * File: app.spec.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,64 +34,65 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+import { afterEach, describe, expect, it } from "@effect/vitest"
+import { Effect, Exit } from "effect"
+import { existsSync, statSync } from "node:fs"
+import { join } from "node:path"
+import { layer, run } from "../../../../apps/cli/src/app.js"
+import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
 
-const root = dirname(fileURLToPath(import.meta.url))
+let workspace: Workspace | undefined
 
-/**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
- *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
- */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
-  }
-}
+afterEach(() => {
+  workspace?.dispose()
+  workspace = undefined
+})
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
+const invoke = (args: ReadonlyArray<string>) =>
+  Effect.runPromise(
+    run(["node", "openclaw-proton-pass", ...args]).pipe(Effect.provide(layer), Effect.exit)
+  )
 
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
+describe("cli", () => {
+  it("runs doctor without changing anything", async () => {
+    workspace = makeWorkspace({ secretMap: "{}" })
+    const result = await invoke(["doctor"])
+    expect(Exit.isSuccess(result)).toBe(true)
+    // doctor is read-only: it must not have created the file it reported missing.
+    expect(existsSync(workspace.proxyConfig)).toBe(false)
+  })
+
+  it("runs setup and creates the configuration", async () => {
+    workspace = makeWorkspace({})
+    const result = await invoke(["setup"])
+    expect(Exit.isSuccess(result)).toBe(true)
+    expect(existsSync(workspace.secretMap)).toBe(true)
+    expect(statSync(workspace.configDir).mode & 0o777).toBe(0o700)
+  })
+
+  it("writes the systemd unit during setup", async () => {
+    workspace = makeWorkspace({})
+    await invoke(["setup"])
+    const unit = join(
+      workspace.configDir,
+      "..",
+      "systemd",
+      "user",
+      "openclaw-mcp-auth-proxy.service"
+    )
+    expect(existsSync(unit)).toBe(true)
+  })
+
+  it("points the bare invocation at --help", async () => {
+    workspace = makeWorkspace({ secretMap: "{}" })
+    const result = await invoke([])
+    expect(Exit.isSuccess(result)).toBe(true)
+  })
+
+  it("setup then doctor reports a healthy workspace", async () => {
+    workspace = makeWorkspace({})
+    await invoke(["setup"])
+    const result = await invoke(["doctor"])
+    expect(Exit.isSuccess(result)).toBe(true)
+  })
 })

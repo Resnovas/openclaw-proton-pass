@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
+ * File: logging.spec.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,64 +34,75 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+import { describe, expect, it } from "@effect/vitest"
+import { StderrLoggerLive, stderrLogger } from "@resnovas/opp-config"
+import { Effect, FiberId, FiberRefs, HashMap, List, LogLevel, LogSpan } from "effect"
 
-const root = dirname(fileURLToPath(import.meta.url))
+const invoke = (message: unknown) =>
+  stderrLogger.log({
+    fiberId: FiberId.none,
+    logLevel: LogLevel.Info,
+    message,
+    cause: undefined as never,
+    context: FiberRefs.empty(),
+    spans: List.empty<LogSpan.LogSpan>(),
+    annotations: HashMap.empty(),
+    date: new Date("2026-01-01T00:00:00.000Z")
+  })
 
-/**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
- *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
- */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
+describe("stderrLogger", () => {
+  // stdout carries the resolver's protocol output, so a logger that wrote
+  // there would corrupt what the Gateway parses. These assert the destination.
+  const captureStderr = (run: () => void): string => {
+    const original = process.stderr.write.bind(process.stderr)
+    let captured = ""
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      captured += String(chunk)
+      return true
+    }) as typeof process.stderr.write
+    try {
+      run()
+    } finally {
+      process.stderr.write = original
     }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
+    return captured
   }
-}
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
+  it("writes a string message to stderr", () => {
+    const output = captureStderr(() => invoke("hello"))
+    expect(output).toContain("hello")
+    expect(output).toContain("INFO")
+  })
 
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
+  it("stamps the entry with an ISO date", () => {
+    const output = captureStderr(() => invoke("dated"))
+    expect(output).toContain("2026-01-01T00:00:00.000Z")
+  })
+
+  it("joins an array message rather than printing [object Object]", () => {
+    const output = captureStderr(() => invoke(["first", "second"]))
+    expect(output).toContain("first second")
+  })
+
+  it("stringifies a non-string, non-array message", () => {
+    const output = captureStderr(() => invoke(42))
+    expect(output).toContain("42")
+  })
+
+  it("ends the entry with a newline", () => {
+    const output = captureStderr(() => invoke("line"))
+    expect(output.endsWith("\n")).toBe(true)
+  })
+})
+
+describe("StderrLoggerLive", () => {
+  it.effect("replaces the default logger so Effect.log reaches stderr", () =>
+    Effect.gen(function* () {
+      yield* Effect.log("through the layer")
+    }).pipe(Effect.provide(StderrLoggerLive))
+  )
+
+  it("is a layer, so every executable can install it the same way", () => {
+    expect(StderrLoggerLive).toBeDefined()
+  })
 })

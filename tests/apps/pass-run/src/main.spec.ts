@@ -35,7 +35,7 @@
  */
 
 import { describe, expect, it } from "@effect/vitest"
-import { parseArgv } from "../../../../apps/pass-run/dist/argv.js"
+import { parseArgv } from "../../../../apps/pass-run/src/argv.js"
 
 describe("parseArgv", () => {
   it("passes a plain command through", () => {

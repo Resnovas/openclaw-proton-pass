@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
+ * File: upstream.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,64 +34,56 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
+import type { AddressInfo } from "node:net"
 
-const root = dirname(fileURLToPath(import.meta.url))
+export interface Upstream {
+  readonly url: string
+  readonly requests: Array<{ method: string; headers: Record<string, string | undefined> }>
+  readonly close: () => Promise<void>
+}
 
 /**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
+ * A stand-in MCP server.
  *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
+ * `handler` decides each response, so a test can make the upstream reject the
+ * first credential and accept the second — the sequence the proxy's refresh
+ * path exists for.
  */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
+export const startUpstream = async (
+  handler: (
+    request: IncomingMessage,
+    response: ServerResponse,
+    index: number
+  ) => void
+): Promise<Upstream> => {
+  const requests: Array<{ method: string; headers: Record<string, string | undefined> }> = []
+  let index = 0
+  const server: Server = createServer((request, response) => {
+    requests.push({ method: request.method ?? "", headers: { ...request.headers } })
+    handler(request, response, index++)
+  })
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const { port } = server.address() as AddressInfo
+  return {
+    url: `http://127.0.0.1:${port}/mcp`,
+    requests,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve()))
   }
 }
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
-
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
+/** Wait until a TCP port answers, so a test never races the listener. */
+export const waitForPort = async (port: number, attempts = 100): Promise<void> => {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      await fetch(`http://127.0.0.1:${port}/__probe`, { method: "GET" })
+      return
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 20))
     }
   }
-})
+  throw new Error(`port ${port} never answered`)
+}
+
+/** An ephemeral port number that is very unlikely to collide. */
+export const freePort = (): number => 20000 + Math.floor(Math.random() * 20000)

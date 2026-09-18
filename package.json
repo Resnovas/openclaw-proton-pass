@@ -17,15 +17,20 @@
   "scripts": {
     "build": "nx run-many -t build",
     "check": "nx run-many -t check",
-    "test": "nx run-many -t test",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "coverage:depth": "node --experimental-strip-types scripts/coverage-depth.ts",
     "lint:headers": "node --experimental-strip-types scripts/check-headers.ts",
-    "verify": "pnpm check && pnpm lint:headers && pnpm test"
+    "verify": "pnpm check && pnpm lint:headers && pnpm coverage && pnpm coverage:depth"
   },
   "devDependencies": {
+    "@effect/platform": "^0.97.2",
+    "@effect/platform-node": "^0.108.2",
     "@effect/vitest": "^0.30.0",
     "@resnovas/opp-domain": "workspace:*",
     "@resnovas/opp-telemetry": "workspace:*",
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^3.2.7",
     "effect": "^3.22.2",
     "nx": "^23.2.1",
     "typescript": "^5.9.0",

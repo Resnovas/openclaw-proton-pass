@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
+ * File: process.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,64 +34,80 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+import { Readable } from "node:stream"
 
-const root = dirname(fileURLToPath(import.meta.url))
-
-/**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
- *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
- */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
+/** Replace process.stdin with a readable carrying `input`, and restore after. */
+export const withStdin = async <A>(input: string, run: () => Promise<A>): Promise<A> => {
+  const original = Object.getOwnPropertyDescriptor(process, "stdin")
+  Object.defineProperty(process, "stdin", {
+    value: Readable.from([Buffer.from(input)]),
+    configurable: true
+  })
+  try {
+    return await run()
+  } finally {
+    if (original !== undefined) Object.defineProperty(process, "stdin", original)
   }
 }
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
-
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry")
+/** Replace process.stdin with a stream that errors, to exercise the read failure. */
+export const withFailingStdin = async <A>(run: () => Promise<A>): Promise<A> => {
+  const original = Object.getOwnPropertyDescriptor(process, "stdin")
+  const broken = new Readable({
+    read() {
+      this.destroy(new Error("stdin exploded"))
     }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
+  })
+  Object.defineProperty(process, "stdin", { value: broken, configurable: true })
+  try {
+    return await run()
+  } finally {
+    if (original !== undefined) Object.defineProperty(process, "stdin", original)
   }
-})
+}
+
+/** Capture everything written to stdout while `run` executes. */
+export const captureStdout = async <A>(
+  run: () => Promise<A>
+): Promise<{ result: A; output: string }> => {
+  const original = process.stdout.write.bind(process.stdout)
+  let output = ""
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    output += String(chunk)
+    return true
+  }) as typeof process.stdout.write
+  try {
+    const result = await run()
+    return { result, output }
+  } finally {
+    process.stdout.write = original
+  }
+}
+
+/** Run with a replaced argv, restoring it afterwards. */
+export const withArgv = async <A>(
+  argv: ReadonlyArray<string>,
+  run: () => Promise<A>
+): Promise<A> => {
+  const original = process.argv
+  process.argv = ["node", "entry", ...argv]
+  try {
+    return await run()
+  } finally {
+    process.argv = original
+  }
+}
+
+/** Record and reset process.exitCode around a run. */
+export const withExitCode = async <A>(
+  run: () => Promise<A>
+): Promise<{ result: A; exitCode: number | string | undefined }> => {
+  const original = process.exitCode
+  process.exitCode = undefined
+  try {
+    const result = await run()
+    return { result, exitCode: process.exitCode }
+  } finally {
+    process.exitCode = original
+  }
+}

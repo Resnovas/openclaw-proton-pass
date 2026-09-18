@@ -40,8 +40,11 @@ import { Option } from "effect"
 import {
   HOP_BY_HOP,
   matchRoute,
-  outboundHeaders
-} from "../../../../apps/mcp-auth-proxy/dist/routing.js"
+  outboundHeaders,
+  relayHeaders,
+  requestMethod,
+  requestUrl
+} from "../../../../apps/mcp-auth-proxy/src/routing.js"
 
 const route: Route = {
   upstream: "https://mcp.example.com/mcp",
@@ -120,5 +123,111 @@ describe("outboundHeaders", () => {
       0
     )
     expect(headers["Authorization"]).toBe("Bearer real")
+  })
+})
+
+describe("matchRoute edge cases", () => {
+  it("falls back to the root path for an empty URL", () => {
+    // An empty request URL must not throw; with no root route it matches none.
+    expect(Option.isNone(matchRoute(config, ""))).toBe(true)
+  })
+
+  it("matches a configured root route for an empty URL", () => {
+    const rooted = { listen: "127.0.0.1:18890", routes: { "/": route } } as unknown as ProxyConfig
+    expect(Option.isSome(matchRoute(rooted, ""))).toBe(true)
+  })
+
+  it("matches a route whose key carries a trailing slash", () => {
+    const slashed = {
+      listen: "127.0.0.1:18890",
+      routes: { "/example/": route }
+    } as unknown as ProxyConfig
+    expect(Option.isSome(matchRoute(slashed, "/example"))).toBe(true)
+  })
+
+  it("collapses repeated trailing slashes", () => {
+    expect(Option.isSome(matchRoute(config, "/example///"))).toBe(true)
+  })
+
+  it("matches a root route when one is configured", () => {
+    const rooted = { listen: "127.0.0.1:18890", routes: { "/": route } } as unknown as ProxyConfig
+    expect(Option.isSome(matchRoute(rooted, "/"))).toBe(true)
+  })
+})
+
+describe("outboundHeaders edge cases", () => {
+  it("joins a repeated header into one value", () => {
+    const headers = outboundHeaders({ accept: ["a", "b"] }, route, "t", "h", 0)
+    expect(headers["accept"]).toBe("a, b")
+  })
+
+  it("skips a header whose value is undefined", () => {
+    const headers = outboundHeaders({ absent: undefined }, route, "t", "h", 0)
+    expect(Object.hasOwn(headers, "absent")).toBe(false)
+  })
+
+  it("uses the route's custom header name", () => {
+    const custom = { ...route, header: "X-Api-Key" }
+    const headers = outboundHeaders({}, custom, "secret", "h", 0)
+    expect(headers["X-Api-Key"]).toBe("secret")
+    expect(headers["Authorization"]).toBeUndefined()
+  })
+})
+
+describe("requestMethod", () => {
+  it("uses the method the client sent", () => {
+    expect(requestMethod({ method: "POST" })).toBe("POST")
+  })
+
+  it("defaults to GET when Node reports no method", () => {
+    expect(requestMethod({})).toBe("GET")
+  })
+
+  it("treats an explicit undefined as absent", () => {
+    expect(requestMethod({ method: undefined })).toBe("GET")
+  })
+})
+
+describe("requestUrl", () => {
+  it("uses the URL the client sent", () => {
+    expect(requestUrl({ url: "/example" })).toBe("/example")
+  })
+
+  it("defaults to the root path when there is none", () => {
+    expect(requestUrl({})).toBe("/")
+  })
+
+  it("treats an explicit undefined as absent", () => {
+    expect(requestUrl({ url: undefined })).toBe("/")
+  })
+})
+
+describe("relayHeaders", () => {
+  it("passes an ordinary header through", () => {
+    expect(relayHeaders([["content-type", "application/json"]])["content-type"]).toBe(
+      "application/json"
+    )
+  })
+
+  it("drops Content-Length, because the body may be an open stream", () => {
+    const relayed = relayHeaders([["Content-Length", "42"]])
+    expect(relayed["Content-Length"]).toBeUndefined()
+  })
+
+  it("drops Content-Length whatever its casing", () => {
+    expect(relayHeaders([["content-length", "42"]])["content-length"]).toBeUndefined()
+  })
+
+  it("always closes the connection, so framing is read-until-close", () => {
+    expect(relayHeaders([])["Connection"]).toBe("close")
+  })
+
+  it("keeps every other header alongside Connection", () => {
+    const relayed = relayHeaders([
+      ["content-type", "text/event-stream"],
+      ["content-length", "9"],
+      ["cache-control", "no-cache"]
+    ])
+    expect(Object.keys(relayed).sort()).toEqual(["Connection", "cache-control", "content-type"])
   })
 })
