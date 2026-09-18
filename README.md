@@ -236,5 +236,5 @@ it at the default.
 
 ## License
 
-[FSL-1.1-MIT](LICENSE) — Functional Source License with an MIT future: source-available now,
-MIT-licensed two years after release.
+[FCL-1.0-MIT](LICENSE) — Fair Core License with an MIT future: source-available now,
+MIT-licensed on the second anniversary of each release.
