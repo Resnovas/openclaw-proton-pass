@@ -35,72 +35,8 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { Command } from "@effect/platform"
-import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
-import { PassSession } from "@resnovas/opp-pass-cli"
-import { Effect, Layer } from "effect"
-import { parseArgv } from "./argv.js"
-
-/** Exit codes, following sysexits so a supervisor can tell the cases apart. */
-const EX_USAGE = 64
-const EX_UNAVAILABLE = 69
-
-const exitWith = (code: number, message: string) =>
-  Effect.logError(message).pipe(
-    Effect.zipRight(
-      Effect.sync(() => {
-        process.exitCode = code
-      })
-    )
-  )
-
-const main = Effect.gen(function* () {
-  const argv = parseArgv(process.argv.slice(2))
-  const command = argv[0]
-  if (command === undefined) {
-    return yield* exitWith(
-      EX_USAGE,
-      "openclaw-pass-run: no command given\nusage: openclaw-pass-run <command> [args...]"
-    )
-  }
-
-  const paths = yield* Paths
-  const session = yield* PassSession
-
-  // Bootstrapping the session before exec means a credential failure is
-  // reported as itself, rather than as the child mysteriously failing later.
-  const ready = yield* session.ensure.pipe(Effect.either)
-  if (ready._tag === "Left") {
-    return yield* exitWith(
-      EX_UNAVAILABLE,
-      `openclaw-pass-run: could not establish a Proton Pass agent session (${ready.left._tag})\n` +
-        `  check: PROTON_PASS_SESSION_DIR=${paths.sessionDir} ${paths.passCli} info`
-    )
-  }
-
-  // stdio is inherited so the launched MCP server owns the transport directly:
-  // OpenClaw manages a stdio server by its pid and its streams, and an extra
-  // process in between would break both signal delivery and the protocol.
-  const exitCode = yield* Command.make(paths.passCli, "run", "--", ...argv).pipe(
-    Command.env({
-      ...session.baseEnv,
-      PROTON_PASS_AGENT_REASON: `MCP server launch: ${command}`
-    }),
-    Command.stdin("inherit"),
-    Command.stdout("inherit"),
-    Command.stderr("inherit"),
-    Command.exitCode
-  )
-
-  yield* Effect.sync(() => {
-    process.exitCode = exitCode
-  })
-})
-
-const layer = Layer.mergeAll(PassSession.Default, Paths.Default).pipe(
-  Layer.provideMerge(NodeContext.layer),
-  Layer.merge(StderrLoggerLive)
-)
+import { NodeRuntime } from "@effect/platform-node"
+import { Effect } from "effect"
+import { main, layer } from "./app.js"
 
 NodeRuntime.runMain(main.pipe(Effect.provide(layer)), { disablePrettyLogger: true })

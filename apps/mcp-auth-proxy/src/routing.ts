@@ -64,7 +64,7 @@ export const matchRoute = (
   config: ProxyConfig,
   url: string
 ): Option.Option<Route> => {
-  const path = url.split("?")[0] ?? "/"
+  const path = url.split("?")[0] || "/"
   const trimmed = path.replace(/\/+$/, "") === "" ? "/" : path.replace(/\/+$/, "")
   const direct = config.routes[trimmed]
   if (direct !== undefined) return Option.some(direct)
@@ -105,4 +105,45 @@ export const outboundHeaders = (
   headers[route.header] = secret
   if (bodyLength > 0) headers["Content-Length"] = String(bodyLength)
   return headers
+}
+
+/**
+ * The method of an inbound request, defaulting to GET.
+ *
+ * Node types `method` as optional even though a served request always has one,
+ * so the default exists to satisfy the type rather than to describe real
+ * traffic — and is covered here rather than left as an untested branch.
+ *
+ * @param request - the inbound request
+ * @returns the HTTP method to forward
+ */
+export const requestMethod = (request: { readonly method?: string | undefined }): string =>
+  request.method ?? "GET"
+
+/**
+ * The URL of an inbound request, defaulting to the root path.
+ *
+ * @param request - the inbound request
+ * @returns the path to match against the route table
+ */
+export const requestUrl = (request: { readonly url?: string | undefined }): string =>
+  request.url ?? "/"
+
+/**
+ * The headers to send back to the client from an upstream response.
+ *
+ * Content-Length is dropped because the body may be an open event stream of
+ * unknown length, so framing is "read until close" instead.
+ *
+ * @param headers - the upstream response headers
+ * @returns the headers to write on the downstream response
+ */
+export const relayHeaders = (headers: Iterable<readonly [string, string]>): Record<string, string> => {
+  const relayed: Record<string, string> = {}
+  for (const [name, value] of headers) {
+    if (name.toLowerCase() === "content-length") continue
+    relayed[name] = value
+  }
+  relayed["Connection"] = "close"
+  return relayed
 }

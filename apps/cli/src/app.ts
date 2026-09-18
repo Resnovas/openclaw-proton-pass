@@ -1,7 +1,6 @@
-#!/usr/bin/env node
 /*
  * Project: openclaw-proton-pass
- * File: main.ts
+ * File: app.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -35,8 +34,29 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { NodeRuntime } from "@effect/platform-node"
-import { Effect } from "effect"
-import { main, layer } from "./app.js"
 
-NodeRuntime.runMain(main.pipe(Effect.provide(layer)), { disablePrettyLogger: true })
+import { Command as Cli } from "@effect/cli"
+import { NodeContext } from "@effect/platform-node"
+import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
+import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
+import { Effect, Layer } from "effect"
+import { doctor } from "./doctor.js"
+import { setup } from "./setup.js"
+
+const doctorCommand = Cli.make("doctor", {}, () => doctor.pipe(Effect.asVoid))
+const setupCommand = Cli.make("setup", {}, () => setup)
+
+const root = Cli.make("openclaw-proton-pass", {}, () =>
+  Effect.logInfo("run `openclaw-proton-pass --help` to see the available commands")
+).pipe(Cli.withSubcommands([doctorCommand, setupCommand]))
+
+export const run = Cli.run(root, {
+  name: "openclaw-proton-pass",
+  version: "0.1.0"
+})
+
+export const layer = Layer.mergeAll(
+  SecretResolver.Default,
+  PassSession.Default,
+  Paths.Default
+).pipe(Layer.provideMerge(NodeContext.layer), Layer.merge(StderrLoggerLive))

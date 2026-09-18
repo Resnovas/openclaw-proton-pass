@@ -35,85 +35,8 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
-import { ProtocolError, type ResolveResponse } from "@resnovas/opp-domain"
-import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
-import { Telemetry } from "@resnovas/opp-telemetry"
-import { Effect, Layer } from "effect"
-import { handle, parseRequest, protocolFailure } from "./program.js"
-
-/**
- * Read the whole of stdin.
- *
- * The Gateway writes one JSON request and closes, so this reads to EOF rather
- * than framing messages.
- */
-const readStdin = Effect.tryPromise({
-  try: async () => {
-    const chunks: Array<Buffer> = []
-    for await (const chunk of process.stdin) {
-      chunks.push(chunk as Buffer)
-    }
-    return Buffer.concat(chunks).toString("utf8")
-  },
-  catch: (cause) => new ProtocolError({ reason: `could not read stdin: ${cause}` })
-})
-
-/** Write one response object as a single line of JSON on stdout. */
-const writeResponse = (response: ResolveResponse) =>
-  Effect.sync(() => {
-    process.stdout.write(`${JSON.stringify(response)}\n`)
-  })
-
-/** Exit non-zero without the stack trace a failed effect would print. */
-const failQuietly = Effect.sync(() => {
-  process.exitCode = 1
-})
-
-/**
- * `--ensure-session` exposes session bootstrap on its own, so the other tools
- * can guarantee a usable agent session without reimplementing the stale-session
- * and undecryptable-database recovery. One implementation, no drift.
- */
-const ensureSessionOnly = Effect.gen(function* () {
-  const session = yield* PassSession
-  yield* session.ensure
-}).pipe(
-  Effect.catchAll((cause) =>
-    Effect.logError(`could not establish a session: ${cause._tag}`).pipe(
-      Effect.zipRight(failQuietly)
-    )
-  )
-)
-
-const resolveRequest = Effect.gen(function* () {
-  const raw = yield* readStdin
-  const request = yield* parseRequest(raw)
-  const response = yield* handle(request)
-  yield* writeResponse(response)
-  // A protocol-level failure exits non-zero even though a response was written,
-  // so a supervisor sees the failure rather than an apparently clean run.
-  if (response.error !== undefined) yield* failQuietly
-}).pipe(
-  Effect.catchTag("ProtocolError", (cause) =>
-    writeResponse(protocolFailure(cause.reason)).pipe(Effect.zipRight(failQuietly))
-  )
-)
-
-const main = Effect.gen(function* () {
-  if (process.argv.slice(2).includes("--ensure-session")) {
-    yield* ensureSessionOnly
-    return
-  }
-  yield* resolveRequest
-})
-
-const layer = Layer.mergeAll(
-  SecretResolver.Default,
-  PassSession.Default,
-  Telemetry.Default,
-  Paths.Default
-).pipe(Layer.provideMerge(NodeContext.layer), Layer.merge(StderrLoggerLive))
+import { NodeRuntime } from "@effect/platform-node"
+import { Effect } from "effect"
+import { main, layer } from "./app.js"
 
 NodeRuntime.runMain(main.pipe(Effect.provide(layer)), { disablePrettyLogger: true })

@@ -35,30 +35,8 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { Command as Cli } from "@effect/cli"
-import { NodeContext, NodeRuntime } from "@effect/platform-node"
-import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
-import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
-import { Effect, Layer } from "effect"
-import { doctor } from "./doctor.js"
-import { setup } from "./setup.js"
-
-const doctorCommand = Cli.make("doctor", {}, () => doctor.pipe(Effect.asVoid))
-const setupCommand = Cli.make("setup", {}, () => setup)
-
-const root = Cli.make("openclaw-proton-pass", {}, () =>
-  Effect.logInfo("run `openclaw-proton-pass --help` to see the available commands")
-).pipe(Cli.withSubcommands([doctorCommand, setupCommand]))
-
-const run = Cli.run(root, {
-  name: "openclaw-proton-pass",
-  version: "0.1.0"
-})
-
-const layer = Layer.mergeAll(
-  SecretResolver.Default,
-  PassSession.Default,
-  Paths.Default
-).pipe(Layer.provideMerge(NodeContext.layer), Layer.merge(StderrLoggerLive))
+import { NodeRuntime } from "@effect/platform-node"
+import { Effect } from "effect"
+import { layer, run } from "./app.js"
 
 NodeRuntime.runMain(run(process.argv).pipe(Effect.provide(layer)), { disablePrettyLogger: true })

@@ -1,7 +1,6 @@
-#!/usr/bin/env node
 /*
  * Project: openclaw-proton-pass
- * File: main.ts
+ * File: app.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -35,8 +34,29 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { NodeRuntime } from "@effect/platform-node"
-import { Effect } from "effect"
-import { main, layer } from "./app.js"
 
-NodeRuntime.runMain(main.pipe(Effect.provide(layer)), { disablePrettyLogger: true })
+import { NodeContext } from "@effect/platform-node"
+import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
+import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
+import { Effect, Layer } from "effect"
+import { serve } from "./server.js"
+
+export const main = serve.pipe(
+  Effect.zipRight(Effect.never),
+  Effect.scoped,
+  Effect.catchTag("RouteConfigError", (cause) =>
+    Effect.logError(`${cause.path}: ${cause.reason}`).pipe(
+      Effect.zipRight(
+        Effect.sync(() => {
+          process.exitCode = 1
+        })
+      )
+    )
+  )
+)
+
+export const layer = Layer.mergeAll(
+  SecretResolver.Default,
+  PassSession.Default,
+  Paths.Default
+).pipe(Layer.provideMerge(NodeContext.layer), Layer.merge(StderrLoggerLive))
