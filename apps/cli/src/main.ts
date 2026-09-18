@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /*
  * Project: openclaw-proton-pass
  * File: main.ts

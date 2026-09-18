@@ -127,9 +127,21 @@ export const setup = Effect.gen(function* () {
   yield* seed(paths.secretMap, EXAMPLE_SECRET_MAP)
   yield* seed(paths.proxyConfig, EXAMPLE_PROXY_CONFIG)
 
-  // The proxy entry point sits alongside this one in the built output.
+  // Two layouts have to work: the published package, where every binary is a
+  // sibling bundle, and a workspace checkout, where each app has its own dist.
   const here = path.dirname(fileURLToPath(import.meta.url))
-  const proxyEntry = path.resolve(here, "..", "..", "mcp-auth-proxy", "dist", "main.js")
+  const candidates = [
+    path.join(here, "openclaw-mcp-auth-proxy.mjs"),
+    path.resolve(here, "..", "..", "mcp-auth-proxy", "dist", "main.js")
+  ]
+  let proxyEntry = candidates[candidates.length - 1]!
+  for (const candidate of candidates) {
+    const found = yield* fs.exists(candidate).pipe(Effect.orElseSucceed(() => false))
+    if (found) {
+      proxyEntry = candidate
+      break
+    }
+  }
   const unitDir = path.join(paths.configDir, "..", "systemd", "user")
   const unitPath = path.join(unitDir, "openclaw-mcp-auth-proxy.service")
 

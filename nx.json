@@ -1,7 +1,10 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "namedInputs": {
-    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
     "production": [
       "default",
       "!{workspaceRoot}/tests/**/*",
@@ -14,21 +17,65 @@
   },
   "targetDefaults": {
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["production", "^production"],
-      "outputs": ["{projectRoot}/dist"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "production",
+        "^production"
+      ],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "cache": true
     },
     "check": {
-      "dependsOn": ["^build"],
-      "inputs": ["default", "^production"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "default",
+        "^production"
+      ],
       "cache": true
     },
     "test": {
-      "dependsOn": ["^build"],
-      "inputs": ["default", "^production", "{workspaceRoot}/tests/**/*"],
+      "dependsOn": [
+        "^build"
+      ],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/tests/**/*"
+      ],
       "cache": true
+    },
+    "pack": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
     }
   },
-  "defaultBase": "main"
+  "defaultBase": "main",
+  "release": {
+    "projects": [
+      "openclaw-proton-pass"
+    ],
+    "version": {
+      "conventionalCommits": true,
+      "preVersionCommand": "pnpm verify"
+    },
+    "changelog": {
+      "automaticFromRef": true,
+      "workspaceChangelog": {
+        "createRelease": "github",
+        "file": "CHANGELOG.md"
+      },
+      "projectChangelogs": false
+    },
+    "releaseTag": {
+      "pattern": "v{version}"
+    }
+  }
 }

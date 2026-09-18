@@ -1,0 +1,56 @@
+{
+  "name": "@resnovas/openclaw-proton-pass",
+  "version": "0.0.0",
+  "description": "Resolve OpenClaw credentials from Proton Pass at request time, so no API key is written into openclaw.json",
+  "license": "LicenseRef-FCL-1.0-MIT",
+  "author": "Jonathan Stevens T/A Resnovas <hello@resnovas.com>",
+  "homepage": "https://github.com/Resnovas/openclaw-proton-pass",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Resnovas/openclaw-proton-pass.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Resnovas/openclaw-proton-pass/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "openclaw-proton-pass": "./bin/openclaw-proton-pass.mjs",
+    "openclaw-protonpass-resolver": "./bin/openclaw-protonpass-resolver.mjs",
+    "openclaw-pass-run": "./bin/openclaw-pass-run.mjs",
+    "openclaw-mcp-auth-proxy": "./bin/openclaw-mcp-auth-proxy.mjs"
+  },
+  "files": [
+    "bin",
+    "assets",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "proton-pass",
+    "secrets",
+    "secret-provider",
+    "mcp",
+    "credentials"
+  ],
+  "openclaw": {
+    "compat": {
+      "pluginApi": ">=2026.9.4"
+    },
+    "build": {
+      "openclawVersion": "2026.9.4"
+    },
+    "install": {
+      "minHostVersion": ">=2026.9.4",
+      "defaultChoice": "npm"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
