@@ -35,12 +35,9 @@
  */
 
 import { Command, FileSystem } from "@effect/platform"
-import { Paths } from "@resnovas/opp-config"
+import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import { MissingAgentTokenError, SessionError } from "@resnovas/opp-domain"
 import { Effect, Redacted } from "effect"
-
-/** Seconds any single pass-cli invocation is allowed before it is abandoned. */
-const TIMEOUT_MILLIS = 60_000
 
 /**
  * A pass-cli session scoped to this provider alone.
@@ -55,6 +52,7 @@ const TIMEOUT_MILLIS = 60_000
 export class PassSession extends Effect.Service<PassSession>()("PassSession", {
   effect: Effect.gen(function* () {
     const paths = yield* Paths
+    const timeoutMillis = yield* commandTimeoutMillis
     const fs = yield* FileSystem.FileSystem
 
     const baseEnv = {
@@ -65,20 +63,25 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
       PROTON_PASS_AGENT_REASON: "OpenClaw Gateway secret resolution"
     } as const
 
-    /** Run one pass-cli subcommand, returning its exit code and output. */
-    const invoke = (args: ReadonlyArray<string>, extraEnv: Record<string, string> = {}) =>
+    /**
+     * Run one pass-cli subcommand and report whether it succeeded.
+     *
+     * The exit code is the only reliable signal here: `Command.string` resolves
+     * with whatever the process wrote to stdout even when it exited non-zero,
+     * so a probe built on it would report every broken session as healthy and
+     * the login path would never run.
+     */
+    const succeeds = (args: ReadonlyArray<string>, extraEnv: Record<string, string> = {}) =>
       Command.make(paths.passCli, ...args).pipe(
         Command.env({ ...baseEnv, ...extraEnv }),
-        Command.string,
-        Effect.timeout(TIMEOUT_MILLIS),
-        Effect.either
+        Command.exitCode,
+        Effect.timeout(timeoutMillis),
+        Effect.map((code) => code === 0),
+        Effect.orElseSucceed(() => false)
       )
 
     /** True when the existing session can still be used. */
-    const probe = Effect.gen(function* () {
-      const result = yield* invoke(["info"])
-      return result._tag === "Right"
-    })
+    const probe = succeeds(["info"])
 
     const readToken = Effect.gen(function* () {
       const exists = yield* fs
@@ -104,9 +107,8 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
      */
     const attemptLogin = (token: Redacted.Redacted<string>) =>
       Effect.gen(function* () {
-        yield* invoke(["logout"])
-        const result = yield* invoke(["login", "--pat", Redacted.value(token)])
-        return result._tag === "Right"
+        yield* succeeds(["logout"])
+        return yield* succeeds(["login", "--pat", Redacted.value(token)])
       })
 
     /**

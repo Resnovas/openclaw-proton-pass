@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: index.ts
+ * File: timeouts.ts
  * Last Modified: 2026-09-18
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,7 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-export * from "./logging.js"
-export * from "./paths.js"
-export * from "./telemetry-config.js"
-export * from "./timeouts.js"
+import { Config } from "effect"
+
+/**
+ * How long any single pass-cli invocation may take before it is abandoned.
+ *
+ * Configurable because the right value depends on the host: an unlocked local
+ * vault answers in milliseconds, while a cold agent session on a contended
+ * server can take seconds. A hung vault call must not pin the Gateway open
+ * indefinitely, so there is always a bound.
+ */
+export const commandTimeoutMillis = Config.integer(
+  "OPENCLAW_PROTONPASS_TIMEOUT_MS"
+).pipe(Config.withDefault(60_000))

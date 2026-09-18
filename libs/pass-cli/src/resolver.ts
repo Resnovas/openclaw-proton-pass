@@ -35,7 +35,7 @@
  */
 
 import { Command, FileSystem } from "@effect/platform"
-import { Paths } from "@resnovas/opp-config"
+import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import {
   decorate,
   normaliseEntry,
@@ -45,10 +45,8 @@ import {
   type PassRef,
   type SecretId
 } from "@resnovas/opp-domain"
-import { Effect, Redacted, Schema } from "effect"
+import { Effect, Redacted, Schema, Stream } from "effect"
 import { PassSession } from "./session.js"
-
-const TIMEOUT_MILLIS = 60_000
 
 /** The outcome for one requested id: a value, or the reason there is none. */
 export type Resolved =
@@ -66,6 +64,7 @@ export type Resolved =
 export class SecretResolver extends Effect.Service<SecretResolver>()("SecretResolver", {
   effect: Effect.gen(function* () {
     const paths = yield* Paths
+    const timeoutMillis = yield* commandTimeoutMillis
     const fs = yield* FileSystem.FileSystem
     const session = yield* PassSession
     const decodeMap = Schema.decodeUnknown(SecretMap)
@@ -100,25 +99,40 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
      */
     const resolveRefs = (refs: ReadonlyArray<PassRef>) =>
       Effect.gen(function* () {
-        if (refs.length === 0) return [] as ReadonlyArray<Redacted.Redacted<string>>
-
         const names = refs.map((_, index) => `OPENCLAW_SECRET_${index}`)
         const env = Object.fromEntries(names.map((name, index) => [name, refs[index]!]))
         const script = `printf "%s\\0" ${names.map((name) => `"$${name}"`).join(" ")}`
 
-        const output = yield* Command.make(
-          paths.passCli,
-          "run",
-          "--no-masking",
-          "--",
-          "bash",
-          "-c",
-          script
+        // stdout and the exit code are both needed, and `Command.string`
+        // discards the code — it resolves with whatever was written even when
+        // the process failed, which would turn a vault error into a silent
+        // batch of empty values.
+        const output = yield* Effect.scoped(
+          Effect.gen(function* () {
+            const process = yield* Command.make(
+              paths.passCli,
+              "run",
+              "--no-masking",
+              "--",
+              "bash",
+              "-c",
+              script
+            ).pipe(Command.env({ ...session.baseEnv, ...env }), Command.start)
+
+            const text = yield* process.stdout.pipe(Stream.decodeText(), Stream.mkString)
+            const code = yield* process.exitCode
+            if (code !== 0) {
+              return yield* new ResolutionError({ reason: `pass-cli run exited ${code}` })
+            }
+            return text
+          })
         ).pipe(
-          Command.env({ ...session.baseEnv, ...env }),
-          Command.string,
-          Effect.timeout(TIMEOUT_MILLIS),
-          Effect.mapError((cause) => new ResolutionError({ reason: String(cause) }))
+          Effect.timeout(timeoutMillis),
+          Effect.mapError((cause) =>
+            cause instanceof ResolutionError
+              ? cause
+              : new ResolutionError({ reason: String(cause) })
+          )
         )
 
         // printf emits a trailing NUL after the last value, so drop the empty tail.
