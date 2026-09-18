@@ -1,0 +1,34 @@
+{
+  "name": "@resnovas/openclaw-proton-pass",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Resolve OpenClaw credentials from Proton Pass at request time",
+  "license": "LicenseRef-FCL-1.0-MIT",
+  "author": "Jonathan Stevens T/A Resnovas <hello@resnovas.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Resnovas/openclaw-proton-pass.git"
+  },
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "nx run-many -t build",
+    "check": "nx run-many -t check",
+    "test": "nx run-many -t test",
+    "lint:headers": "node --experimental-strip-types scripts/check-headers.ts",
+    "verify": "pnpm check && pnpm lint:headers && pnpm test"
+  },
+  "devDependencies": {
+    "@effect/vitest": "^0.30.0",
+    "@resnovas/opp-domain": "workspace:*",
+    "@resnovas/opp-telemetry": "workspace:*",
+    "@types/node": "^24.0.0",
+    "effect": "^3.22.2",
+    "nx": "^23.2.1",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
