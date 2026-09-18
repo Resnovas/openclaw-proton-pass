@@ -1,6 +1,6 @@
 [Unit]
 Description=OpenClaw MCP auth proxy (Proton Pass credential injection)
-Documentation=https://github.com/TGTGamer/openclaw-proton-pass
+Documentation=https://github.com/Resnovas/openclaw-proton-pass
 After=network-online.target
 Wants=network-online.target
 StartLimitBurst=5

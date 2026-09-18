@@ -49,7 +49,7 @@ take a bearer token.
 ## Install
 
 ```bash
-git clone https://github.com/TGTGamer/openclaw-proton-pass.git
+git clone https://github.com/Resnovas/openclaw-proton-pass.git
 cd openclaw-proton-pass
 ./install.sh
 ```
