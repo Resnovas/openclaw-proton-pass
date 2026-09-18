@@ -47,7 +47,13 @@ import {
 import { SecretResolver } from "@resnovas/opp-pass-cli"
 import { Cache, Duration, Effect, Option, Redacted, Runtime, Schema } from "effect"
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
-import { matchRoute, outboundHeaders } from "./routing.js"
+import {
+  matchRoute,
+  outboundHeaders,
+  relayHeaders,
+  requestMethod,
+  requestUrl
+} from "./routing.js"
 
 const decodeConfig = Schema.decodeUnknown(ProxyConfig)
 
@@ -89,8 +95,13 @@ export const loadConfig = Effect.gen(function* () {
   return config
 })
 
-/** Read a request body fully; MCP payloads are small JSON documents. */
-const readBody = (request: IncomingMessage) =>
+/**
+ * Read a request body fully; MCP payloads are small JSON documents.
+ *
+ * Exported so the failure path can be exercised directly: a client aborting
+ * mid-body is not something a test can stage reliably against a real socket.
+ */
+export const readBody = (request: IncomingMessage) =>
   Effect.async<Buffer, ProxyIoError>((resume) => {
     const chunks: Array<Buffer> = []
     request.on("data", (chunk: Buffer) => chunks.push(chunk))
@@ -102,6 +113,14 @@ const readBody = (request: IncomingMessage) =>
 
 const respondJson = (response: ServerResponse, status: number, body: unknown) =>
   Effect.sync(() => {
+    // Once the upstream's headers have gone downstream there is no way to turn
+    // the reply into an error document. Dropping the connection is the only
+    // honest signal left: the alternative is a client waiting forever for a
+    // body the failed relay will never deliver.
+    if (response.headersSent) {
+      response.destroy()
+      return
+    }
     const encoded = Buffer.from(JSON.stringify(body))
     response.writeHead(status, {
       "Content-Type": "application/json",
@@ -161,7 +180,7 @@ export const serve = Effect.gen(function* () {
       const upstreamResponse = yield* Effect.tryPromise({
         try: (signal) =>
           fetch(upstream, {
-            method: request.method ?? "GET",
+            method: requestMethod(request),
             headers,
             signal,
             ...(body.byteLength > 0 ? { body } : {})
@@ -175,15 +194,7 @@ export const serve = Effect.gen(function* () {
   const relay = (upstreamResponse: Response, response: ServerResponse) =>
     Effect.tryPromise({
       try: async () => {
-        const headers: Record<string, string> = {}
-        upstreamResponse.headers.forEach((value, name) => {
-          if (name.toLowerCase() === "content-length") return
-          headers[name] = value
-        })
-        // The body may be an open event stream of unknown length, so framing is
-        // "read until close" rather than a declared length.
-        headers["Connection"] = "close"
-        response.writeHead(upstreamResponse.status, headers)
+        response.writeHead(upstreamResponse.status, relayHeaders(upstreamResponse.headers))
 
         if (upstreamResponse.body === null) {
           response.end()
@@ -202,10 +213,10 @@ export const serve = Effect.gen(function* () {
 
   const handle = (request: IncomingMessage, response: ServerResponse) =>
     Effect.gen(function* () {
-      const route = matchRoute(config, request.url ?? "/")
+      const route = matchRoute(config, requestUrl(request))
       if (Option.isNone(route)) {
         return yield* respondJson(response, 404, {
-          error: `no route for ${request.url ?? "/"}`
+          error: `no route for ${requestUrl(request)}`
         })
       }
 
@@ -235,7 +246,7 @@ export const serve = Effect.gen(function* () {
       )
     )
 
-  yield* Effect.acquireRelease(
+  return yield* Effect.acquireRelease(
     Effect.gen(function* () {
       const runtime = yield* Effect.runtime<never>()
       const runPromise = Runtime.runPromise(runtime)
@@ -258,6 +269,4 @@ export const serve = Effect.gen(function* () {
         server.close(() => resume(Effect.void))
       })
   )
-
-  yield* Effect.never
 })
