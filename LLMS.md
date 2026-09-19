@@ -34,7 +34,7 @@ with three different rules, plus a management CLI:
 ## Layout
 
 ```
-libs/domain        branded types, schemas, the error union — no I/O
+libs/domain        branded types, schemas, the error union - no I/O
 libs/config        Effect Config: every path, with an environment override
 libs/pass-cli      PassSession and SecretResolver
 libs/telemetry     the closed event union and its filters
@@ -47,7 +47,7 @@ ai-docs/           the sources for LLMS.md
 Nx infers the project graph from imports, so build order follows the graph. Run
 `pnpm verify` before claiming anything works: it typechecks, checks licence
 headers and API contracts, runs the suite at 100% coverage with a depth report,
-and regenerates the API reference — which compiles and executes every
+and regenerates the API reference - which compiles and executes every
 documentation example.
 
 ## Three rules that explain most of the code
@@ -64,7 +64,7 @@ violated before, with consequences recorded in the commit history.
    the outbound HTTP header. Anywhere else, `Redacted.value` is a bug.
 
 3. **Telemetry has no field a secret could occupy.** The event union has no
-   field of type `string` — only numbers, booleans, and string literal unions.
+   field of type `string` - only numbers, booleans, and string literal unions.
    Adding one would not be a policy violation to be reviewed; it would be a
    change to the thing that makes the guarantee true.
 
@@ -86,7 +86,7 @@ so moving an item between vaults is a one-file edit rather than a configuration
 migration.
 
 `SecretId` and `PassRef` are branded schemas. Construct them by decoding, never
-by casting — a cast is how a resolved value ends up somewhere expecting a
+by casting - a cast is how a resolved value ends up somewhere expecting a
 reference.
 
 One vault entry can serve two consumers through decoration: a bare credential
@@ -275,7 +275,7 @@ build failure rather than a review comment someone might miss.
 Behind that, `toProperties` filters on the **value**: a finite number or a
 boolean passes, a string passes only if it appears verbatim in
 `ALLOWED_VALUES`, and everything else is dropped. Filtering by value rather
-than by name matters — a name-based denylist only blocks names someone thought
+than by name matters - a name-based denylist only blocks names someone thought
 of, and is defeated by putting a secret under an innocuous key.
 
 ### If you are adding an event
@@ -294,7 +294,7 @@ metrics through the metrics client, tracing through `span`, logs over OTLP with
 an id rather than a message, and errors through `captureError` by tag with a
 stack reduced to basenames.
 
-Reporting never affects behaviour — every capture is ignored on failure, so an
+Reporting never affects behaviour - every capture is ignored on failure, so an
 unreachable backend cannot fail a secret resolution.
 
 ### add-an-event
@@ -341,7 +341,7 @@ unreachable backend cannot fail a secret resolution.
  *
  * Every field is a number, a boolean, or a string literal declared in the
  * event union. There is no field of type `string`, so a secret has nowhere to
- * go — this is the safety property, expressed as a type rather than a policy.
+ * go - this is the safety property, expressed as a type rather than a policy.
  */
 import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect } from "effect"
@@ -430,7 +430,7 @@ export const example = Effect.gen(function* () {
   const telemetry = yield* Telemetry
 
   // `span` wraps an effect and reports its duration and outcome. Adding a new
-  // span means adding its name to the `SpanName` union first — which is the
+  // span means adding its name to the `SpanName` union first - which is the
   // compiler's way of asking whether the name is a constant.
   const count = yield* telemetry.span("resolver.load_map", work)
 
@@ -475,7 +475,7 @@ considering that.
 
 A domain error names the file it failed on, because an operator needs to know
 which of three configuration files to look at. That same field is why the error
-itself is never forwarded to error tracking — only its tag, with a stack
+itself is never forwarded to error tracking - only its tag, with a stack
 reduced to basenames.
 
 ### handle-failures
@@ -569,7 +569,7 @@ Three generated artefacts, each with a check that stops it drifting.
 | --- | --- | --- | --- |
 | `docs/reference/api/**` | JSDoc in `libs/*/src` and `apps/*/src` | `pnpm docs:api` | `pnpm docs:check` |
 | `LLMS.md` | `ai-docs/src` | `pnpm ai-docgen` | `pnpm ai-docgen:check` |
-| declaration contracts | the same JSDoc | — | `pnpm lint:contracts` |
+| declaration contracts | the same JSDoc | - | `pnpm lint:contracts` |
 
 All three run inside `pnpm verify`. Do not edit a generated file; edit its
 source and regenerate.
@@ -581,8 +581,8 @@ and then **executed**, with Node's `assert` available. An example that stops
 being true fails the build.
 
 This is what `@effect/docgen` provides, and it is why examples here can be
-trusted. `@effect/doctest` — the sibling tool that also runs examples out of
-Markdown — is published only for Effect 4 and requires Effect 4 and Vitest 5 as
+trusted. `@effect/doctest` - the sibling tool that also runs examples out of
+Markdown - is published only for Effect 4 and requires Effect 4 and Vitest 5 as
 peers, so it cannot be used while this workspace is on Effect 3.
 
 When adding an example, prefer one that demonstrates a property worth
@@ -593,7 +593,7 @@ asserting. `assert.throws` on a rejected input teaches more than a happy path.
 Enforced against `dist/**/*.d.ts`, because a contract only helps a consumer if
 it survives into the declaration output:
 
-- `@remarks` stating contract behaviour — totality, failure modes, what the
+- `@remarks` stating contract behaviour - totality, failure modes, what the
   caller may rely on. Not a restatement of the description.
 - a typed `@example`
 - `@param` for every parameter

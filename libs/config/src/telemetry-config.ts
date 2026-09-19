@@ -62,7 +62,7 @@ const DEFAULT_HOST = "https://eu.i.posthog.com"
  * Whether usage telemetry may leave this machine.
  *
  * On by default. The reporting pipeline is built so that a secret has no field
- * to travel in — see TELEMETRY.md — which is what makes a default-on setting
+ * to travel in - see TELEMETRY.md - which is what makes a default-on setting
  * defensible for a tool that handles credentials. Opting out is one variable,
  * documented in the README and printed by `openclaw-proton-pass doctor`.
  *
@@ -112,7 +112,7 @@ export const telemetryEnvironment = Config.string(
  * The PostHog project key events are sent to.
  *
  * Set the variable to point a fork at its own project, or to the empty string
- * to keep telemetry enabled while sending nowhere — which leaves an operator a
+ * to keep telemetry enabled while sending nowhere - which leaves an operator a
  * way to switch off reporting to the default project without having to run a
  * PostHog instance of their own.
  *

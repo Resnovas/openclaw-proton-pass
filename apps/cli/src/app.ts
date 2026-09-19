@@ -38,7 +38,7 @@
  * The management CLI's command tree.
  *
  * `setup` and `doctor`, defined with `@effect/cli`. Each subcommand is timed
- * and its name and outcome reported — never its arguments.
+ * and its name and outcome reported - never its arguments.
  *
  * @module
  * @since 0.1.0
@@ -54,7 +54,7 @@ import { Clock, Effect, Layer } from "effect"
 import { doctor } from "./doctor.js"
 import { setup } from "./setup.js"
 
-/** Time a subcommand and report its name and outcome — never its arguments. */
+/** Time a subcommand and report its name and outcome - never its arguments. */
 const instrumented = <A, E, R>(command: CommandName, effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
     const telemetry = yield* Telemetry

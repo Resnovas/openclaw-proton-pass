@@ -146,7 +146,7 @@ const toMdx = (markdown: string, title: string, description: string): string => 
   body = body.replace(/^---\n[\s\S]*?\n---\n/, "").trimStart()
 
   // Drop the module overview. docgen takes the first comment in a file as the
-  // overview, and in this codebase that is always the licence header — which
+  // overview, and in this codebase that is always the licence header - which
   // must not be republished as though it described the module.
   if (body.includes(LICENCE_MARKER)) {
     body = body.replace(/^##\s+.*\boverview\b[\s\S]*?\n---\n/m, "").trimStart()

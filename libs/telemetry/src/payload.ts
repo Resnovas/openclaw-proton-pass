@@ -37,8 +37,8 @@
 /**
  * The two filters every reported property passes through.
  *
- * A value allowlist is the guarantee — a string is sent only if it appears
- * verbatim in the literals this codebase declares — and a name denylist sits
+ * A value allowlist is the guarantee - a string is sent only if it appears
+ * verbatim in the literals this codebase declares - and a name denylist sits
  * behind it as defence in depth.
  *
  * @module
@@ -62,7 +62,7 @@ const FORBIDDEN = /secret|token|password|key|ref|path|host|upstream|url|value/i
  * Remove properties whose names suggest they carry content rather than shape.
  *
  * @remarks
- * Pure and total, and returns a new object — the input is not mutated.
+ * Pure and total, and returns a new object - the input is not mutated.
  * Filters on the property **name** only, which makes it the weaker of the
  * two filters and not the guarantee on its own; it sits behind the value
  * allowlist in `toProperties` as defence in depth.
@@ -116,7 +116,7 @@ export type SafeValue = number | boolean | string
  * Filtering by value rather than by name matters: a name-based denylist can
  * only block the names someone thought of, and is defeated the moment a secret
  * is placed under an innocuous key. A value allowlist has the opposite failure
- * mode — an unanticipated field is dropped rather than leaked.
+ * mode - an unanticipated field is dropped rather than leaked.
  *
  * @remarks
  * Pure and total. The only function that constructs a property object,
@@ -176,7 +176,7 @@ export const toProperties = (event: TelemetryEvent): Record<string, SafeValue> =
       properties[key] = value
       continue
     }
-    // Anything else — an arbitrary string, an object, a nested structure — is
+    // Anything else - an arbitrary string, an object, a nested structure - is
     // dropped. Silently: a caller that reached here has already failed the
     // type check, and refusing to send is the safe outcome.
   }
@@ -191,8 +191,8 @@ export const toProperties = (event: TelemetryEvent): Record<string, SafeValue> =
  *
  * Stack traces are worth having for diagnosis, but an absolute path names the
  * operator's home directory and their install layout. Reducing each frame to a
- * basename keeps every diagnostically useful part — which function, which file,
- * which line — and discards the part that identifies the machine.
+ * basename keeps every diagnostically useful part - which function, which file,
+ * which line - and discards the part that identifies the machine.
  *
  * @remarks
  * Pure and total; `undefined` in, `undefined` out. Reduces every absolute
@@ -227,7 +227,7 @@ export const sanitiseStack = (stack: string | undefined): string | undefined => 
  *
  * The original error is never forwarded. Domain errors carry fields such as the
  * path of an unreadable secret map, and an error message is free text, so only
- * the tag — a compile-time constant — becomes the message. The stack is kept
+ * the tag - a compile-time constant - becomes the message. The stack is kept
  * because it locates the fault, and is sanitised because it also locates the
  * operator.
  *

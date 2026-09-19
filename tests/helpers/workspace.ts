@@ -57,7 +57,7 @@ export interface Workspace {
  * Behaviour for the stub `pass-cli` a test wants.
  *
  * Driving the real service through a stub binary keeps the Command, session and
- * resolution code paths genuinely executed, rather than mocked away — which is
+ * resolution code paths genuinely executed, rather than mocked away - which is
  * the part most worth testing, since it is where the original shell scripts
  * hid their bugs.
  */
@@ -107,7 +107,7 @@ esac
  * Create a disposable workspace and point the process environment at it.
  *
  * Every path this system reads is overridable, so a test never touches the
- * developer's real configuration — the reason those overrides exist at all.
+ * developer's real configuration - the reason those overrides exist at all.
  */
 export const makeWorkspace = (
   options: {

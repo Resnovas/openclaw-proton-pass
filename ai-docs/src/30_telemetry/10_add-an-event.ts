@@ -40,7 +40,7 @@
  *
  * Every field is a number, a boolean, or a string literal declared in the
  * event union. There is no field of type `string`, so a secret has nowhere to
- * go — this is the safety property, expressed as a type rather than a policy.
+ * go - this is the safety property, expressed as a type rather than a policy.
  */
 import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect } from "effect"

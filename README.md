@@ -9,7 +9,7 @@ where OpenClaw cannot use a `SecretRef` at all.
 
 Built with TypeScript and [Effect](https://effect.website) in an Nx workspace.
 
-**The full documentation is in [`docs/`](docs/)** — a
+**The full documentation is in [`docs/`](docs/)** - a
 [Docs7](https://context7.com/docs/docs7/overview) site covering a guide for
 each integration path, the concepts, the security model, and an API reference
 generated from the source with every example compiled and executed. Preview it
@@ -34,7 +34,7 @@ references, and the agent token that authenticates to your vault.
 OpenClaw accepts a secret in three places, and each has different rules:
 
 1. **Credential fields** (`models.providers.*.apiKey` and similar) accept a `SecretRef`. The
-   resolver serves these directly — this is what the exec provider contract exists for.
+   resolver serves these directly - this is what the exec provider contract exists for.
 2. **`mcp.servers.*.env`** accepts only literal strings. So `openclaw-pass-run` sits in front of the
    MCP server: OpenClaw passes a `pass://` URI through as an ordinary string, and the wrapper
    resolves it as it launches the child. The Gateway never sees the value.
@@ -79,9 +79,9 @@ npm install -g @resnovas/openclaw-proton-pass
 openclaw-proton-pass setup
 ```
 
-That puts four commands on `PATH` — `openclaw-proton-pass`,
+That puts four commands on `PATH` - `openclaw-proton-pass`,
 `openclaw-protonpass-resolver`, `openclaw-pass-run` and
-`openclaw-mcp-auth-proxy` — each a self-contained bundle needing only Node.
+`openclaw-mcp-auth-proxy` - each a self-contained bundle needing only Node.
 
 ### From a release archive
 
@@ -146,7 +146,7 @@ copy of the secret in the vault.
 
 ### 3. Register the provider with OpenClaw
 
-Installed as a plugin, this is already done — the manifest declares the provider
+Installed as a plugin, this is already done - the manifest declares the provider
 and OpenClaw materialises it at startup.
 
 Configure it by hand only when running the binaries standalone:
@@ -229,7 +229,7 @@ Every path has a default and an environment override:
 | `OPENCLAW_PROTONPASS_AGENT_PAT` | `<config dir>/openclaw-agent-pat` |
 | `OPENCLAW_PROTONPASS_SESSION_DIR` | `$XDG_STATE_HOME/openclaw-protonpass` |
 | `OPENCLAW_MCP_PROXY_CONFIG` | `<config dir>/openclaw-mcp-proxy.json` |
-| `OPENCLAW_PROTONPASS_TELEMETRY` | `true` — see below |
+| `OPENCLAW_PROTONPASS_TELEMETRY` | `true` - see below |
 
 ## Telemetry
 
@@ -239,7 +239,7 @@ On by default, and one variable to turn off:
 OPENCLAW_PROTONPASS_TELEMETRY=false
 ```
 
-The build carries a PostHog project key — a write-only ingestion key of the kind
+The build carries a PostHog project key - a write-only ingestion key of the kind
 designed to ship inside clients, which can send events and read nothing back.
 
 Reports cover product analytics, metrics, logs, tracing and error tracking, and
@@ -268,7 +268,7 @@ nothing anywhere, set the key to an empty string.
 ## Architecture
 
 ```
-libs/domain      branded types, schemas and the error union — no I/O
+libs/domain      branded types, schemas and the error union - no I/O
 libs/config      Effect Config: every path, with an environment override
 libs/pass-cli    PassSession and SecretResolver services
 libs/telemetry   opt-in PostHog reporting
@@ -313,18 +313,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards.
 
 ## Troubleshooting
 
-**`Already authenticated`** — `pass-cli login --pat` refuses whenever a session file exists,
+**`Already authenticated`** - `pass-cli login --pat` refuses whenever a session file exists,
 including a stale one. The resolver logs out first; by hand, run `pass-cli logout` in the same
 `PROTON_PASS_SESSION_DIR`.
 
-**An opaque sqlcipher error** — `pass-cli` keeps an encrypted database in the session directory whose
+**An opaque sqlcipher error** - `pass-cli` keeps an encrypted database in the session directory whose
 key derives from the token, and `logout` leaves it behind, so a rotated token cannot decrypt it. The
 resolver rebuilds the directory automatically; by hand, delete `~/.local/state/openclaw-protonpass`.
 
-**The resolver and your terminal log each other out** — `pass-cli` keeps one session per directory.
+**The resolver and your terminal log each other out** - `pass-cli` keeps one session per directory.
 That is why this provider uses its own; do not point it at the default.
 
-**`no route for /...`** — the path in your OpenClaw MCP URL must match a key in `routes`. Restart the
+**`no route for /...`** - the path in your OpenClaw MCP URL must match a key in `routes`. Restart the
 proxy after editing the file.
 
 ## Security notes
@@ -338,6 +338,6 @@ proxy after editing the file.
 
 ## Licence
 
-[FCL-1.0-MIT](LICENSE) — Fair Core License with an MIT future: source-available now, MIT-licensed on
+[FCL-1.0-MIT](LICENSE) - Fair Core License with an MIT future: source-available now, MIT-licensed on
 the second anniversary of each release. Every source file carries the canonical header, checked by
 `pnpm lint:headers`.

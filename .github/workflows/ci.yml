@@ -45,7 +45,7 @@ jobs:
         run: npm pack --dry-run
 
       # The integration suite is skipped without a vault, but it must still
-      # compile and collect — a broken integration test should fail CI rather
+      # compile and collect - a broken integration test should fail CI rather
       # than be discovered at release time.
       - name: Collect the integration suite
         run: pnpm exec vitest run tests/integration --passWithNoTests

@@ -111,7 +111,7 @@ const MACHINE_ID_FILES = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
  *
  * Derived from the host's machine id rather than stored beside the
  * configuration. Keying it to the config directory looked simpler, but it meant
- * one machine reported as a different install every time that directory moved —
+ * one machine reported as a different install every time that directory moved -
  * a changed `OPENCLAW_PROTONPASS_CONFIG_DIR`, a container, an ephemeral home,
  * or a test run against a temporary directory. Counting those as separate
  * installs makes every per-install question meaningless.
@@ -129,7 +129,7 @@ const MACHINE_ID_FILES = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
  * Returns an Effect that always succeeds. Every filesystem failure is
  * recovered, in order: a machine id file, then a UUID persisted under the
  * state directory, then a hash of durable machine attributes. Requires
- * `FileSystem`. The raw machine identifier is never returned — only a
+ * `FileSystem`. The raw machine identifier is never returned - only a
  * salted hash of it, so the value cannot be correlated with the same
  * machine as seen by anything else that reads the same file.
  *
@@ -153,7 +153,7 @@ const MACHINE_ID_FILES = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
  *     installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(NodeContext.layer))
  *   )
  *
- * // No machine id file exists at that path, so the persisted fallback is used —
+ * // No machine id file exists at that path, so the persisted fallback is used -
  * // and it is stable, because an identity that changed per run would make every
  * // report look like a different install.
  * assert.strictEqual(await run(), await run())

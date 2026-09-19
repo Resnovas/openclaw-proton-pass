@@ -14,7 +14,7 @@ so moving an item between vaults is a one-file edit rather than a configuration
 migration.
 
 `SecretId` and `PassRef` are branded schemas. Construct them by decoding, never
-by casting — a cast is how a resolved value ends up somewhere expecting a
+by casting - a cast is how a resolved value ends up somewhere expecting a
 reference.
 
 One vault entry can serve two consumers through decoration: a bare credential

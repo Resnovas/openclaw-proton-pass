@@ -1,6 +1,6 @@
 ---
 title: "Explain it simply"
-description: "The whole design in plain language, with no background assumed — what the problem is, what this does about it, and where the limits are."
+description: "The whole design in plain language, with no background assumed - what the problem is, what this does about it, and where the limits are."
 ---
 
 No technical background is assumed here. If you want the precise version, every
@@ -18,7 +18,7 @@ readable, long after anyone remembers it is there.
 
 ## The idea
 
-Keep the password in a password manager — where it belongs — and have the
+Keep the password in a password manager - where it belongs - and have the
 software fetch it at the moment it is needed.
 
 The settings file then contains a **name** instead of a password:
@@ -46,7 +46,7 @@ Think of it as three separate notes, deliberately kept apart.
     It is meaningless on its own.
   </Step>
   <Step title="The address">
-    Which drawer of which filing cabinet the password is in — written down in
+    Which drawer of which filing cabinet the password is in - written down in
     exactly one file, and nowhere else. This is the `pass://` reference.
   </Step>
   <Step title="The password itself">
@@ -66,7 +66,7 @@ The precise version of this, with the types that enforce it, is in
 
 ## Who is allowed to open the vault
 
-The program that needs passwords starts when the machine starts — before anyone
+The program that needs passwords starts when the machine starts - before anyone
 has signed in. So it cannot use your login. It gets its own key to the vault
 instead: a token that is restricted to one vault, expires, and can be revoked on
 its own without touching your account.
@@ -79,7 +79,7 @@ pass-cli agent monitor openclaw-gateway
 ```
 
 So this does not just move the password somewhere safer. It creates a record of
-every time it was read, which a password in a settings file can never give you —
+every time it was read, which a password in a settings file can never give you -
 a file does not know who opened it.
 
 <Tip>
@@ -91,7 +91,7 @@ The precise version is in [sessions and tokens](/concepts/sessions).
 Because the software being configured accepts a password in three different
 places, and only one of them is built to ask for it.
 
-Imagine a form. One box says "we'll phone you for this" — that is the good one.
+Imagine a form. One box says "we'll phone you for this" - that is the good one.
 Another box only accepts ink, so something has to write in it on the way past.
 And a third box gets sealed in an envelope and posted directly, so the only
 place to add anything is to intercept the envelope, add a line, and re-post it.
@@ -120,7 +120,7 @@ How long did it take (ms)?           [ 41  ]
 How did it go?                       [x] fine  [ ] failed
 ```
 
-There is nowhere on that form to write a sentence. A password is a sentence —
+There is nowhere on that form to write a sentence. A password is a sentence -
 a long run of characters nobody can predict. The form has no blank lines, so a
 password has nowhere to go.
 

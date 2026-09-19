@@ -65,7 +65,7 @@ const decodeRequest = Schema.decodeUnknown(ResolveRequest)
  * @returns the decoded request
  *
  * @remarks
- * Fails with `ProtocolError` for anything that is not a well-formed request —
+ * Fails with `ProtocolError` for anything that is not a well-formed request -
  * invalid JSON, a wrong protocol version, or an id that is not a non-empty
  * string. Never throws; the failure is in the Effect.
  *

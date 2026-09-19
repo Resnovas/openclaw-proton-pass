@@ -182,7 +182,7 @@ export const outboundHeaders = (
  *
  * Node types `method` as optional even though a served request always has one,
  * so the default exists to satisfy the type rather than to describe real
- * traffic — and is covered here rather than left as an untested branch.
+ * traffic - and is covered here rather than left as an untested branch.
  *
  * @remarks
  * Pure and total. Node types `method` as optional even though a served

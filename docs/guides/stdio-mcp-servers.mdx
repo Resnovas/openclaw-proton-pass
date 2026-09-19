@@ -3,7 +3,7 @@ title: "Local MCP servers"
 description: "Launch a stdio MCP server with pass:// environment references resolved on the way, so the Gateway never holds the value."
 ---
 
-`mcp.servers.*.env` accepts only literal strings — a `SecretRef` placed there is
+`mcp.servers.*.env` accepts only literal strings - a `SecretRef` placed there is
 stored as characters, not resolved. So the resolution happens one step later, in
 a wrapper that sits in front of the server.
 

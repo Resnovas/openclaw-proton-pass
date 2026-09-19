@@ -21,6 +21,7 @@
     "coverage": "vitest run --coverage",
     "coverage:depth": "node --experimental-strip-types scripts/coverage-depth.ts",
     "lint:headers": "node --experimental-strip-types scripts/check-headers.ts",
+    "lint:prose": "node --experimental-strip-types scripts/check-prose.ts",
     "lint:contracts": "node --experimental-strip-types scripts/check-contracts.ts",
     "ai-docgen": "node --experimental-strip-types scripts/ai-docgen.ts",
     "ai-docgen:check": "node --experimental-strip-types scripts/ai-docgen.ts --check",
@@ -28,7 +29,7 @@
     "docs:check": "node --experimental-strip-types scripts/docs-api.ts --check",
     "docs:dev": "docs7 dev ./docs",
     "docs:deploy": "docs7 deploy ./docs",
-    "verify": "pnpm check && pnpm lint:headers && pnpm lint:contracts && pnpm coverage && pnpm coverage:depth && pnpm docs:check && pnpm ai-docgen:check"
+    "verify": "pnpm check && pnpm lint:headers && pnpm lint:prose && pnpm lint:contracts && pnpm coverage && pnpm coverage:depth && pnpm docs:check && pnpm ai-docgen:check"
   },
   "devDependencies": {
     "@effect/docgen": "0.5.2",

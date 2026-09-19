@@ -3,7 +3,7 @@ title: "OpenClaw Proton Pass"
 description: "Resolve OpenClaw credentials from Proton Pass at the moment they are needed, so no API key is ever written into a configuration file."
 ---
 
-OpenClaw needs credentials — an API key for a model provider, a bearer token for
+OpenClaw needs credentials - an API key for a model provider, a bearer token for
 a remote MCP server. The usual way to give it one is to paste the value into
 `openclaw.json`, where it sits in plain text, gets copied into backups, and
 outlives whatever it was for.
@@ -50,12 +50,12 @@ need.
 
 - Node.js 20 or newer
 - [`pass-cli`](https://protonpass.github.io/pass-cli), signed in at least once
-- A Proton Pass vault for these secrets — the examples throughout call it `OpenClaw`
+- A Proton Pass vault for these secrets - the examples throughout call it `OpenClaw`
 
 <Visibility for="agents">
 This project is an Nx workspace using pnpm, TypeScript and Effect v3. Libraries
 live in `libs/*` and executables in `apps/*`; tests mirror that tree under
 `tests/`. The generated API reference under `/reference/api` is produced by
-`@effect/docgen` from JSDoc and must not be edited by hand — change the JSDoc in
+`@effect/docgen` from JSDoc and must not be edited by hand - change the JSDoc in
 `libs/*/src` and run `pnpm docs:api`.
 </Visibility>

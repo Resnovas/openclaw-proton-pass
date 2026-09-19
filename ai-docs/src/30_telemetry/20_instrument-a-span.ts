@@ -50,7 +50,7 @@ export const example = Effect.gen(function* () {
   const telemetry = yield* Telemetry
 
   // `span` wraps an effect and reports its duration and outcome. Adding a new
-  // span means adding its name to the `SpanName` union first — which is the
+  // span means adding its name to the `SpanName` union first - which is the
   // compiler's way of asking whether the name is a constant.
   const count = yield* telemetry.span("resolver.load_map", work)
 

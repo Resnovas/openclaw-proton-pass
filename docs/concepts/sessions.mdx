@@ -67,7 +67,7 @@ below safe.
     Log out, then log in with the agent token.
 
     The logout is not optional: `pass-cli login --pat` refuses with "Already
-    authenticated" whenever a session file exists — including a stale one that
+    authenticated" whenever a session file exists - including a stale one that
     `info` can no longer read.
   </Step>
   <Step title="Rebuild">
@@ -85,8 +85,8 @@ If all three fail, resolution fails with a `SessionError`. It does not retry
 indefinitely and it does not fall back to anything.
 
 <Note>
-Which of the three paths was taken is reported as telemetry — `reused`,
-`logged-in` or `rebuilt` — because a host that rebuilds on every call is a host
+Which of the three paths was taken is reported as telemetry - `reused`,
+`logged-in` or `rebuilt` - because a host that rebuilds on every call is a host
 with a problem worth seeing. The three words are the whole payload; see
 [telemetry](/security/telemetry).
 </Note>
@@ -105,5 +105,5 @@ path exists precisely because it was hit for real, not because it was imagined.
 ## In the API reference
 
 <Card title="session.ts" href="/reference/api/pass-cli/session">
-  `PassSession` — the service implementing the bootstrap above.
+  `PassSession` - the service implementing the bootstrap above.
 </Card>

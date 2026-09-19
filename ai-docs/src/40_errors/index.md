@@ -33,5 +33,5 @@ considering that.
 
 A domain error names the file it failed on, because an operator needs to know
 which of three configuration files to look at. That same field is why the error
-itself is never forwarded to error tracking — only its tag, with a stack
+itself is never forwarded to error tracking - only its tag, with a stack
 reduced to basenames.

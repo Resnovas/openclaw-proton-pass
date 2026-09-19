@@ -15,8 +15,8 @@ the failure this design is built to prevent, so each one is a distinct type.
 ## Ids are not paths
 
 An id is an opaque label. It is deliberately *not* a vault path, so that
-`openclaw.json` — the file most likely to be shared, backed up or pasted into an
-issue — records only that a secret is needed, never where it lives.
+`openclaw.json` - the file most likely to be shared, backed up or pasted into an
+issue - records only that a secret is needed, never where it lives.
 
 The map is the single place the two are joined. Moving an item between vaults is
 one edit there.
@@ -40,7 +40,7 @@ const ref = Schema.decodeUnknownSync(PassRef)("pass://OpenClaw/context7.com/API 
 ```
 
 The brand is what makes it impossible to accidentally pass a *resolved value*
-into a position expecting a reference — which is how a credential would end up
+into a position expecting a reference - which is how a credential would end up
 written back into the map.
 
 That example is not illustrative: the same assertions run as part of the build.
@@ -49,7 +49,7 @@ See [`secret.ts`](/reference/api/domain/secret).
 ## Values are redacted
 
 A resolved value is wrapped in Effect's `Redacted` from the moment it leaves
-`pass-cli`. A `Redacted<string>` prints as `<redacted>` — in a log line, in an
+`pass-cli`. A `Redacted<string>` prints as `<redacted>` - in a log line, in an
 error message, in a stack trace, in `console.log`. Getting the real string out
 requires calling `Redacted.value` explicitly.
 
@@ -83,7 +83,7 @@ So the map can carry the decoration instead:
 
 Two ids, one vault entry, one thing to rotate. `prefix` and `suffix` both
 default to empty, so a bare string and a decorated object are the same shape
-once normalised — callers never branch on which form the operator happened to
+once normalised - callers never branch on which form the operator happened to
 write.
 
 <Note>

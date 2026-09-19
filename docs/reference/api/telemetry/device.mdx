@@ -11,7 +11,7 @@ A stable, pseudonymous identifier for this machine.
 
 Derived from the host's machine id rather than stored beside the
 configuration. Keying it to the config directory looked simpler, but it meant
-one machine reported as a different install every time that directory moved —
+one machine reported as a different install every time that directory moved -
 a changed `OPENCLAW_PROTONPASS_CONFIG_DIR`, a container, an ephemeral home,
 or a test run against a temporary directory. Counting those as separate
 installs makes every per-install question meaningless.
@@ -49,7 +49,7 @@ process.env["XDG_STATE_HOME"] = await mkdtemp(join(tmpdir(), "opp-example-"))
 
 const run = () => Effect.runPromise(installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(NodeContext.layer)))
 
-// No machine id file exists at that path, so the persisted fallback is used —
+// No machine id file exists at that path, so the persisted fallback is used -
 // and it is stable, because an identity that changed per run would make every
 // report look like a different install.
 assert.strictEqual(await run(), await run())

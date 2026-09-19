@@ -1,6 +1,6 @@
 ---
 title: "Resolver protocol"
-description: "The JSON contract between the OpenClaw Gateway and openclaw-protonpass-resolver — one request on stdin, one response on stdout."
+description: "The JSON contract between the OpenClaw Gateway and openclaw-protonpass-resolver - one request on stdin, one response on stdout."
 ---
 
 The Gateway starts the resolver, writes one JSON document to its stdin, reads
@@ -96,7 +96,7 @@ useless.
 <Accordion title="Why the exit code is read rather than the output">
 `Command.string` resolves with whatever a process wrote to stdout even when it
 exited non-zero. Built on that, a vault error would have become a silent batch
-of empty values — every id reported `NOT_FOUND` with no indication that the
+of empty values - every id reported `NOT_FOUND` with no indication that the
 vault had failed. Both the session probe and resolution read the exit code.
 </Accordion>
 
@@ -140,6 +140,6 @@ request with no ids returns neither.
 ## In the API reference
 
 <Card title="protocol.ts" href="/reference/api/domain/protocol">
-  `ResolveRequest`, `ResolveResponse`, `ResolveFailure` — the schemas above, with
+  `ResolveRequest`, `ResolveResponse`, `ResolveFailure` - the schemas above, with
   executable examples.
 </Card>

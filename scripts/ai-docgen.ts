@@ -138,7 +138,7 @@ const rendered = `${parts.join("\n").replace(/\n{3,}/g, "\n\n").trim()}\n`
 if (process.argv.includes("--check")) {
   const existing = readFileSync(OUT, "utf8")
   if (existing !== rendered) {
-    console.error("LLMS.md is out of date — run `pnpm ai-docgen` and commit the result")
+    console.error("LLMS.md is out of date - run `pnpm ai-docgen` and commit the result")
     process.exit(1)
   }
   console.log("LLMS.md is up to date")

@@ -125,7 +125,7 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
         const script = `printf "%s\\0" ${names.map((name) => `"$${name}"`).join(" ")}`
 
         // stdout and the exit code are both needed, and `Command.string`
-        // discards the code — it resolves with whatever was written even when
+        // discards the code - it resolves with whatever was written even when
         // the process failed, which would turn a vault error into a silent
         // batch of empty values.
         const output = yield* Effect.scoped(

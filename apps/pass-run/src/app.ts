@@ -72,7 +72,7 @@ const exitWith = (code: number, message: string) =>
  *
  * @remarks
  * Exits `64` when no command was given and `69` when no vault session could
- * be established — sysexits codes, so a supervisor can tell the two apart.
+ * be established - sysexits codes, so a supervisor can tell the two apart.
  * Otherwise the child's exit code becomes this process's exit code.
  *
  * @category entrypoints

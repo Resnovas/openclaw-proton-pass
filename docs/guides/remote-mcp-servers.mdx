@@ -10,7 +10,7 @@ not offer one.
 </Warning>
 
 `mcp.servers.*.headers` rejects `SecretRef`s from every source, and OpenClaw
-talks to the remote server directly over HTTPS — so nothing in between could
+talks to the remote server directly over HTTPS - so nothing in between could
 resolve a reference. The proxy supplies that missing hop.
 
 ```mermaid
@@ -42,7 +42,7 @@ flowchart LR
 </ResponseField>
 
 <ResponseField name="secretId" type="string" required>
-  An id from the secret map — not a `pass://` URI, so this file records no vault
+  An id from the secret map - not a `pass://` URI, so this file records no vault
   location either.
 </ResponseField>
 
@@ -56,7 +56,7 @@ flowchart LR
 </ResponseField>
 
 <ResponseField name="listen" type="string" default="127.0.0.1:18890">
-  Where the proxy binds. **Loopback only** — see below.
+  Where the proxy binds. **Loopback only** - see below.
 </ResponseField>
 
 The `Bearer ` prefix belongs in the secret map, not here, so that one vault
@@ -88,7 +88,7 @@ non-systemd cases.
 Anything other than `127.0.0.1`, `::1` or `localhost` is rejected **when the
 configuration loads**, not at the first request.
 
-That is deliberate. This proxy performs no authentication of its own — it
+That is deliberate. This proxy performs no authentication of its own - it
 attaches a real credential to whatever reaches it. Bound to `0.0.0.0` it would
 be an open credential-lending service on the network. Failing at load means a
 misconfiguration cannot run at all, rather than running until someone finds it.
@@ -106,7 +106,7 @@ nothing.
 <Visibility for="agents">
 Never widen `listen` beyond `127.0.0.1`, `::1` or `localhost` to resolve a
 connectivity problem. The schema refuses it, and the refusal is the security
-control — the proxy attaches a real credential to anything that reaches it and
+control - the proxy attaches a real credential to anything that reaches it and
 authenticates nothing. Forward a port over SSH instead.
 </Visibility>
 </Accordion>
@@ -143,7 +143,7 @@ at that point the credential is wrong, not stale.
 | Status | Meaning |
 | --- | --- |
 | `404` | No route matches that path |
-| `502` | The secret could not be resolved, or the upstream was unreachable — with no detail, because the client is not entitled to why |
+| `502` | The secret could not be resolved, or the upstream was unreachable - with no detail, because the client is not entitled to why |
 | connection dropped | The relay failed after the upstream's headers had already gone downstream |
 
 See [what happens when it fails](/concepts/failure) for the reasoning behind the

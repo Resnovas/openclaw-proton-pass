@@ -36,7 +36,7 @@ drifts from the code is worse than no guidance, because an agent will act on it.
 
 **Comment the why, not the what.** The goal is to teach how this system is meant
 to be used, and the non-obvious parts here are all about *why* a thing is done a
-particular way — why a value stays redacted, why an event has no string field.
+particular way - why a value stays redacted, why an event has no string field.
 
 **Show real usage.** Prefer the service style used throughout the codebase over
 a toy snippet that would not survive contact with the real layers.

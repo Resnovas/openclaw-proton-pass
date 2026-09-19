@@ -32,7 +32,7 @@ flowchart LR
   P -- "HTTPS, credential attached" --> RS
 ```
 
-## 1. Credential fields — the resolver
+## 1. Credential fields - the resolver
 
 `models.providers.*.apiKey` and fields like it accept a `SecretRef`. OpenClaw
 holds the reference and asks a provider to turn it into a value. That is exactly
@@ -45,7 +45,7 @@ anywhere, and the value exists only for the duration of the call.
 
 [Set one up →](/guides/credential-fields)
 
-## 2. Local MCP servers — `pass-run`
+## 2. Local MCP servers - `pass-run`
 
 `mcp.servers.*.env` accepts only literal strings. A `SecretRef` in there is
 stored as the characters `SecretRef`, not resolved.
@@ -57,10 +57,10 @@ environment. The Gateway never sees it.
 
 [Set one up →](/guides/stdio-mcp-servers)
 
-## 3. Remote MCP servers — the proxy
+## 3. Remote MCP servers - the proxy
 
 `mcp.servers.*.headers` rejects `SecretRef`s from every source, and OpenClaw
-talks to a remote server directly over HTTPS — so there is nothing in between
+talks to a remote server directly over HTTPS - so there is nothing in between
 that could resolve a reference.
 
 `openclaw-mcp-auth-proxy` supplies the missing hop. OpenClaw is pointed at
@@ -92,6 +92,6 @@ Every path ends at the same two pieces of state:
 
 And all three carry the resolved value the same way: wrapped in Effect's
 `Redacted`, from the moment it leaves `pass-cli` until the single point that
-genuinely needs it — the protocol response, the child's environment, or the
+genuinely needs it - the protocol response, the child's environment, or the
 outbound header. A value that is never unwrapped cannot be printed by an
 accidental log line.

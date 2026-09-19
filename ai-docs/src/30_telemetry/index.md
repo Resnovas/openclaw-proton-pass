@@ -12,7 +12,7 @@ build failure rather than a review comment someone might miss.
 Behind that, `toProperties` filters on the **value**: a finite number or a
 boolean passes, a string passes only if it appears verbatim in
 `ALLOWED_VALUES`, and everything else is dropped. Filtering by value rather
-than by name matters — a name-based denylist only blocks names someone thought
+than by name matters - a name-based denylist only blocks names someone thought
 of, and is defeated by putting a secret under an innocuous key.
 
 ### If you are adding an event
@@ -31,5 +31,5 @@ metrics through the metrics client, tracing through `span`, logs over OTLP with
 an id rather than a message, and errors through `captureError` by tag with a
 stack reduced to basenames.
 
-Reporting never affects behaviour — every capture is ignored on failure, so an
+Reporting never affects behaviour - every capture is ignored on failure, so an
 unreachable backend cannot fail a secret resolution.

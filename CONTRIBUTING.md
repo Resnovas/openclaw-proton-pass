@@ -4,7 +4,7 @@ Thanks for considering a contribution.
 
 ## Before you open an issue
 
-Run the doctor and include its output — it reports what is installed, what is
+Run the doctor and include its output - it reports what is installed, what is
 configured and what is missing, without revealing any secret:
 
 ```bash

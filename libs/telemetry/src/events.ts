@@ -55,7 +55,7 @@
  * That restriction is the whole safety argument. A secret is a runtime string
  * of unknown content; if no event has a field that accepts an arbitrary string,
  * then no secret has anywhere to go. Diagnostics are therefore expressed as
- * counts, durations, flags and tags — which is also what makes them aggregable.
+ * counts, durations, flags and tags - which is also what makes them aggregable.
  */
 
 /**
@@ -266,7 +266,7 @@ export type EventName = TelemetryEvent["name"]
  *
  * This is the runtime half of the compile-time guarantee. The type system stops
  * a TypeScript caller assigning a secret to a field; this set stops anything
- * else — a JavaScript caller, a future refactor, a mistake — because a value is
+ * else - a JavaScript caller, a future refactor, a mistake - because a value is
  * transmitted only if it appears here verbatim. Membership is tested against
  * the value, not the field name, so it cannot be defeated by choosing an
  * innocuous-looking key.

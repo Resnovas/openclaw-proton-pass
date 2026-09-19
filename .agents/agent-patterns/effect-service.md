@@ -6,7 +6,7 @@ A practical reference for defining and wiring services here. Effect v3
 
 ## Defining a service
 
-`Effect.Service` — the Effect 3.22 API for defining a service together with its
+`Effect.Service` - the Effect 3.22 API for defining a service together with its
 layers. It generates `.Default`, so a service is usable without hand-writing a
 layer.
 
@@ -30,7 +30,7 @@ Points that matter:
 - Return `as const` so the shape is inferred with readonly members rather than
   widened.
 - The constructor effect runs **once per layer**, which is where one-time work
-  belongs — path discovery, reading configuration, building a cache.
+  belongs - path discovery, reading configuration, building a cache.
 
 ## Consuming one
 
@@ -62,7 +62,7 @@ export const layer = Layer.mergeAll(
   (`FileSystem`, `Path`, `Command`) **and** keeps them in the output, because
   the program uses them directly too.
 - `Layer.merge(StderrLoggerLive)` replaces the default stdout logger. Every
-  executable here does this — stdout carries protocol output, so a log line
+  executable here does this - stdout carries protocol output, so a log line
   there corrupts it.
 
 ## Configuration is a service concern too
@@ -103,5 +103,5 @@ is preferable to an `Option<Telemetry>` that every caller has to unwrap.
 - Constructing a service inside a request path. That is what the layer is for.
 - Providing layers deep in the call graph. Provide once, at the entry point.
 - A service that reads configuration at call time rather than at construction.
-- Tacit calls — `Effect.map(fn)`. Write `Effect.map((x) => fn(x))`; the explicit
+- Tacit calls - `Effect.map(fn)`. Write `Effect.map((x) => fn(x))`; the explicit
   form keeps inference and stack traces intelligible.

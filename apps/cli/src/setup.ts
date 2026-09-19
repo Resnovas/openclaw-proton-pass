@@ -55,7 +55,7 @@ import { fileURLToPath } from "node:url"
  * The example secret map written when none exists.
  *
  * The example is Context7 because it is a real, free, open-source MCP server
- * that takes an `Authorization: Bearer` key — so the entry demonstrates the
+ * that takes an `Authorization: Bearer` key - so the entry demonstrates the
  * decorated form against something a reader can actually try, rather than a
  * placeholder they have to mentally substitute.
  */
@@ -156,7 +156,7 @@ export const setup = Effect.gen(function* () {
       yield* fs.chmod(target, 0o600)
       yield* telemetry.diagnostic("cli.config_seeded", "info")
       yield* Effect.logInfo(
-        `${path.basename(target)} seeded from the example — edit it before use`
+        `${path.basename(target)} seeded from the example - edit it before use`
       )
     })
 

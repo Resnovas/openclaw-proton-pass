@@ -61,7 +61,7 @@ examples that assert something worth asserting.
 Every exported callable must carry `@remarks` describing contract behaviour, a
 typed `@example`, `@param` for each parameter, and `@returns` unless it returns
 nothing. This is enforced against the declaration output, because that is what
-a consumer — or an agent generating tests — actually reads.
+a consumer - or an agent generating tests - actually reads.
 
 ## Standards
 

@@ -47,7 +47,7 @@ export interface Upstream {
  * A stand-in MCP server.
  *
  * `handler` decides each response, so a test can make the upstream reject the
- * first credential and accept the second — the sequence the proxy's refresh
+ * first credential and accept the second - the sequence the proxy's refresh
  * path exists for.
  */
 export const startUpstream = async (

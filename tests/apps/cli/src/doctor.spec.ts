@@ -71,7 +71,9 @@ describe("renderChecks", () => {
   })
 
   it("omits the separator when there is no detail", () => {
-    expect(renderChecks([{ label: "plain", ok: true }])[0]).not.toContain("—")
+    // The separator is " - ", spaces included, so a label that contains a
+    // hyphen of its own is not mistaken for one.
+    expect(renderChecks([{ label: "plain-label", ok: true }])[0]).not.toContain(" - ")
   })
 
   it("renders one line per check", () => {

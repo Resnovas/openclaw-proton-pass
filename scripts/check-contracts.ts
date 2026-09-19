@@ -2,7 +2,7 @@
  * Enforce the API contract documentation rules against the declaration output.
  *
  * The rule this implements is dist-first: a contract is only useful to a
- * consumer — or to an agent generating tests — if it survives into
+ * consumer - or to an agent generating tests - if it survives into
  * `dist/**\/*.d.ts`, where the implementation is no longer visible. Checking the
  * sources would pass on comments that TypeScript then dropped.
  *
@@ -13,7 +13,7 @@
  * - `@param` for every parameter
  * - `@returns`, unless it returns nothing
  *
- * Non-callable exports — schemas, layers, service classes, plain values — are
+ * Non-callable exports - schemas, layers, service classes, plain values - are
  * out of scope here; their descriptions are enforced separately by docgen's
  * `enforceDescriptions`.
  *
@@ -51,7 +51,7 @@ const projects = [
 const sources = projects.flatMap((project) => declarationFiles(join(project, "dist")))
 
 if (sources.length === 0) {
-  console.error("no declaration output found — run `pnpm build` first")
+  console.error("no declaration output found - run `pnpm build` first")
   process.exit(1)
 }
 
@@ -85,8 +85,8 @@ const callables = (file: ts.SourceFile): Array<Callable> => {
     if (!ts.isVariableStatement(statement)) continue
     for (const declaration of statement.declarationList.declarations) {
       const type = declaration.type
-      // A `const` whose declared type is a function type. Anything else — a
-      // schema, a layer, an Effect value — is not a callable contract.
+      // A `const` whose declared type is a function type. Anything else - a
+      // schema, a layer, an Effect value - is not a callable contract.
       if (type === undefined || !ts.isFunctionTypeNode(type)) continue
       found.push({
         name: declaration.name.getText(file),

@@ -75,7 +75,7 @@ absolute path; a variable exported as the empty string is treated as unset,
 because taking it literally would point the resolver at the filesystem root.
 </Accordion>
 
-To add an override, use a drop-in rather than editing the generated unit — a
+To add an override, use a drop-in rather than editing the generated unit - a
 re-run of `setup` rewrites the unit file:
 
 ```bash
@@ -94,7 +94,7 @@ reference](/reference/configuration).
 ## Without systemd
 
 The proxy is an ordinary long-running process. Anything that can keep one alive
-will do — launchd, a supervisor, a container. It needs:
+will do - launchd, a supervisor, a container. It needs:
 
 - `HOME` set, or every path overridden explicitly
 - `pass-cli` reachable, on `PATH` or via `PASS_CLI`

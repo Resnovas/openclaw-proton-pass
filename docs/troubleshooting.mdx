@@ -9,19 +9,19 @@ Start here:
 openclaw-proton-pass doctor
 ```
 
-It prints the paths it actually resolved, which is usually enough — an override
+It prints the paths it actually resolved, which is usually enough - an override
 that is not doing what you expected shows up immediately.
 
 <Visibility for="agents">
 Match on these exact strings when diagnosing from output:
 
-- `Already authenticated` — from `pass-cli login --pat`, means a session file
+- `Already authenticated` - from `pass-cli login --pat`, means a session file
   exists. Run `pass-cli logout` in the same `PROTON_PASS_SESSION_DIR` first.
 - `SessionError`, `MissingAgentTokenError`, `SecretMapError`,
-  `ResolutionError`, `ProtocolError`, `RouteConfigError`, `ProxyIoError` — the
+  `ResolutionError`, `ProtocolError`, `RouteConfigError`, `ProxyIoError` - the
   seven tags. Each is defined on the failure page.
-- `no route for /<path>` — from the proxy, HTTP 404.
-- `no routes configured; nothing to serve` — the route file parsed but is empty.
+- `no route for /<path>` - from the proxy, HTTP 404.
+- `no routes configured; nothing to serve` - the route file parsed but is empty.
 
 Deleting `~/.local/state/openclaw-protonpass` is safe and is the supported
 repair for an undecryptable session. Deleting
@@ -48,7 +48,7 @@ pass-cli read "pass://OpenClaw/context7.com/API Key"
 ```
 
 If `pass-cli read` works and the resolver does not, the two are using different
-sessions — see the next item.
+sessions - see the next item.
 
 </Accordion>
 
@@ -63,7 +63,7 @@ ls -l ~/.config/proton-pass-cli/
 python3 -m json.tool < ~/.config/proton-pass-cli/openclaw-secret-map.json
 ```
 
-A common cause is invalid JSON after a hand edit — a trailing comma will do it.
+A common cause is invalid JSON after a hand edit - a trailing comma will do it.
 
 </Accordion>
 
@@ -115,7 +115,7 @@ default). A cold agent session on a contended host can genuinely take seconds.
 time pass-cli info
 ```
 
-If that is slow, raise the timeout — and raise OpenClaw's
+If that is slow, raise the timeout - and raise OpenClaw's
 `secrets.providers.protonpass.timeoutMs` to match, or the Gateway gives up
 first and you see its timeout rather than this one's error.
 
@@ -174,7 +174,7 @@ journalctl --user -u openclaw-mcp-auth-proxy -n 50
 python3 -m json.tool < ~/.config/proton-pass-cli/openclaw-mcp-proxy.json
 ```
 
-The loopback rule is deliberate and not configurable — see the [security
+The loopback rule is deliberate and not configurable - see the [security
 model](/security/model).
 
 </Accordion>
@@ -209,7 +209,7 @@ journalctl --user -u openclaw-mcp-auth-proxy -f
 
 The proxy already retries once with a freshly resolved credential, so a second
 `401` means the credential is wrong rather than stale. Check that the map entry
-carries the decoration the upstream expects — most bearer APIs need
+carries the decoration the upstream expects - most bearer APIs need
 `"prefix": "Bearer "`, with the trailing space.
 
 </Accordion>
@@ -254,7 +254,7 @@ CONTEXT7_API_KEY="pass://OpenClaw/context7.com/API Key" \
 
 <Accordion title="The wrapper exits before the server starts">
 
-A reference could not be resolved. That is intentional — starting a server that
+A reference could not be resolved. That is intentional - starting a server that
 will fail confusingly on its first call is worse. The stderr output names the
 failure.
 

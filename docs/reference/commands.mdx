@@ -23,7 +23,7 @@ Prepares the configuration directory. Safe to re-run.
   </Step>
   <Step title="Seeds the configuration">
     `openclaw-secret-map.json` and `openclaw-mcp-proxy.json`, mode `0600`, from
-    worked Context7 examples. **An existing file is never overwritten** — the
+    worked Context7 examples. **An existing file is never overwritten** - the
     secret map is the one piece of state a re-run must not disturb.
   </Step>
   <Step title="Writes the systemd unit">
@@ -39,13 +39,13 @@ Prepares the configuration directory. Safe to re-run.
 
 ### `doctor`
 
-Reports what is installed, configured and missing. **Read-only** — it never
+Reports what is installed, configured and missing. **Read-only** - it never
 creates or repairs anything, so it is safe against a production host.
 
 ```
   ok    pass-cli at /home/you/.local/bin/pass-cli
   ok    secret map /home/you/.config/proton-pass-cli/openclaw-secret-map.json
-  MISS  agent token /home/you/.config/proton-pass-cli/openclaw-agent-pat — create with: pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+  MISS  agent token /home/you/.config/proton-pass-cli/openclaw-agent-pat - create with: pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
   ok    proxy routes /home/you/.config/proton-pass-cli/openclaw-mcp-proxy.json
   ok    session directory /home/you/.local/state/openclaw-protonpass
 ```
@@ -64,7 +64,7 @@ JSON response on stdout, exits.
 echo '{"protocolVersion":1,"ids":["CONTEXT7_API_KEY"]}' | openclaw-protonpass-resolver
 ```
 
-Not normally invoked by hand — OpenClaw runs it. The [protocol
+Not normally invoked by hand - OpenClaw runs it. The [protocol
 reference](/reference/protocol) documents the contract.
 
 <Warning>
@@ -127,7 +127,7 @@ npm install -g @resnovas/openclaw-proton-pass
 ```
 
 ```bash Release archive
-# openclaw-proton-pass-bin-<version>.zip — four self-contained bundles,
+# openclaw-proton-pass-bin-<version>.zip - four self-contained bundles,
 # runnable with node, no install step and no node_modules.
 ```
 
@@ -141,5 +141,5 @@ node apps/cli/dist/main.js setup
 
 Installed as a plugin, the manifest declares the secret provider through
 `secretProviderIntegrations`, so installing registers the `protonpass` provider
-and removing the plugin revokes it — rather than leaving a hardcoded `command`
+and removing the plugin revokes it - rather than leaving a hardcoded `command`
 path in `openclaw.json` that outlives the thing it points at.

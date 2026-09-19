@@ -18,7 +18,7 @@ with three different rules, plus a management CLI:
 ## Layout
 
 ```
-libs/domain        branded types, schemas, the error union — no I/O
+libs/domain        branded types, schemas, the error union - no I/O
 libs/config        Effect Config: every path, with an environment override
 libs/pass-cli      PassSession and SecretResolver
 libs/telemetry     the closed event union and its filters
@@ -31,7 +31,7 @@ ai-docs/           the sources for LLMS.md
 Nx infers the project graph from imports, so build order follows the graph. Run
 `pnpm verify` before claiming anything works: it typechecks, checks licence
 headers and API contracts, runs the suite at 100% coverage with a depth report,
-and regenerates the API reference — which compiles and executes every
+and regenerates the API reference - which compiles and executes every
 documentation example.
 
 ## Three rules that explain most of the code
@@ -48,6 +48,6 @@ violated before, with consequences recorded in the commit history.
    the outbound HTTP header. Anywhere else, `Redacted.value` is a bug.
 
 3. **Telemetry has no field a secret could occupy.** The event union has no
-   field of type `string` — only numbers, booleans, and string literal unions.
+   field of type `string` - only numbers, booleans, and string literal unions.
    Adding one would not be a policy violation to be reviewed; it would be a
    change to the thing that makes the guarantee true.

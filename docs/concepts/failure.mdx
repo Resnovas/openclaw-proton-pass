@@ -22,7 +22,7 @@ So per-id failures travel *inside* a successful response:
 ```
 
 The top-level `error` field is different. It means no value could be produced at
-all — the map was unreadable, or no session could be established.
+all - the map was unreadable, or no session could be established.
 
 <Note>
 There is exactly one per-id failure reason, `NOT_FOUND`. "Absent from the map"
@@ -79,7 +79,7 @@ See [`errors.ts`](/reference/api/domain/errors) for the definitions.
     because the client is not entitled to know why.
 
     A `401` from the upstream triggers exactly one credential refresh and
-    retry — the case where the vault entry was rotated while the proxy was
+    retry - the case where the vault entry was rotated while the proxy was
     running.
 
     A relay that fails **after** the upstream's headers have gone downstream
@@ -105,5 +105,5 @@ fails later and less clearly than an honest refusal now.
 The one exception is in memory and bounded: the proxy memoises resolved
 credentials for 30 minutes, up to 64 entries, so a single MCP conversation does
 not cost a vault round trip per message. It is never written down, it dies with
-the process, and a `401` from the upstream invalidates the entry immediately —
+the process, and a `401` from the upstream invalidates the entry immediately -
 which is what stops a rotated credential going unnoticed for half an hour.

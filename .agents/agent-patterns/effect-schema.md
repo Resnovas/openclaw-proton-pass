@@ -1,7 +1,7 @@
 # Effect Schema in this project
 
 A practical reference for writing `Schema` code here. Effect v3 (`effect@^3.22`).
-For anything not covered, read the schemas in `libs/domain/src` — they are the
+For anything not covered, read the schemas in `libs/domain/src` - they are the
 worked examples this file summarises.
 
 ## Branded strings
@@ -70,7 +70,7 @@ The decoded type then has the field as **required**, so nothing downstream has
 to handle the absent case. Prefer this to `Schema.optional` whenever a sensible
 default exists.
 
-`Schema.optional` is for genuinely absent data — `values` and `errors` in
+`Schema.optional` is for genuinely absent data - `values` and `errors` in
 `ResolveResponse`, where "no values at all" and "an empty object" differ on the
 wire.
 

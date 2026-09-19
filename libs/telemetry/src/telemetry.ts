@@ -117,7 +117,7 @@ const personProperties = (device: DeviceContext): Record<string, string | number
  *
  * On by default. The reporting pipeline is built so that a secret has no field
  * to travel in, which is what makes that defensible for a tool handling
- * credentials — see TELEMETRY.md. Opting out is one environment variable.
+ * credentials - see TELEMETRY.md. Opting out is one environment variable.
  *
  * Each signal goes to the PostHog product that displays it: analytics and
  * errors as events, metrics through the SDK's metrics client, spans through its

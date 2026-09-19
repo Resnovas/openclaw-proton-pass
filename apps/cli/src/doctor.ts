@@ -60,7 +60,7 @@ export interface Check {
  * Render checks as aligned terminal lines.
  *
  * @remarks
- * Pure and total. Renders labels and outcomes only — it reads no file and
+ * Pure and total. Renders labels and outcomes only - it reads no file and
  * resolves no secret, so its output is safe to paste into an issue.
  *
  * @param checks - the checks to display
@@ -74,7 +74,7 @@ export interface Check {
  *     { label: "pass-cli", ok: true },
  *     { label: "agent token", ok: false, detail: "create one with pass-cli agent create" }
  *   ]),
- *   ["  ok    pass-cli", "  MISS  agent token — create one with pass-cli agent create"]
+ *   ["  ok    pass-cli", "  MISS  agent token - create one with pass-cli agent create"]
  * )
  */
 export const renderChecks = (checks: ReadonlyArray<Check>): ReadonlyArray<string> =>
@@ -82,7 +82,7 @@ export const renderChecks = (checks: ReadonlyArray<Check>): ReadonlyArray<string
     const mark = check.ok ? "ok  " : "MISS"
     return check.detail === undefined
       ? `  ${mark}  ${check.label}`
-      : `  ${mark}  ${check.label} — ${check.detail}`
+      : `  ${mark}  ${check.label} - ${check.detail}`
   })
 
 /**

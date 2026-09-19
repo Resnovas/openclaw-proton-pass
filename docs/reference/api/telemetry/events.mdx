@@ -11,7 +11,7 @@ Every string value any event field is permitted to carry.
 
 This is the runtime half of the compile-time guarantee. The type system stops
 a TypeScript caller assigning a secret to a field; this set stops anything
-else — a JavaScript caller, a future refactor, a mistake — because a value is
+else - a JavaScript caller, a future refactor, a mistake - because a value is
 transmitted only if it appears here verbatim. Membership is tested against
 the value, not the field name, so it cannot be defeated by choosing an
 innocuous-looking key.
