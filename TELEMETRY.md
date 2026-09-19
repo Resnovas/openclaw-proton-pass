@@ -1,7 +1,13 @@
 # Telemetry
 
-This tool can report how it is working. It is **off by default**, and it is built
-so that it cannot report a secret even if someone tries to make it.
+This tool reports how it is working. It is **on by default**, and it is built so
+that it cannot report a secret even if someone tries to make it.
+
+Opting out is one environment variable:
+
+```bash
+OPENCLAW_PROTONPASS_TELEMETRY=false
+```
 
 This page explains how, twice: once in plain language, once precisely.
 
@@ -128,6 +134,51 @@ nothing. A test asserts it does not silently eat legitimate fields.
 
 ---
 
+## Where each signal goes
+
+Each signal is sent to the PostHog product that displays it, rather than all
+being flattened into events:
+
+| Signal | Transport | Appears in |
+| --- | --- | --- |
+| Product analytics | SDK `capture` | Events, insights |
+| Metrics | SDK metrics client | Metrics |
+| Tracing | SDK tracing client | Tracing |
+| Logs | OTLP to `/i/v1/logs` | Logs |
+| Error tracking | SDK `captureException` | Error tracking |
+
+## Who the report is from
+
+Reports are attributed to an **install id**: a random UUID generated on first
+run and stored at `~/.config/proton-pass-cli/install-id`, mode `0600`.
+
+It is random rather than derived from the machine, so it identifies an install
+without encoding anything about it. Deleting the file starts a new identity. On
+a filesystem where nothing can be written, a hash of stable machine attributes
+stands in, so one host's runs still group together.
+
+Alongside it, a description of the machine is sent once as person properties, so
+a failure can be correlated with what it is running on:
+
+| Field | Example |
+| --- | --- |
+| `hostname` | the machine's name |
+| `os`, `os_release`, `arch` | `linux`, `7.2.4`, `x64` |
+| `node_version`, `npm_version`, `pnpm_version` | `22.0.0`, `11.19.0`, `12.4.2` |
+| `pass_cli_version` | `Proton Pass CLI 2.3.3` |
+| `cpu_count`, `memory_gb` | `24`, `31.2` |
+| `timezone`, `is_ci`, `installed_as_plugin` | `Europe/London`, `false`, `true` |
+| `app_version` | the release this build came from |
+
+These are free-form strings, unlike event properties. That is deliberate and the
+distinction is the point: each is read from `node:os`, `process`, or a version
+command, so none can be a credential, a vault reference, or anything an operator
+typed. The version lookups are cached for a week, because spawning `npm` and
+`pnpm` on every secret resolution would be absurd.
+
+**`hostname` identifies a machine, and on a personal device often a person.** If
+that is not a trade you want on an install, turn telemetry off.
+
 ## What is actually collected
 
 | Category | Event | Carries |
@@ -167,17 +218,16 @@ Not "is filtered out" — has no field to travel in.
 - The same tests assert the failure is still *reported* by tag, so redaction is
   shown not to have cost the diagnosis.
 
-## Turning it on, off, or elsewhere
-
-Off unless you ask for it:
+## Turning it off, or pointing it elsewhere
 
 ```bash
-OPENCLAW_PROTONPASS_TELEMETRY=true      # opt in
+OPENCLAW_PROTONPASS_TELEMETRY=false     # opt out entirely
 ```
 
-The build carries a PostHog project key, so opting in needs nothing else. A
-PostHog project API key is a write-only ingestion key of the kind designed to
-ship inside clients: it can send events and read nothing back.
+The build carries a PostHog project key, so an install reports without anyone
+configuring anything. A PostHog project API key is a write-only ingestion key of
+the kind designed to ship inside clients: it can send events and read nothing
+back.
 
 ```bash
 OPENCLAW_PROTONPASS_POSTHOG_KEY=phc_your_own   # report to your own project
@@ -185,5 +235,18 @@ OPENCLAW_PROTONPASS_POSTHOG_KEY=""             # enabled, but send nowhere
 OPENCLAW_PROTONPASS_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
+```bash
+OPENCLAW_PROTONPASS_SERVICE_NAME=my-service     # how it appears in Tracing/Logs
+OPENCLAW_PROTONPASS_ENVIRONMENT=staging
+```
+
 Reporting never affects behaviour: every capture is `Effect.ignore`d, so a
 failing or unreachable analytics backend cannot fail a secret resolution.
+
+## Source maps
+
+The published binaries are bundles, so a raw stack trace would point at a line
+in a 2 MB file. Each release uploads its source maps to PostHog, and injects a
+matching chunk id into the bundle before publishing, so an error report resolves
+back to the TypeScript that produced it. The maps are not shipped in the npm
+package — they are 10 MB each and only PostHog needs them.

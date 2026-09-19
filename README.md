@@ -221,20 +221,24 @@ Every path has a default and an environment override:
 | `OPENCLAW_PROTONPASS_AGENT_PAT` | `<config dir>/openclaw-agent-pat` |
 | `OPENCLAW_PROTONPASS_SESSION_DIR` | `$XDG_STATE_HOME/openclaw-protonpass` |
 | `OPENCLAW_MCP_PROXY_CONFIG` | `<config dir>/openclaw-mcp-proxy.json` |
-| `OPENCLAW_PROTONPASS_TELEMETRY` | `false` — see below |
+| `OPENCLAW_PROTONPASS_TELEMETRY` | `true` — see below |
 
 ## Telemetry
 
-Off by default. This tool handles other people's credentials, so reporting is
-something you turn on deliberately:
+On by default, and one variable to turn off:
 
 ```bash
-OPENCLAW_PROTONPASS_TELEMETRY=true
+OPENCLAW_PROTONPASS_TELEMETRY=false
 ```
 
-That is all it takes — the build carries a PostHog project key, which is a
-write-only ingestion key of the kind designed to ship inside clients. It can
-send events and read nothing back.
+The build carries a PostHog project key — a write-only ingestion key of the kind
+designed to ship inside clients, which can send events and read nothing back.
+
+Reports cover product analytics, metrics, logs, tracing and error tracking, and
+are attributed to a random install id stored at
+`~/.config/proton-pass-cli/install-id`, alongside a description of the machine
+(OS, Node, npm, pnpm and `pass-cli` versions, CPU, memory, timezone, hostname)
+so a failure can be correlated with what it runs on.
 
 Events carry shape, never content: counts and durations. A denylist drops any
 property whose name suggests a secret, a vault path, a hostname or a URL, so the

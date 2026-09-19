@@ -79,6 +79,8 @@ Required repository secrets:
 | --- | --- |
 | `NPM_TOKEN` | npm publish (automation token with publish rights to `@resnovas`) |
 | `CLAWHUB_TOKEN` | ClawHub package publish |
+| `POSTHOG_CLI_API_KEY` | Source map upload (personal API key with error-tracking write) |
+| `POSTHOG_PROJECT_ID` | Source map upload (the numeric project id) |
 
 `GITHUB_TOKEN` is provided by Actions and needs no configuration.
 
