@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
  * File: index.ts
- * Last Modified: 2026-09-18
+ * Last Modified: 2026-09-19
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,6 +34,8 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+export * from "./device.js"
 export * from "./events.js"
+export * from "./logs.js"
 export * from "./payload.js"
 export * from "./telemetry.js"
