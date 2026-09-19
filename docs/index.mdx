@@ -23,7 +23,7 @@ opaque names to vault locations, and the token that authenticates to your vault.
 | `openclaw-protonpass-resolver` | An OpenClaw `exec` secret provider. Answers the Gateway's JSON protocol on stdin and stdout. |
 | `openclaw-pass-run` | Launches a **stdio** MCP server with `pass://` environment references already resolved. |
 | `openclaw-mcp-auth-proxy` | A loopback HTTP hop that attaches a credential header to **remote** MCP requests. |
-| `openclaw-proton-pass` | `setup` and `doctor`. |
+| `openclaw-proton-pass` | `setup`, `token` and `doctor`. |
 
 Three of them exist because OpenClaw accepts a secret in three places and each
 place has different rules. [How it works](/how-it-works) explains which one you

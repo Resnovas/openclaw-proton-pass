@@ -91,12 +91,20 @@ creates or repairs anything, so it is safe against a production host.
   config /home/you/.config/proton-pass-cli
   ok    pass-cli at /home/you/.local/bin/pass-cli
   ok    secret map /home/you/.config/proton-pass-cli/openclaw-secret-map.json
-  MISS  agent token /home/you/.config/proton-pass-cli/openclaw-agent-pat - create with: pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+  MISS  agent token /home/you/.config/proton-pass-cli/openclaw-agent-pat - create one with `pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw`, then store it with `openclaw-proton-pass token` or export OPENCLAW_PROTONPASS_AGENT_TOKEN
   ok    proxy routes /home/you/.config/proton-pass-cli/openclaw-mcp-proxy.json
   ok    session directory /home/you/.local/state/openclaw-protonpass
 ```
 
-A failing check is reported and counted; the command still exits successfully,
+When the token comes from the environment the line names the variable
+instead, because that is the one the session will use:
+
+```
+  ok    agent token from OPENCLAW_PROTONPASS_AGENT_TOKEN
+```
+
+A remedy is printed only beside a check that failed. A failing check is
+reported and counted; the command still exits successfully,
 because "this host is not fully configured" is a report, not a crash.
 
 ---

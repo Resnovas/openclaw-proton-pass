@@ -76,7 +76,7 @@ prevent.
     <Folder name="resolver"><File name="the exec secret provider" /></Folder>
     <Folder name="pass-run"><File name="the stdio MCP wrapper" /></Folder>
     <Folder name="mcp-auth-proxy"><File name="the loopback credential proxy" /></Folder>
-    <Folder name="cli"><File name="setup and doctor" /></Folder>
+    <Folder name="cli"><File name="setup, token and doctor" /></Folder>
   </Folder>
   <Folder name="tests"><File name="mirrors the source tree" /></Folder>
   <Folder name="docs"><File name="this site" /></Folder>
@@ -244,7 +244,8 @@ Run the **Release** workflow from the Actions tab. `pnpm verify` runs as
 header or a broken documentation example stops the release before anything is
 tagged.
 
-Tick **dry run** to rehearse without tagging or publishing.
+Tick **dry run** to rehearse without tagging or publishing. Tick **stage** to
+submit the version to npm for review rather than releasing it outright.
 
 <Steps>
   <Step title="Version, tag and GitHub release">
@@ -257,9 +258,10 @@ Tick **dry run** to rehearse without tagging or publishing.
     publish: the uploaded map is keyed by that id, so an uninjected bundle
     leaves every stack trace unresolvable.
   </Step>
-  <Step title="Publish">
-    npm with provenance, the bundles attached to the GitHub release as a zip,
-    then ClawHub.
+  <Step title="Publish to two registries">
+    npmjs.com with provenance, then this repository's GitHub Packages
+    registry. The bundles are attached to the GitHub release as a zip, and the
+    plugin goes to ClawHub.
   </Step>
   <Step title="Record the release">
     PostHog gets a release named `openclaw-proton-pass` at the package version,
@@ -267,6 +269,109 @@ Tick **dry run** to rehearse without tagging or publishing.
     commits since the previous release.
   </Step>
 </Steps>
+
+### Two registries
+
+The same tarball goes to both, so the package is installable by anyone who can
+read this repository even if npm is unreachable.
+
+| | Registry | Authentication |
+| --- | --- | --- |
+| Primary | `registry.npmjs.org` | Trusted publishing, falling back to `NPM_TOKEN` |
+| Mirror | `npm.pkg.github.com` | `GITHUB_TOKEN`, which Actions provides |
+
+GitHub Packages needs no secret and no personal access token. It requires the
+`packages: write` permission, which the workflow declares, and a package scope
+matching the owning organisation, which `@resnovas` already does. Installing
+from it needs a one-line `.npmrc`:
+
+```
+@resnovas:registry=https://npm.pkg.github.com
+```
+
+<Note>
+Provenance is switched off for the GitHub Packages publish. It is an npmjs
+attestation and that registry does not accept one, so leaving it on fails the
+publish rather than skipping the attestation.
+</Note>
+
+### Publishing without a long-lived token
+
+npm revoked all classic tokens in December 2025, capped granular write tokens
+at 90 days, and will remove the ability to publish with a granular token
+entirely in January 2027. [Trusted
+publishing](https://docs.npmjs.com/trusted-publishers) replaces the token with
+an OIDC exchange: the workflow proves which repository and workflow file it is,
+and npm issues a credential that lives for that one publish.
+
+The workflow already does everything the repository side needs. It requests
+`id-token: write`, and npm tries OIDC before falling back to a token, so no
+edit is required when a trusted publisher is added or when the token is later
+removed.
+
+<Warning>
+A trusted publisher cannot be configured for a package that does not exist yet:
+the setting lives on the package's page on npmjs.com. The first release has to
+go out with `NPM_TOKEN`, after which the token can be deleted.
+</Warning>
+
+<Steps>
+  <Step title="Release once with a token">
+    Create a granular access token with publish rights to
+    `@resnovas/openclaw-proton-pass`, add it as `NPM_TOKEN`, and run the
+    workflow.
+  </Step>
+  <Step title="Add the trusted publisher">
+    On the package's npmjs.com settings, add a GitHub Actions trusted publisher
+    with organisation `Resnovas`, repository `openclaw-proton-pass` and
+    workflow `release.yml`. npm does not validate these when they are saved, so
+    a typo only surfaces at the next publish.
+  </Step>
+  <Step title="Delete the token">
+    Remove `NPM_TOKEN` from the repository secrets and revoke it on npm. The
+    publish step needs no change: with no token present, OIDC is the only path
+    left, and it is the one already being used.
+  </Step>
+  <Step title="Tighten the package">
+    Set the package to require two-factor authentication and disallow tokens.
+    Trusted publishing keeps working, and nothing else can publish.
+  </Step>
+</Steps>
+
+### Staged publishing
+
+[Staged publishing](https://docs.npmjs.com/staged-publishing) puts a person
+between a compromised pipeline and a public release. With **stage** ticked the
+workflow runs `npm stage publish`, which uploads the version to npm without
+making it installable, and the job summary says how to approve it:
+
+```bash
+npm stage list @resnovas/openclaw-proton-pass
+npm stage approve <stage-id>
+```
+
+Approving requires 2FA, which is the point: a pipeline that can publish cannot
+also approve. The npmjs.com **Staged Packages** tab does the same thing.
+
+It is opt-in per release rather than a change to how releasing works. Two
+constraints are worth knowing: it needs npm 11.15.0 or later, which is why the
+workflow installs one rather than using the npm that ships with Node 22, and a
+version of a package that has never been published cannot be staged. The
+GitHub Packages copy is published directly either way, so a staged release
+still exists somewhere installable while it waits.
+
+### Why the publish step is not `nx release publish`
+
+`nx release` still does the versioning, changelog, tag and GitHub release.
+Only the publish itself is plain `npm publish`, because `nx release publish`
+delegates to the detected package manager, that is pnpm here, and pnpm does not
+implement npm's OIDC trusted publishing
+([pnpm/pnpm#9812](https://github.com/pnpm/pnpm/issues/9812)). Going through it
+would rule out the only publishing method that needs no token at all.
+
+Nothing is lost by the swap. nx's pnpm path exists to rewrite `workspace:*`
+dependency protocols at publish time, and this package declares no dependencies
+whatsoever: every one of them is inside the bundles.
 
 ### Release names line up on purpose
 
@@ -294,3 +399,5 @@ fork releases without them. Neither can be set up from the repository.
   Business plan feature.
 - **PostHog source linking**: connect the GitHub integration in PostHog, so
   stack frames link to the commit that produced them.
+- **The npm trusted publisher**, which can only be added once the package
+  exists. Until then `NPM_TOKEN` is required rather than optional.

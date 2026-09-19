@@ -210,6 +210,14 @@ message text. Command arguments. Anything typed by a person.
 
 Not "is filtered out" - **has no field to travel in**.
 
+<Note>
+This page is about telemetry, which is a different channel from the vault's
+own audit log. Every audited read does send Proton a reason naming the secret
+map ids involved, because that log exists to say what was read. See [sessions
+and the agent token](/concepts/sessions). Nothing from that reason reaches
+telemetry, and nothing here reaches Proton.
+</Note>
+
 <Accordion title="Notes for AI agents">
 If you are adding an event: add it to the `TelemetryEvent` union in
 `libs/telemetry/src/events.ts` using numbers, booleans and string literal

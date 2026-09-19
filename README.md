@@ -82,6 +82,19 @@ openclaw-proton-pass setup
 Linux, macOS and Windows are all supported, as is a container with no init
 system. `setup` detects the host and writes the right thing for it.
 
+### From GitHub Packages
+
+Every release is published to this repository's GitHub Packages registry as
+well as to npm. Point the scope at it and install as usual:
+
+```bash
+echo '@resnovas:registry=https://npm.pkg.github.com' >> .npmrc
+npm install -g @resnovas/openclaw-proton-pass
+```
+
+Reading from GitHub Packages requires a GitHub token with `read:packages`,
+which `npm login --registry=https://npm.pkg.github.com` will prompt for.
+
 That puts four commands on `PATH` - `openclaw-proton-pass`,
 `openclaw-protonpass-resolver`, `openclaw-pass-run` and
 `openclaw-mcp-auth-proxy` - each a self-contained bundle needing only Node.
@@ -298,7 +311,7 @@ libs/telemetry   opt-in PostHog reporting
 apps/resolver    the exec secret provider
 apps/pass-run    the stdio MCP wrapper
 apps/mcp-auth-proxy  the loopback credential-injecting proxy
-apps/cli         setup and doctor
+apps/cli         setup, token and doctor
 tests/           mirrors the source tree, @effect/vitest
 ```
 
@@ -329,14 +342,19 @@ OPP_INTEGRATION_SECRET_ID=SOME_ID pnpm exec vitest run tests/integration
 
 Releases are cut by the **Release** workflow, which versions from conventional
 commits with `nx release`, writes the changelog, tags, publishes to npm with
-provenance, attaches the bundles to the GitHub release, and publishes the plugin
-to ClawHub.
+provenance and to GitHub Packages, attaches the bundles to the GitHub release,
+publishes the plugin to ClawHub, and records the release in PostHog and Linear.
+
+npm publishing prefers [trusted
+publishing](https://docs.npmjs.com/trusted-publishers) over a stored token, and
+the workflow can submit a version for review with `npm stage publish` instead
+of releasing it outright.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards.
 
 ## Troubleshooting
 
-**`Already authenticated`** - `pass-cli login --pat` refuses whenever a session file exists,
+**`Already authenticated`** - `pass-cli login` refuses whenever a session file exists,
 including a stale one. The resolver logs out first; by hand, run `pass-cli logout` in the same
 `PROTON_PASS_SESSION_DIR`.
 

@@ -15,7 +15,7 @@ that is not doing what you expected shows up immediately.
 <Accordion title="Notes for AI agents">
 Match on these exact strings when diagnosing from output:
 
-- `Already authenticated` - from `pass-cli login --pat`, means a session file
+- `Already authenticated` - from `pass-cli login`, means a session file
   exists. Run `pass-cli logout` in the same `PROTON_PASS_SESSION_DIR` first.
 - `SessionError`, `MissingAgentTokenError`, `SecretMapError`,
   `ResolutionError`, `ProtocolError`, `RouteConfigError`, `ProxyIoError` - the

@@ -17,12 +17,21 @@ on:
         required: false
         type: boolean
         default: false
+      stage:
+        description: Submit to npm for review instead of publishing; a maintainer approves it with 2FA
+        required: false
+        type: boolean
+        default: false
 
 # contents: write creates the tag and the GitHub release.
-# id-token: write mints npm provenance and the ClawHub trusted-publishing token.
+# id-token: write mints the OIDC token npm trusted publishing exchanges for a
+# short-lived credential, the provenance attestation, and ClawHub's publishing
+# token.
+# packages: write publishes to this repository's GitHub Packages registry.
 permissions:
   contents: write
   id-token: write
+  packages: write
 
 jobs:
   release:
@@ -121,12 +130,75 @@ jobs:
       - name: Drop source maps from the package
         run: rm -f packages/openclaw-proton-pass/bin/*.map
 
+      # Node 22 ships npm 10, which can do neither of the things this job
+      # needs: trusted publishing wants 11.5.1 or later and staged publishing
+      # wants 11.15.0 or later.
+      - name: Install an npm that can publish without a long-lived token
+        run: npm install --global npm@11
+
+      # Published with npm rather than `nx release publish`. nx delegates to
+      # the detected package manager, which is pnpm here, and pnpm does not
+      # implement npm's OIDC trusted publishing (pnpm/pnpm#9812), so going
+      # through it rules out the only publishing method that needs no token
+      # at all. Nothing is lost: nx's pnpm path exists to rewrite
+      # `workspace:*` dependency protocols, and this package declares no
+      # dependencies, because every one of them is inside the bundles.
+      # Versioning, the changelog, the tag and the GitHub release are still
+      # nx's, above.
+      #
+      # npm tries OIDC first and falls back to the token, so this step works
+      # before a trusted publisher is configured and needs no edit after.
+      # NODE_AUTH_TOKEN is read out of the environment by the .npmrc
+      # setup-node wrote, so the token never reaches a command line.
       - name: Publish to npm
         if: ${{ !inputs.dry_run }}
+        working-directory: packages/openclaw-proton-pass
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
-        run: pnpm exec nx release publish --projects openclaw-proton-pass --access public
+        # `publishConfig.access` in package.json already says public, so no
+        # --access flag is passed: it would have to be valid for both
+        # subcommands, and one source of that setting is better than two.
+        run: npm ${{ inputs.stage && 'stage publish' || 'publish' }}
+
+      - name: Say that the release is waiting for approval
+        if: ${{ !inputs.dry_run && inputs.stage }}
+        run: |
+          echo "### Staged, not published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This version is in npm's staging area and is not installable yet." >> "$GITHUB_STEP_SUMMARY"
+          echo "Approve it with 2FA to release it:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo 'npm stage list @resnovas/openclaw-proton-pass' >> "$GITHUB_STEP_SUMMARY"
+          echo 'npm stage approve <stage-id>' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Or use the Staged Packages tab on npmjs.com." >> "$GITHUB_STEP_SUMMARY"
+
+      # A second home for the same tarball, so the package is installable by
+      # anyone who can read this repository even if npm is unreachable or the
+      # name is ever disputed. GITHUB_TOKEN is enough: the scope `@resnovas`
+      # matches the owning organisation, which is what this registry requires,
+      # and no personal access token is involved.
+      #
+      # Provenance is switched off explicitly rather than left unset, because
+      # GitHub Packages does not accept an npm provenance attestation and a
+      # stray inherited setting would fail the publish rather than skip the
+      # attestation. Staging is an npmjs concept, so this registry always gets
+      # a direct publish, and it is the copy that exists immediately even when
+      # the npm one is waiting for approval.
+      - name: Publish to GitHub Packages
+        if: ${{ !inputs.dry_run }}
+        working-directory: packages/openclaw-proton-pass
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "false"
+        run: |
+          # Single quotes on purpose: the literal is written to the file and
+          # npm expands it when it reads it, so the token is never on disk.
+          printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> ~/.npmrc
+          npm publish --registry=https://npm.pkg.github.com
 
       - name: Attach artefacts to the GitHub release
         if: ${{ !inputs.dry_run }}

@@ -69,22 +69,32 @@ The workflow runs `pnpm verify` before it tags anything, so a failing suite or a
 missing licence header stops the release rather than shipping.
 
 In order it: versions the package and writes `CHANGELOG.md`, commits and tags,
-opens the GitHub release, publishes `@resnovas/openclaw-proton-pass` to npm with
-provenance, attaches the bundled binaries to the release, then validates and
-publishes the plugin to ClawHub.
+opens the GitHub release, uploads source maps to PostHog, publishes
+`@resnovas/openclaw-proton-pass` to npm with provenance and to this
+repository's GitHub Packages registry, attaches the bundled binaries to the
+release, validates and publishes the plugin to ClawHub, and records the release
+in PostHog and Linear.
 
-Required repository secrets:
+Repository secrets:
 
 | Secret | Used for | Absent means |
 | --- | --- | --- |
-| `NPM_TOKEN` | npm publish (automation token with publish rights to `@resnovas`) | the publish step fails |
+| `NPM_TOKEN` | npm publish, until a trusted publisher is configured. A **granular** access token with publish rights to the package; classic tokens were revoked in December 2025 | the publish fails, unless a trusted publisher is configured, in which case it is not needed at all |
 | `CLAWHUB_TOKEN` | ClawHub package publish | the publish step fails |
 | `POSTHOG_CLI_API_KEY` | Source maps and the PostHog release. A **personal** API key with `error tracking write` and `organization read` | the upload step fails |
 | `POSTHOG_PROJECT_ID` | The numeric PostHog project id | the upload step fails |
 | `CONTEXT7_API_KEY` | Deploying the documentation site from the CLI | the step is skipped, which is correct when the site is connected to this repository from the Context7 teamspace |
 | `LINEAR_ACCESS_KEY` | Recording the release in Linear. A **pipeline** access key from Settings, Releases; a personal API key will not work | the step is skipped |
 
-`GITHUB_TOKEN` is provided by Actions and needs no configuration.
+`GITHUB_TOKEN` is provided by Actions and needs no configuration. It is what
+publishes to GitHub Packages, so no personal access token is involved there.
+
+Prefer [trusted publishing](https://docs.npmjs.com/trusted-publishers) over
+`NPM_TOKEN`. It cannot be configured until the package exists on npm, so the
+first release uses a token and the token is deleted afterwards. The full
+sequence is on the [contributing
+page](https://github.com/Resnovas/openclaw-proton-pass/blob/main/docs/contributing.mdx).
 
 Tick **dry run** to rehearse the whole sequence without tagging, publishing or
-pushing anything.
+pushing anything. Tick **stage** to submit the version to npm for review
+instead of releasing it; a maintainer then approves it with 2FA.
