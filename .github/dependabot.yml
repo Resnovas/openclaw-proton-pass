@@ -1,0 +1,64 @@
+# Dependabot opened a pull request bumping vitest from 3 to 4 on its own,
+# which merged green on the pull request and then broke main. Two reasons,
+# and this file addresses both.
+#
+# First, it moved `vitest` without moving `@vitest/coverage-v8`, and the two
+# have to be the same major: the coverage provider reaches into vitest
+# internals and crashed in `convertCoverage` reading a property of undefined.
+# The `vitest` group keeps them in one pull request so they can never diverge.
+#
+# Second, `@effect/vitest` declares `vitest: ^3.2.0` as a peer, and its only
+# releases newer than 0.30.0 are `4.0.0-rc.*`, which require Effect 4. Every
+# test file imports from it, so vitest 4 is unreachable until this workspace
+# moves to Effect 4. That is the same constraint recorded for
+# `@effect/doctest` on the contributing page, so the major is ignored rather
+# than proposed and rejected every week.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: build(deps)
+      prefix-development: build(deps-dev)
+    groups:
+      # One pull request, so a bump can never land half applied.
+      vitest:
+        patterns:
+          - vitest
+          - "@vitest/*"
+          - "@effect/vitest"
+      effect:
+        patterns:
+          - effect
+          - "@effect/*"
+        exclude-patterns:
+          - "@effect/vitest"
+      nx:
+        patterns:
+          - nx
+          - "@nx/*"
+    ignore:
+      # Blocked by @effect/vitest's peer range until this workspace is on
+      # Effect 4. Revisit together with @effect/doctest.
+      - dependency-name: vitest
+        update-types: [version-update:semver-major]
+      - dependency-name: "@vitest/*"
+        update-types: [version-update:semver-major]
+      # Effect 4 is a deliberate deferral, not an oversight: the whole
+      # @effect/* line would have to move at once.
+      - dependency-name: effect
+        update-types: [version-update:semver-major]
+      - dependency-name: "@effect/*"
+        update-types: [version-update:semver-major]
+
+  # Actions are pinned to commit SHAs, which Dependabot understands and
+  # updates in place, keeping the `# vN` comment accurate.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build(actions)
