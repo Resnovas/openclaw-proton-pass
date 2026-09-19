@@ -9,6 +9,14 @@ where OpenClaw cannot use a `SecretRef` at all.
 
 Built with TypeScript and [Effect](https://effect.website) in an Nx workspace.
 
+**The full documentation is in [`docs/`](docs/)** — a
+[Docs7](https://context7.com/docs/docs7/overview) site covering a guide for
+each integration path, the concepts, the security model, and an API reference
+generated from the source with every example compiled and executed. Preview it
+with `pnpm docs:dev`.
+
+Agents should start at [`LLMS.md`](LLMS.md) and [`AGENTS.md`](AGENTS.md).
+
 ## What you get
 
 | Binary | Purpose |
@@ -249,9 +257,9 @@ tracking. It cannot carry a secret: every event field is a number, a boolean, or
 a string from a fixed list declared in the source, so there is no field an
 arbitrary value can travel in.
 
-**[TELEMETRY.md](TELEMETRY.md) explains exactly how that works**, in plain
-language first and then precisely, along with what is collected, what can never
-be collected, and how both are tested.
+**[The telemetry page](docs/security/telemetry.mdx) explains exactly how that
+works**, in plain language first and then precisely, along with what is
+collected, what can never be collected, and how both are tested.
 
 To report somewhere else, set `OPENCLAW_PROTONPASS_POSTHOG_KEY` and
 `OPENCLAW_PROTONPASS_POSTHOG_HOST`. To keep telemetry enabled while sending

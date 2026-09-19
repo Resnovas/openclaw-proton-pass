@@ -29,8 +29,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Typecheck, licence headers, 100% coverage thresholds, and the
-      # execution-depth report, in that order.
+      # Typecheck, licence headers, API contracts in the declaration output,
+      # 100% coverage thresholds, the execution-depth report, and both
+      # generated documentation artefacts. Regenerating the API reference
+      # compiles and runs every documentation example, so an example that has
+      # stopped being true fails here rather than misleading a reader.
       - name: Verify
         run: pnpm verify
 
