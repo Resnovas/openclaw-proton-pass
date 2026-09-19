@@ -34,6 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The stdio MCP wrapper.
+ *
+ * Bootstraps a vault session, then execs the child with `pass://`
+ * environment references resolved. stdio is inherited so the launched
+ * server owns the transport directly.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 
 import { Command } from "@effect/platform"
 import { NodeContext } from "@effect/platform-node"
@@ -56,6 +67,17 @@ const exitWith = (code: number, message: string) =>
     )
   )
 
+/**
+ * Launch the child command with its `pass://` references resolved.
+ *
+ * @remarks
+ * Exits `64` when no command was given and `69` when no vault session could
+ * be established — sysexits codes, so a supervisor can tell the two apart.
+ * Otherwise the child's exit code becomes this process's exit code.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const main = Effect.gen(function* () {
   const argv = parseArgv(process.argv.slice(2))
   const command = argv[0]
@@ -109,6 +131,12 @@ export const main = Effect.gen(function* () {
   })
 })
 
+/**
+ * Everything the wrapper needs in order to run.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const layer = Layer.mergeAll(PassSession.Default, Paths.Default, Telemetry.Default).pipe(
   Layer.provideMerge(NodeContext.layer),
   Layer.merge(StderrLoggerLive)

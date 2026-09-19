@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The resolver's logic, separated from the process it runs in.
+ *
+ * Kept apart from the entry point so a request can be handled in a test
+ * without spawning a process or touching stdin.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import {
   PROTOCOL_VERSION,
   ProtocolError,
@@ -53,6 +63,24 @@ const decodeRequest = Schema.decodeUnknown(ResolveRequest)
  *
  * @param raw - the bytes read from stdin
  * @returns the decoded request
+ *
+ * @remarks
+ * Fails with `ProtocolError` for anything that is not a well-formed request —
+ * invalid JSON, a wrong protocol version, or an id that is not a non-empty
+ * string. Never throws; the failure is in the Effect.
+ *
+ * @example
+ * import { parseRequest } from "@resnovas/opp-resolver/program"
+ * import { Effect, Exit } from "effect"
+ *
+ * const request = await Effect.runPromise(
+ *   parseRequest('{"protocolVersion":1,"ids":["CONTEXT7_API_KEY"]}')
+ * )
+ *
+ * assert.deepStrictEqual(request.ids, ["CONTEXT7_API_KEY"])
+ *
+ * // Anything malformed fails rather than resolving to a partial request.
+ * assert.strictEqual(Exit.isFailure(await Effect.runPromiseExit(parseRequest("{"))), true)
  */
 export const parseRequest = (
   raw: string
@@ -75,6 +103,20 @@ export const parseRequest = (
  *
  * @param request - the decoded provider request
  * @returns the response body
+ *
+ * @remarks
+ * Never fails: a resolution error becomes a response carrying `error`, because
+ * the Gateway needs a reply on stdout either way. Requires `SecretResolver` and
+ * `Telemetry`. Per-id failures travel in `errors` so one unknown id does not
+ * cost the caller the rest of the batch.
+ *
+ * @example
+ * import { handle } from "@resnovas/opp-resolver/program"
+ * import { Effect } from "effect"
+ *
+ * // `handle` describes the work; it needs a resolver and telemetry before it
+ * // can run, which is what lets a test drive it without a vault.
+ * assert.strictEqual(Effect.isEffect(handle({ protocolVersion: 1, ids: [] })), true)
  */
 export const handle = (request: ResolveRequest) =>
   Effect.gen(function* () {
@@ -138,6 +180,20 @@ export const handle = (request: ResolveRequest) =>
  * Render a protocol-level failure, where no value could be produced at all.
  *
  * @param reason - what went wrong, safe to show an operator
+ *
+ * @remarks
+ * Pure and total. Used when the request itself could not be understood, so no
+ * per-id outcome exists to report.
+ *
+ * @returns a response carrying only the protocol-level error
+ *
+ * @example
+ * import { protocolFailure } from "@resnovas/opp-resolver/program"
+ *
+ * assert.deepStrictEqual(protocolFailure("could not parse request"), {
+ *   protocolVersion: 1,
+ *   error: "could not parse request"
+ * })
  */
 export const protocolFailure = (reason: string): ResolveResponse => ({
   protocolVersion: PROTOCOL_VERSION,

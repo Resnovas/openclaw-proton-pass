@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Turning opaque ids into values, one vault round trip per request.
+ *
+ * Values are carried as `Redacted` from the moment they leave pass-cli and
+ * unwrapped only at the boundary that needs them.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Command, FileSystem } from "@effect/platform"
 import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import {
@@ -49,7 +59,12 @@ import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Redacted, Schema, Stream } from "effect"
 import { PassSession } from "./session.js"
 
-/** The outcome for one requested id: a value, or the reason there is none. */
+/**
+ * The outcome for one requested id: a value, or the reason there is none.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Resolved =
   | { readonly _tag: "Value"; readonly value: Redacted.Redacted<string> }
   | { readonly _tag: "NotFound" }
@@ -61,6 +76,9 @@ export type Resolved =
  * so a stray log line or error message cannot print one. Unwrapping is explicit
  * and happens only where the value is genuinely needed: the protocol response
  * on stdout, or the outbound HTTP header.
+ *
+ * @category services
+ * @since 0.1.0
  */
 export class SecretResolver extends Effect.Service<SecretResolver>()("SecretResolver", {
   effect: Effect.gen(function* () {

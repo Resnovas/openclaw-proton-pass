@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The running proxy: configuration, credential cache, forwarding and relay.
+ *
+ * Credentials are memoised so an MCP call does not cost a vault round trip;
+ * an upstream 401 invalidates the entry and the request is retried once.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { FileSystem } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
 import {
@@ -101,6 +111,27 @@ export const loadConfig = Effect.gen(function* () {
  *
  * Exported so the failure path can be exercised directly: a client aborting
  * mid-body is not something a test can stage reliably against a real socket.
+ *
+ * @remarks
+ * Fails with `ProxyIoError` if the client aborts mid-body; otherwise
+ * succeeds with the whole body. Reading it all is safe here because MCP
+ * requests are small JSON documents.
+ *
+ * @param request - the inbound request
+ * @returns an Effect yielding the whole body
+ *
+ * @example
+ * import { readBody } from "@resnovas/opp-mcp-auth-proxy/server"
+ * import { Effect } from "effect"
+ * import { Readable } from "node:stream"
+ * import type { IncomingMessage } from "node:http"
+ *
+ * const request = Readable.from([Buffer.from('{"method":"tools/list"}')]) as IncomingMessage
+ *
+ * assert.strictEqual(
+ *   (await Effect.runPromise(readBody(request))).toString("utf8"),
+ *   '{"method":"tools/list"}'
+ * )
  */
 export const readBody = (request: IncomingMessage) =>
   Effect.async<Buffer, ProxyIoError>((resume) => {

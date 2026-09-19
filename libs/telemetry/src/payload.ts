@@ -34,6 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The two filters every reported property passes through.
+ *
+ * A value allowlist is the guarantee — a string is sent only if it appears
+ * verbatim in the literals this codebase declares — and a name denylist sits
+ * behind it as defence in depth.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { ALLOWED_VALUES, type TelemetryEvent } from "./events.js"
 
 /**
@@ -50,8 +61,30 @@ const FORBIDDEN = /secret|token|password|key|ref|path|host|upstream|url|value/i
 /**
  * Remove properties whose names suggest they carry content rather than shape.
  *
+ * @remarks
+ * Pure and total, and returns a new object — the input is not mutated.
+ * Filters on the property **name** only, which makes it the weaker of the
+ * two filters and not the guarantee on its own; it sits behind the value
+ * allowlist in `toProperties` as defence in depth.
+ *
  * @param properties - candidate event properties
  * @returns the subset safe to transmit
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { scrub } from "@resnovas/opp-telemetry"
+ *
+ * // Shape passes through untouched.
+ * assert.deepStrictEqual(scrub({ requested: 3, durationMs: 41 }), {
+ *   requested: 3,
+ *   durationMs: 41
+ * })
+ *
+ * // Anything named as though it described content is dropped, whatever it
+ * // actually holds.
+ * assert.deepStrictEqual(scrub({ apiKey: "anything", upstream: "anything" }), {})
  */
 export const scrub = (
   properties: Readonly<Record<string, SafeValue>>
@@ -63,7 +96,12 @@ export const scrub = (
   return safe
 }
 
-/** The only value types that may appear on the wire. */
+/**
+ * The only value types that may appear on the wire.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SafeValue = number | boolean | string
 
 /**
@@ -80,8 +118,44 @@ export type SafeValue = number | boolean | string
  * is placed under an innocuous key. A value allowlist has the opposite failure
  * mode — an unanticipated field is dropped rather than leaked.
  *
+ * @remarks
+ * Pure and total. The only function that constructs a property object,
+ * and therefore the only path to the analytics client. Filters on the
+ * **value**: finite numbers and booleans pass, a string passes only if it
+ * appears verbatim in `ALLOWED_VALUES`, and everything else is dropped
+ * silently. `name` identifies the event and never becomes a property.
+ *
  * @param event - a member of the closed event union
  * @returns the properties safe to transmit
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { toProperties } from "@resnovas/opp-telemetry"
+ *
+ * // Counts, durations and declared literals survive.
+ * assert.deepStrictEqual(
+ *   toProperties({ name: "session_established", sessionOutcome: "reused", durationMs: 8 }),
+ *   { sessionOutcome: "reused", durationMs: 8 }
+ * )
+ *
+ * // The event name identifies the event; it is not also a property.
+ * assert.strictEqual(
+ *   "name" in toProperties({ name: "proxy_started", routes: 2 }),
+ *   false
+ * )
+ *
+ * @example
+ * import { toProperties } from "@resnovas/opp-telemetry"
+ *
+ * // The guarantee, demonstrated: a string that is not a literal declared in
+ * // this codebase is dropped, however it got there. The cast is what a
+ * // JavaScript caller or a future refactor would do by accident; the filter
+ * // is what makes that harmless.
+ * const smuggled = { name: "proxy_started", routes: "a-value-from-a-vault" } as unknown
+ *
+ * assert.deepStrictEqual(toProperties(smuggled as never), {})
  */
 export const toProperties = (event: TelemetryEvent): Record<string, SafeValue> => {
   const properties: Record<string, SafeValue> = {}
@@ -120,8 +194,28 @@ export const toProperties = (event: TelemetryEvent): Record<string, SafeValue> =
  * basename keeps every diagnostically useful part — which function, which file,
  * which line — and discards the part that identifies the machine.
  *
+ * @remarks
+ * Pure and total; `undefined` in, `undefined` out. Reduces every absolute
+ * path to its basename, keeping the function, file and line that locate
+ * the fault and discarding the part that locates the operator.
+ *
  * @param stack - a raw `Error.stack`, if there is one
  * @returns the stack with absolute paths reduced to basenames
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { sanitiseStack } from "@resnovas/opp-telemetry"
+ *
+ * assert.strictEqual(
+ *   sanitiseStack("SessionError\n    at ensure (/home/someone/.local/lib/session.mjs:12:9)"),
+ *   "SessionError\n    at ensure (session.mjs:12:9)"
+ * )
+ *
+ * // Which function, which file and which line all survive; which machine
+ * // does not.
+ * assert.strictEqual(sanitiseStack(undefined), undefined)
  */
 export const sanitiseStack = (stack: string | undefined): string | undefined => {
   if (stack === undefined) return undefined
@@ -137,9 +231,31 @@ export const sanitiseStack = (stack: string | undefined): string | undefined => 
  * because it locates the fault, and is sanitised because it also locates the
  * operator.
  *
+ * @remarks
+ * Pure and total. The returned error's `message` and `name` are the tag
+ * alone; the original error is never forwarded, because a domain error's
+ * message is free text and routinely names a file on disk.
+ *
  * @param tag - the error's tag
  * @param stack - the original stack, if available
  * @returns an error carrying the tag and a sanitised stack
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { toReportableError } from "@resnovas/opp-telemetry"
+ *
+ * const reported = toReportableError(
+ *   "SecretMapError",
+ *   "SecretMapError: cannot read /home/someone/.config/proton-pass-cli/map.json"
+ * )
+ *
+ * // The message is the tag alone, because a domain error's own message names
+ * // the file it failed on.
+ * assert.strictEqual(reported.message, "SecretMapError")
+ * assert.strictEqual(reported.name, "SecretMapError")
+ * assert.strictEqual(reported.stack, "SecretMapError: cannot read map.json")
  */
 export const toReportableError = (tag: string, stack?: string): Error => {
   const error = new Error(tag)

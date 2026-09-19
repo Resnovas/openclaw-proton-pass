@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The logger every executable installs, and why it writes to stderr.
+ *
+ * stdout carries the protocol the Gateway parses, so a log line written there
+ * would corrupt it.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Logger } from "effect"
 
 /**
@@ -43,11 +53,19 @@ import { Logger } from "effect"
  * harmful: stdout carries the JSON protocol the Gateway parses, so a single log
  * line interleaved with the response corrupts it. Every executable here logs to
  * stderr so stdout stays reserved for protocol output and forwarded payloads.
+ *
+ * @category utils
+ * @since 0.1.0
  */
 export const stderrLogger = Logger.make<unknown, void>(({ date, logLevel, message }) => {
   const text = Array.isArray(message) ? message.join(" ") : String(message)
   process.stderr.write(`[${date.toISOString()}] ${logLevel.label}: ${text}\n`)
 })
 
-/** Layer replacing the default stdout logger with {@link stderrLogger}. */
+/**
+ * Layer replacing the default stdout logger with {@link stderrLogger}.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const StderrLoggerLive = Logger.replace(Logger.defaultLogger, stderrLogger)

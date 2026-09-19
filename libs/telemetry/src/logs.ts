@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Structured logs over OTLP, carrying ids rather than messages.
+ *
+ * This project's log lines routinely contain filesystem paths, so the record
+ * body is an id drawn from a closed list instead of rendered text.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import type { LogId, LogLevel } from "./events.js"
 
 /** OpenTelemetry severity numbers for the levels this system emits. */
@@ -44,14 +54,24 @@ const SEVERITY: Record<LogLevel, { number: number; text: string }> = {
   error: { number: 17, text: "ERROR" }
 }
 
-/** A log record ready for OTLP transport. */
+/**
+ * A log record ready for OTLP transport.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface LogRecord {
   readonly logId: LogId
   readonly level: LogLevel
   readonly count: number
 }
 
-/** Identity of the reporting install, attached to every record. */
+/**
+ * Identity of the reporting install, attached to every record.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface LogResource {
   readonly serviceName: string
   readonly serviceVersion: string
@@ -75,9 +95,44 @@ const attribute = (key: string, value: string | number) => ({
  * undo the guarantee the rest of the pipeline provides; an id from a closed
  * list carries the same diagnostic meaning and cannot carry anything else.
  *
+ * @remarks
+ * Pure and total: no I/O and no failure mode. Every record's body is its
+ * `logId`, so no free text enters the payload. The return type is
+ * `unknown` because this is a transport shape rather than a domain value.
+ *
  * @param records - the diagnostics to send
  * @param resource - identity of the reporting install
  * @returns the OTLP body to POST to `/i/v1/logs`
+ *
+ * @category constructors
+ * @since 0.1.0
+ *
+ * @example
+ * import { toOtlpLogs } from "@resnovas/opp-telemetry"
+ *
+ * const body = toOtlpLogs(
+ *   [{ logId: "session.probe_failed", level: "info", count: 1 }],
+ *   {
+ *     serviceName: "openclaw-proton-pass",
+ *     serviceVersion: "0.1.0",
+ *     environment: "production",
+ *     installId: "an-install-identifier",
+ *     os: "linux",
+ *     nodeVersion: "v22.0.0"
+ *   }
+ * ) as {
+ *   resourceLogs: ReadonlyArray<{
+ *     scopeLogs: ReadonlyArray<{
+ *       logRecords: ReadonlyArray<{ body: { stringValue: string }; severityText: string }>
+ *     }>
+ *   }>
+ * }
+ *
+ * const record = body.resourceLogs[0]!.scopeLogs[0]!.logRecords[0]!
+ *
+ * // The body is the log id, never a rendered message.
+ * assert.strictEqual(record.body.stringValue, "session.probe_failed")
+ * assert.strictEqual(record.severityText, "INFO")
  */
 export const toOtlpLogs = (
   records: ReadonlyArray<LogRecord>,
@@ -129,10 +184,33 @@ export const toOtlpLogs = (
  * Fire and forget: a logging backend that is slow or unreachable must never
  * delay or fail a credential resolution, so the result is discarded either way.
  *
+ * @remarks
+ * Resolves and never rejects: transport failures are swallowed, because
+ * reporting must not be able to fail a credential resolution. Returns
+ * immediately when `records` is empty.
+ *
  * @param host - the PostHog ingestion host
  * @param projectKey - the project's write-only ingestion key
  * @param records - the diagnostics to send
  * @param resource - identity of the reporting install
+ *
+ * @category transport
+ *
+ * @since 0.1.0
+ *
+ * @example
+ * import { sendLogs } from "@resnovas/opp-telemetry"
+ *
+ * // Nothing is sent for an empty batch, and the call resolves either way: a
+ * // logging backend must never be able to fail a credential resolution.
+ * await sendLogs("https://example.invalid", "phc_not_a_real_key", [], {
+ *   serviceName: "openclaw-proton-pass",
+ *   serviceVersion: "0.1.0",
+ *   environment: "test",
+ *   installId: "an-install-identifier",
+ *   os: "linux",
+ *   nodeVersion: "v22.0.0"
+ * })
  */
 export const sendLogs = async (
   host: string,

@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The management CLI's command tree.
+ *
+ * `setup` and `doctor`, defined with `@effect/cli`. Each subcommand is timed
+ * and its name and outcome reported — never its arguments.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 
 import { Command as Cli } from "@effect/cli"
 import { NodeContext } from "@effect/platform-node"
@@ -69,11 +79,38 @@ const root = Cli.make("openclaw-proton-pass", {}, () =>
   Effect.logInfo("run `openclaw-proton-pass --help` to see the available commands")
 ).pipe(Cli.withSubcommands([doctorCommand, setupCommand]))
 
+/**
+ * Run the CLI.
+ *
+ * @remarks
+ * Parses `process.argv` and dispatches to a subcommand. Requires the
+ * services in `layer`. Exits non-zero when a subcommand fails.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ *
+ * @param args - the full `process.argv`
+ * @returns an Effect that completes when the subcommand has
+ *
+ * @example
+ * import { run } from "@resnovas/opp-cli/app"
+ * import { Effect } from "effect"
+ *
+ * // `run` is the parser, not the process: it yields an Effect, so nothing has
+ * // happened until it is executed against the app's layer.
+ * assert.strictEqual(Effect.isEffect(run(["node", "openclaw-proton-pass", "--help"])), true)
+ */
 export const run = Cli.run(root, {
   name: "openclaw-proton-pass",
   version: "0.1.0"
 })
 
+/**
+ * Everything the CLI's subcommands need in order to run.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const layer = Layer.mergeAll(
   SecretResolver.Default,
   PassSession.Default,

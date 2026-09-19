@@ -34,6 +34,15 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The bound on a single vault call.
+ *
+ * A hung call must not pin the Gateway open, so there is always a limit.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Config } from "effect"
 
 /**
@@ -43,6 +52,23 @@ import { Config } from "effect"
  * vault answers in milliseconds, while a cold agent session on a contended
  * server can take seconds. A hung vault call must not pin the Gateway open
  * indefinitely, so there is always a bound.
+ *
+ * @category config
+ * @since 0.1.0
+ *
+ * @example
+ * import { commandTimeoutMillis } from "@resnovas/opp-config"
+ * import { ConfigProvider, Effect } from "effect"
+ *
+ * const read = (env: Record<string, string>) =>
+ *   Effect.runSync(
+ *     commandTimeoutMillis.pipe(
+ *       Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))
+ *     )
+ *   )
+ *
+ * assert.strictEqual(read({}), 60_000)
+ * assert.strictEqual(read({ OPENCLAW_PROTONPASS_TIMEOUT_MS: "5000" }), 5_000)
  */
 export const commandTimeoutMillis = Config.integer(
   "OPENCLAW_PROTONPASS_TIMEOUT_MS"

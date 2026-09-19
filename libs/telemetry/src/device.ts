@@ -34,6 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * What an install looks like: a stable pseudonymous identity, and the shape of
+ * the machine it runs on.
+ *
+ * The identity is derived by salted hash from a machine identifier that never
+ * leaves the host.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Command, FileSystem } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
 import { Effect } from "effect"
@@ -49,6 +60,9 @@ import { join } from "node:path"
  * properties are not: every one is read from `node:os`, `process`, or a version
  * command, so none can be a credential, a vault reference, or anything an
  * operator typed.
+ *
+ * @category models
+ * @since 0.1.0
  */
 export interface DeviceContext {
   readonly hostname: string
@@ -110,6 +124,42 @@ const MACHINE_ID_FILES = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
  * in; that path does not move when the configuration directory is overridden.
  * Where nothing can be written either, a hash of durable machine attributes is
  * the last resort, so a read-only or ephemeral host still reports consistently.
+ *
+ * @remarks
+ * Returns an Effect that always succeeds. Every filesystem failure is
+ * recovered, in order: a machine id file, then a UUID persisted under the
+ * state directory, then a hash of durable machine attributes. Requires
+ * `FileSystem`. The raw machine identifier is never returned — only a
+ * salted hash of it, so the value cannot be correlated with the same
+ * machine as seen by anything else that reads the same file.
+ *
+ * @category constructors
+ * @since 0.1.0
+ *
+ * @example
+ * import { installIdFrom } from "@resnovas/opp-telemetry"
+ * import { NodeContext } from "@effect/platform-node"
+ * import { Effect } from "effect"
+ * import { mkdtemp } from "node:fs/promises"
+ * import { tmpdir } from "node:os"
+ * import { join } from "node:path"
+ *
+ * // Keep the persisted fallback inside a temporary directory rather than the
+ * // real state directory.
+ * process.env["XDG_STATE_HOME"] = await mkdtemp(join(tmpdir(), "opp-example-"))
+ *
+ * const run = () =>
+ *   Effect.runPromise(
+ *     installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(NodeContext.layer))
+ *   )
+ *
+ * // No machine id file exists at that path, so the persisted fallback is used —
+ * // and it is stable, because an identity that changed per run would make every
+ * // report look like a different install.
+ * assert.strictEqual(await run(), await run())
+ *
+ * @param machineIdFiles - candidate machine identifier files, most trusted first
+ * @returns an Effect yielding this install's pseudonymous identifier
  */
 export const installIdFrom = (machineIdFiles: ReadonlyArray<string>) =>
   Effect.gen(function* () {
@@ -160,6 +210,9 @@ export const installIdFrom = (machineIdFiles: ReadonlyArray<string>) =>
  * The file list is a parameter of {@link installIdFrom} so the fallbacks can be
  * exercised: on any host that has a machine id, they are otherwise unreachable
  * and would ship untested.
+ *
+ * @category utils
+ * @since 0.1.0
  */
 export const installId = installIdFrom(MACHINE_ID_FILES)
 
@@ -169,6 +222,10 @@ export const installId = installIdFrom(MACHINE_ID_FILES)
  * The version lookups spawn processes, which is too expensive for a resolver
  * the Gateway invokes per request, so the profile is cached and refreshed
  * weekly. Everything cheap is read fresh each time.
+ *
+ * @category utils
+ *
+ * @since 0.1.0
  */
 export const deviceContext = Effect.gen(function* () {
   const paths = yield* Paths

@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Every filesystem location this system reads, discovered once.
+ *
+ * Each path has a default and an environment override, so the three binaries
+ * cannot disagree about where the secret map lives.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { FileSystem, Path } from "@effect/platform"
 import { Config, Effect } from "effect"
 import { delimiter } from "node:path"
@@ -57,6 +67,9 @@ const optionalEnv = (name: string) =>
  * prefix or an XDG-relocated home needs no code change. Discovery happens here
  * rather than at each call site so the three binaries cannot disagree about
  * where the secret map lives.
+ *
+ * @category services
+ * @since 0.1.0
  */
 export class Paths extends Effect.Service<Paths>()("Paths", {
   effect: Effect.gen(function* () {

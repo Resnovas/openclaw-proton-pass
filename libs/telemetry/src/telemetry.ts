@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The service the rest of the system reports through.
+ *
+ * One interface whether or not reporting is enabled, so no call site has to
+ * know which it is.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import {
   Paths,
   telemetryEnabled,
@@ -49,7 +59,12 @@ import type { ErrorTag, LogId, LogLevel, Outcome, SpanName, TelemetryEvent } fro
 import { sendLogs, type LogResource } from "./logs.js"
 import { toProperties, toReportableError } from "./payload.js"
 
-/** What the telemetry service offers, whether or not reporting is enabled. */
+/**
+ * What the telemetry service offers, whether or not reporting is enabled.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface TelemetryApi {
   /** Report one analytics event, and its numeric fields as metrics. */
   readonly capture: (event: TelemetryEvent) => Effect.Effect<void>
@@ -108,6 +123,9 @@ const personProperties = (device: DeviceContext): Record<string, string | number
  * errors as events, metrics through the SDK's metrics client, spans through its
  * tracing client, and diagnostics as OTLP log records. Event properties still
  * pass through {@link toProperties}, the single place a property is built.
+ *
+ * @category services
+ * @since 0.1.0
  */
 export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
   effect: Effect.gen(function* () {

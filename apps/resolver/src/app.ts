@@ -34,6 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The OpenClaw exec secret provider.
+ *
+ * Reads one JSON request from stdin, writes one JSON response to stdout, and
+ * exits. stdout carries the protocol and nothing else, so every log line in
+ * this process goes to stderr.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 
 import { NodeContext } from "@effect/platform-node"
 import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
@@ -109,6 +120,19 @@ const resolveRequest = Effect.gen(function* () {
   )
 )
 
+/**
+ * Answer one Gateway request, or bootstrap a session and stop.
+ *
+ * @remarks
+ * With `--ensure-session` it only establishes a vault session, which is how
+ * the other tools reuse this recovery logic rather than reimplementing it.
+ * Otherwise it reads stdin to EOF, writes one response line to stdout and
+ * flushes telemetry. A protocol-level failure still writes a response, and
+ * additionally exits non-zero so a supervisor sees it.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const main = Effect.gen(function* () {
   if (process.argv.slice(2).includes("--ensure-session")) {
     yield* ensureSessionOnly
@@ -117,6 +141,12 @@ export const main = Effect.gen(function* () {
   yield* resolveRequest
 })
 
+/**
+ * Everything the resolver needs in order to run.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const layer = Layer.mergeAll(
   SecretResolver.Default,
   PassSession.Default,

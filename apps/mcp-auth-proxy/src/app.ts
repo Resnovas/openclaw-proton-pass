@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The loopback credential-injecting proxy.
+ *
+ * Runs until interrupted. A route configuration that cannot be loaded is
+ * reported and exits non-zero rather than serving a partial route table.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 
 import { NodeContext } from "@effect/platform-node"
 import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
@@ -42,6 +52,16 @@ import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Layer } from "effect"
 import { serve } from "./server.js"
 
+/**
+ * Serve until interrupted.
+ *
+ * @remarks
+ * Never completes normally. A `RouteConfigError` is logged and sets a
+ * non-zero exit code rather than serving a partial route table.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const main = serve.pipe(
   Effect.zipRight(Effect.never),
   Effect.scoped,
@@ -56,6 +76,12 @@ export const main = serve.pipe(
   )
 )
 
+/**
+ * Everything the proxy needs in order to run.
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ */
 export const layer = Layer.mergeAll(
   SecretResolver.Default,
   PassSession.Default,

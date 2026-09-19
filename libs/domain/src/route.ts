@@ -34,6 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The loopback proxy's configuration, with its safety rule in the type.
+ *
+ * A route names a local path, the remote MCP server behind it, and the secret
+ * id whose value is attached on the way through. The listen address cannot
+ * represent anything but loopback.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Schema } from "effect"
 import { SecretId } from "./secret.js"
 
@@ -45,6 +56,22 @@ const LOOPBACK = ["127.0.0.1", "::1", "localhost"] as const
  *
  * `secretId` names an entry in the secret map rather than a `pass://` URI, so
  * this file records no vault location either.
+ *
+ * @category schemas
+ * @since 0.1.0
+ *
+ * @example
+ * import { Route } from "@resnovas/opp-domain"
+ * import { Schema } from "effect"
+ *
+ * // `header` and `timeoutSeconds` have defaults, so a route is two fields.
+ * const route = Schema.decodeUnknownSync(Route)({
+ *   upstream: "https://mcp.context7.com/mcp",
+ *   secretId: "CONTEXT7_MCP_AUTHORIZATION"
+ * })
+ *
+ * assert.strictEqual(route.header, "Authorization")
+ * assert.strictEqual(route.timeoutSeconds, 120)
  */
 export const Route = Schema.Struct({
   upstream: Schema.String.pipe(Schema.startsWith("http")),
@@ -55,7 +82,13 @@ export const Route = Schema.Struct({
   })
 })
 
-/** @see {@link Route} */
+/**
+ * The decoded form of {@link Route}, with the header name and timeout filled
+ * in from their defaults.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Route = typeof Route.Type
 
 /**
@@ -64,6 +97,23 @@ export type Route = typeof Route.Type
  * Binding beyond loopback would expose an unauthenticated route that attaches a
  * real credential to anything reaching it, so the type refuses to represent one
  * and the failure happens at configuration load rather than at first request.
+ *
+ * @category schemas
+ * @since 0.1.0
+ *
+ * @example
+ * import { ListenAddress } from "@resnovas/opp-domain"
+ * import { Schema } from "effect"
+ *
+ * const decode = Schema.decodeUnknownSync(ListenAddress)
+ *
+ * assert.strictEqual(decode("127.0.0.1:18890"), "127.0.0.1:18890")
+ *
+ * // The loopback-only rule lives in the type, so a configuration that would
+ * // serve credentials to the network fails at load rather than at first
+ * // request.
+ * assert.throws(() => decode("0.0.0.0:18890"))
+ * assert.throws(() => decode("127.0.0.1:not-a-port"))
  */
 export const ListenAddress = Schema.String.pipe(
   Schema.filter(
@@ -84,10 +134,36 @@ export const ListenAddress = Schema.String.pipe(
   Schema.brand("ListenAddress")
 )
 
-/** @see {@link ListenAddress} */
+/**
+ * The type of a validated {@link ListenAddress}: an address the proxy is
+ * allowed to bind, which is always a loopback one.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ListenAddress = typeof ListenAddress.Type
 
-/** The proxy's whole configuration file. */
+/**
+ * The proxy's whole configuration file.
+ *
+ * @category schemas
+ * @since 0.1.0
+ *
+ * @example
+ * import { ProxyConfig } from "@resnovas/opp-domain"
+ * import { Schema } from "effect"
+ *
+ * const config = Schema.decodeUnknownSync(ProxyConfig)({
+ *   routes: {
+ *     "/context7": {
+ *       upstream: "https://mcp.context7.com/mcp",
+ *       secretId: "CONTEXT7_MCP_AUTHORIZATION"
+ *     }
+ *   }
+ * })
+ *
+ * assert.strictEqual(config.listen, "127.0.0.1:18890")
+ */
 export const ProxyConfig = Schema.Struct({
   listen: Schema.optionalWith(ListenAddress, {
     default: () => "127.0.0.1:18890" as ListenAddress
@@ -95,14 +171,42 @@ export const ProxyConfig = Schema.Struct({
   routes: Schema.Record({ key: Schema.String, value: Route })
 })
 
-/** @see {@link ProxyConfig} */
+/**
+ * The decoded form of {@link ProxyConfig}: every route this proxy serves, and
+ * the address it listens on.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ProxyConfig = typeof ProxyConfig.Type
 
 /**
  * Split a validated listen address into its host and port.
  *
+ * @remarks
+ * Total for any value that has passed `ListenAddress`: such a value
+ * always contains a colon and an in-range numeric port. Splits on the
+ * **last** colon, so an IPv6 host keeps its own. Never throws.
+ *
  * @param address - an address that has already passed {@link ListenAddress}
  * @returns the host and port to bind
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { ListenAddress, splitAddress } from "@resnovas/opp-domain"
+ * import { Schema } from "effect"
+ *
+ * const address = Schema.decodeUnknownSync(ListenAddress)("127.0.0.1:18890")
+ *
+ * assert.deepStrictEqual(splitAddress(address), { host: "127.0.0.1", port: 18890 })
+ *
+ * // IPv6 splits on the last colon, not the first.
+ * assert.deepStrictEqual(
+ *   splitAddress(Schema.decodeUnknownSync(ListenAddress)("::1:18890")),
+ *   { host: "::1", port: 18890 }
+ * )
  */
 export const splitAddress = (
   address: ListenAddress

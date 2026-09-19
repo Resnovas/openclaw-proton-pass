@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Preparing the configuration directory.
+ *
+ * Seeds the two configuration files if they are absent and writes the
+ * systemd unit. An existing configuration file is never overwritten.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { FileSystem, Path } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
 import { Telemetry } from "@resnovas/opp-telemetry"
@@ -79,9 +89,25 @@ const EXAMPLE_PROXY_CONFIG = `{
  * knows where the proxy actually landed: a checkout can live anywhere, and a
  * hardcoded path is exactly the portability bug this rewrite set out to remove.
  *
+ * @remarks
+ * Pure and total: string formatting only, with no filesystem access. Both
+ * arguments must be absolute paths. The unit is generated per install
+ * because only the running installer knows where the proxy landed.
+ *
  * @param node - absolute path to the Node binary to run the proxy with
  * @param entry - absolute path to the proxy entry point
  * @returns the unit file contents
+ *
+ * @example
+ * import { systemdUnit } from "@resnovas/opp-cli/setup"
+ *
+ * const unit = systemdUnit("/usr/bin/node", "/opt/openclaw-proton-pass/proxy.mjs")
+ *
+ * assert.strictEqual(
+ *   unit.includes("ExecStart=/usr/bin/node /opt/openclaw-proton-pass/proxy.mjs"),
+ *   true
+ * )
+ * assert.strictEqual(unit.includes("Restart=always"), true)
  */
 export const systemdUnit = (node: string, entry: string): string => `[Unit]
 Description=OpenClaw MCP auth proxy (Proton Pass credential injection)

@@ -35,6 +35,17 @@
  */
 
 /**
+ * The closed set of events this system can report, and the closed set of string
+ * values they may carry.
+ *
+ * No event has a field of type `string`, so a secret has no field to travel
+ * in. This is the whole safety argument, stated as types.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
+/**
  * Every event this system is capable of reporting.
  *
  * The union is closed and its fields are deliberately restricted to three
@@ -47,13 +58,28 @@
  * counts, durations, flags and tags — which is also what makes them aggregable.
  */
 
-/** Which executable produced the event. */
+/**
+ * Which executable produced the event.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Binary = "resolver" | "pass-run" | "mcp-auth-proxy" | "cli"
 
-/** Subcommands of the management CLI. */
+/**
+ * Subcommands of the management CLI.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type CommandName = "setup" | "doctor" | "help"
 
-/** The tag of a domain error. Tags are compile-time constants, never content. */
+/**
+ * The tag of a domain error. Tags are compile-time constants, never content.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ErrorTag =
   | "SecretMapError"
   | "MissingAgentTokenError"
@@ -64,10 +90,20 @@ export type ErrorTag =
   | "ProxyIoError"
   | "Unknown"
 
-/** Coarse result of an operation. */
+/**
+ * Coarse result of an operation.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Outcome = "success" | "failure"
 
-/** Why a session bootstrap did what it did. */
+/**
+ * Why a session bootstrap did what it did.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SessionPath = "reused" | "logged-in" | "rebuilt"
 
 /**
@@ -76,6 +112,9 @@ export type SessionPath = "reused" | "logged-in" | "rebuilt"
  * A human log line is free text and this project's log lines routinely contain
  * filesystem paths, so log *messages* are never transmitted. Each diagnostic
  * worth aggregating gets an id here instead, and the id travels with counts.
+ *
+ * @category models
+ * @since 0.1.0
  */
 export type LogId =
   | "session.probe_failed"
@@ -96,6 +135,9 @@ export type LogId =
  *
  * Span names are constants for the same reason event fields are: a span name
  * is transmitted, so it must not be derived from anything at runtime.
+ *
+ * @category models
+ * @since 0.1.0
  */
 export type SpanName =
   | "resolver.handle_request"
@@ -108,13 +150,21 @@ export type SpanName =
   | "cli.setup"
   | "cli.doctor"
 
-/** Severity for a structured log record. */
+/**
+ * Severity for a structured log record.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type LogLevel = "debug" | "info" | "warn" | "error"
 
 /**
  * The events themselves.
  *
  * `name` is the PostHog event name; every other field becomes a property.
+ *
+ * @category models
+ * @since 0.1.0
  */
 export type TelemetryEvent =
   /** Product analytics: which binary ran at all, and on what shape of host. */
@@ -202,7 +252,13 @@ export type TelemetryEvent =
       readonly count: number
     }
 
-/** @see {@link TelemetryEvent} */
+/**
+ * The name of any member of {@link TelemetryEvent}: the closed list of events
+ * this system is able to send.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type EventName = TelemetryEvent["name"]
 
 /**
@@ -214,6 +270,19 @@ export type EventName = TelemetryEvent["name"]
  * transmitted only if it appears here verbatim. Membership is tested against
  * the value, not the field name, so it cannot be defeated by choosing an
  * innocuous-looking key.
+ *
+ * @category constants
+ * @since 0.1.0
+ *
+ * @example
+ * import { ALLOWED_VALUES } from "@resnovas/opp-telemetry"
+ *
+ * // Every permitted string is a literal written in this codebase.
+ * assert.strictEqual(ALLOWED_VALUES.has("reused"), true)
+ * assert.strictEqual(ALLOWED_VALUES.has("SecretMapError"), true)
+ *
+ * // A value read from a vault is not one of them, and never can be.
+ * assert.strictEqual(ALLOWED_VALUES.has("a-value-from-a-vault"), false)
  */
 export const ALLOWED_VALUES: ReadonlySet<string> = new Set<string>([
   // Binary

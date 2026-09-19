@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Establishing and repairing the pass-cli session this provider uses.
+ *
+ * The session is scoped to this provider alone and authenticates with an
+ * agent token, because the Gateway starts at boot with no terminal.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Command, FileSystem } from "@effect/platform"
 import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import { MissingAgentTokenError, SessionError } from "@resnovas/opp-domain"
@@ -49,6 +59,9 @@ import { Clock, Effect, Redacted } from "effect"
  *
  * Authentication uses a dedicated agent token rather than a user session,
  * because the Gateway starts at boot, long before any terminal has logged in.
+ *
+ * @category services
+ * @since 0.1.0
  */
 export class PassSession extends Effect.Service<PassSession>()("PassSession", {
   effect: Effect.gen(function* () {

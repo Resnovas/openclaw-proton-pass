@@ -34,6 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Every way this system can fail, as one closed union.
+ *
+ * Each member is a tagged error rather than a bare `Error`, so a caller can
+ * match on the tag and the compiler can tell them when a new failure mode is
+ * added.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Data } from "effect"
 
 /**
@@ -41,35 +52,63 @@ import { Data } from "effect"
  *
  * Carries the path so the operator is told which file to look at rather than
  * being left to guess between the map, the route file and the agent token.
+ *
+ * @category errors
+ * @since 0.1.0
  */
 export class SecretMapError extends Data.TaggedError("SecretMapError")<{
   readonly path: string
   readonly reason: string
 }> {}
 
-/** Raised when no Proton Pass agent token is present at the configured path. */
+/**
+ * Raised when no Proton Pass agent token is present at the configured path.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class MissingAgentTokenError extends Data.TaggedError(
   "MissingAgentTokenError"
 )<{
   readonly path: string
 }> {}
 
-/** Raised when a pass-cli session could not be established, even after recovery. */
+/**
+ * Raised when a pass-cli session could not be established, even after recovery.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class SessionError extends Data.TaggedError("SessionError")<{
   readonly reason: string
 }> {}
 
-/** Raised when pass-cli exits non-zero while resolving references. */
+/**
+ * Raised when pass-cli exits non-zero while resolving references.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class ResolutionError extends Data.TaggedError("ResolutionError")<{
   readonly reason: string
 }> {}
 
-/** Raised when the request on stdin is not a well-formed provider request. */
+/**
+ * Raised when the request on stdin is not a well-formed provider request.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class ProtocolError extends Data.TaggedError("ProtocolError")<{
   readonly reason: string
 }> {}
 
-/** Raised when the proxy route configuration cannot be read or does not parse. */
+/**
+ * Raised when the proxy route configuration cannot be read or does not parse.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class RouteConfigError extends Data.TaggedError("RouteConfigError")<{
   readonly path: string
   readonly reason: string
@@ -81,6 +120,9 @@ export class RouteConfigError extends Data.TaggedError("RouteConfigError")<{
  * Tagged rather than a bare `Error` on purpose: `Data.TaggedError` extends
  * `Error`, so a single untagged member in an error union widens the whole union
  * to `Error` and makes every `catchTag` unusable.
+ *
+ * @category errors
+ * @since 0.1.0
  */
 export class ProxyIoError extends Data.TaggedError("ProxyIoError")<{
   readonly reason: string
@@ -91,6 +133,9 @@ export class ProxyIoError extends Data.TaggedError("ProxyIoError")<{
  *
  * Exhaustive so callers can match without a default branch; adding a member is
  * a deliberate, compiler-enforced change at every handling site.
+ *
+ * @category models
+ * @since 0.1.0
  */
 export type ProtonPassError =
   | SecretMapError

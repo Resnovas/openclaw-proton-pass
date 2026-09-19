@@ -34,6 +34,15 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The settings that decide whether anything is reported, and to where.
+ *
+ * Reporting is on by default and switched off with a single variable.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { Config, Option, Redacted } from "effect"
 
 /**
@@ -56,17 +65,45 @@ const DEFAULT_HOST = "https://eu.i.posthog.com"
  * to travel in — see TELEMETRY.md — which is what makes a default-on setting
  * defensible for a tool that handles credentials. Opting out is one variable,
  * documented in the README and printed by `openclaw-proton-pass doctor`.
+ *
+ * @category config
+ * @since 0.1.0
+ *
+ * @example
+ * import { telemetryEnabled } from "@resnovas/opp-config"
+ * import { ConfigProvider, Effect } from "effect"
+ *
+ * const read = (env: Record<string, string>) =>
+ *   Effect.runSync(
+ *     telemetryEnabled.pipe(
+ *       Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))
+ *     )
+ *   )
+ *
+ * // On unless it is switched off, and switching it off is one variable.
+ * assert.strictEqual(read({}), true)
+ * assert.strictEqual(read({ OPENCLAW_PROTONPASS_TELEMETRY: "false" }), false)
  */
 export const telemetryEnabled = Config.boolean("OPENCLAW_PROTONPASS_TELEMETRY").pipe(
   Config.withDefault(true)
 )
 
-/** The service name attached to traces, metrics and logs. */
+/**
+ * The service name attached to traces, metrics and logs.
+ *
+ * @category config
+ * @since 0.1.0
+ */
 export const telemetryServiceName = Config.string(
   "OPENCLAW_PROTONPASS_SERVICE_NAME"
 ).pipe(Config.withDefault("openclaw-proton-pass"))
 
-/** The deployment environment reported alongside them. */
+/**
+ * The deployment environment reported alongside them.
+ *
+ * @category config
+ * @since 0.1.0
+ */
 export const telemetryEnvironment = Config.string(
   "OPENCLAW_PROTONPASS_ENVIRONMENT"
 ).pipe(Config.withDefault("production"))
@@ -78,6 +115,24 @@ export const telemetryEnvironment = Config.string(
  * to keep telemetry enabled while sending nowhere — which leaves an operator a
  * way to switch off reporting to the default project without having to run a
  * PostHog instance of their own.
+ *
+ * @category config
+ * @since 0.1.0
+ *
+ * @example
+ * import { telemetryProjectKey } from "@resnovas/opp-config"
+ * import { ConfigProvider, Effect, Option } from "effect"
+ *
+ * const read = (env: Record<string, string>) =>
+ *   Effect.runSync(
+ *     telemetryProjectKey.pipe(
+ *       Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))
+ *     )
+ *   )
+ *
+ * // The empty string means "keep reporting on, send it nowhere".
+ * assert.strictEqual(Option.isNone(read({ OPENCLAW_PROTONPASS_POSTHOG_KEY: "" })), true)
+ * assert.strictEqual(Option.isSome(read({})), true)
  */
 export const telemetryProjectKey = Config.string(
   "OPENCLAW_PROTONPASS_POSTHOG_KEY"
@@ -88,7 +143,12 @@ export const telemetryProjectKey = Config.string(
   )
 )
 
-/** PostHog ingestion host. */
+/**
+ * PostHog ingestion host.
+ *
+ * @category config
+ * @since 0.1.0
+ */
 export const telemetryHost = Config.string("OPENCLAW_PROTONPASS_POSTHOG_HOST").pipe(
   Config.withDefault(DEFAULT_HOST)
 )

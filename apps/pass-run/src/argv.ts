@@ -35,13 +35,45 @@
  */
 
 /**
+ * Argument handling for the wrapper.
+ *
+ * Separated from the entry point so it can be tested without importing a
+ * module whose top level starts the program.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
+/**
  * Strip an optional `--` separator so the invocation can mirror `pass-cli run`.
  *
  * Lives apart from the entry point so it can be tested without importing a
  * module whose top level starts the program.
  *
+ * @remarks
+ * Pure and total. Strips at most one leading `--`; a later `--` belongs to
+ * the child command and is preserved.
+ *
  * @param argv - arguments after the program name
  * @returns the command and its arguments, empty when nothing was given
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { parseArgv } from "@resnovas/opp-pass-run/argv"
+ *
+ * assert.deepStrictEqual(parseArgv(["npx", "-y", "@upstash/context7-mcp"]), [
+ *   "npx",
+ *   "-y",
+ *   "@upstash/context7-mcp"
+ * ])
+ *
+ * // The leading separator mirrors `pass-cli run`; a later one belongs to the
+ * // child command and is preserved.
+ * assert.deepStrictEqual(parseArgv(["--", "npx", "-y"]), ["npx", "-y"])
+ * assert.deepStrictEqual(parseArgv(["sh", "--", "-c"]), ["sh", "--", "-c"])
+ * assert.deepStrictEqual(parseArgv([]), [])
  */
 export const parseArgv = (
   argv: ReadonlyArray<string>

@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * The read-only host report.
+ *
+ * Checks what is installed, configured and missing. It repairs nothing, so
+ * it is safe to run against a production host.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import { FileSystem } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
 import { Telemetry } from "@resnovas/opp-telemetry"
@@ -49,8 +59,23 @@ export interface Check {
 /**
  * Render checks as aligned terminal lines.
  *
+ * @remarks
+ * Pure and total. Renders labels and outcomes only — it reads no file and
+ * resolves no secret, so its output is safe to paste into an issue.
+ *
  * @param checks - the checks to display
  * @returns one line per check
+ *
+ * @example
+ * import { renderChecks } from "@resnovas/opp-cli/doctor"
+ *
+ * assert.deepStrictEqual(
+ *   renderChecks([
+ *     { label: "pass-cli", ok: true },
+ *     { label: "agent token", ok: false, detail: "create one with pass-cli agent create" }
+ *   ]),
+ *   ["  ok    pass-cli", "  MISS  agent token — create one with pass-cli agent create"]
+ * )
  */
 export const renderChecks = (checks: ReadonlyArray<Check>): ReadonlyArray<string> =>
   checks.map((check) => {

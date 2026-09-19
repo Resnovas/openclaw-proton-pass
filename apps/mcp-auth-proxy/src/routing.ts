@@ -34,6 +34,16 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * Route matching and header rewriting.
+ *
+ * Pure functions, separated from the server so each rewriting rule can be
+ * tested without a socket.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
 import type { ProxyConfig, Route } from "@resnovas/opp-domain"
 import { Option } from "effect"
 
@@ -56,9 +66,34 @@ export const HOP_BY_HOP: ReadonlySet<string> = new Set([
  * `/example/` in OpenClaw and `/example` in the route file has made no
  * meaningful mistake.
  *
+ * @remarks
+ * Pure and total. Matches exactly, after normalising a trailing slash in
+ * either direction, and ignores the query string. Returns `Option.none()`
+ * for an unknown path rather than failing.
+ *
  * @param config - the loaded proxy configuration
  * @param url - the request URL, path and query
  * @returns the matching route, if any
+ *
+ * @example
+ * import { ProxyConfig } from "@resnovas/opp-domain"
+ * import { matchRoute } from "@resnovas/opp-mcp-auth-proxy/routing"
+ * import { Option, Schema } from "effect"
+ *
+ * const config = Schema.decodeUnknownSync(ProxyConfig)({
+ *   routes: {
+ *     "/context7": {
+ *       upstream: "https://mcp.context7.com/mcp",
+ *       secretId: "CONTEXT7_MCP_AUTHORIZATION"
+ *     }
+ *   }
+ * })
+ *
+ * // A trailing slash either way is the same route, and the query is ignored.
+ * assert.strictEqual(Option.isSome(matchRoute(config, "/context7")), true)
+ * assert.strictEqual(Option.isSome(matchRoute(config, "/context7/")), true)
+ * assert.strictEqual(Option.isSome(matchRoute(config, "/context7?session=1")), true)
+ * assert.strictEqual(Option.isNone(matchRoute(config, "/elsewhere")), true)
  */
 export const matchRoute = (
   config: ProxyConfig,
@@ -79,11 +114,46 @@ export const matchRoute = (
  * set from the resolved secret, and Content-Length is restated for the body
  * actually being forwarded.
  *
+ * @remarks
+ * Pure and total. Drops hop-by-hop headers, the inbound `Host` and the
+ * inbound `Content-Length`; sets the upstream `Host`, the route's
+ * credential header, and restates `Content-Length` only for a non-empty
+ * body. `secret` is taken already unwrapped, which makes the caller one of
+ * the three places in this system that realises a redacted value.
+ *
  * @param inbound - headers as received from OpenClaw
  * @param route - the matched route
  * @param secret - the resolved credential value
  * @param upstreamHost - host of the upstream URL
  * @param bodyLength - byte length of the forwarded body, if any
+ *
+ * @example
+ * import { Route } from "@resnovas/opp-domain"
+ * import { outboundHeaders } from "@resnovas/opp-mcp-auth-proxy/routing"
+ * import { Schema } from "effect"
+ *
+ * const route = Schema.decodeUnknownSync(Route)({
+ *   upstream: "https://mcp.context7.com/mcp",
+ *   secretId: "CONTEXT7_MCP_AUTHORIZATION"
+ * })
+ *
+ * const headers = outboundHeaders(
+ *   { host: "127.0.0.1:18890", connection: "keep-alive", accept: "application/json" },
+ *   route,
+ *   "Bearer from-the-vault",
+ *   "mcp.context7.com",
+ *   0
+ * )
+ *
+ * assert.strictEqual(headers["Host"], "mcp.context7.com")
+ * assert.strictEqual(headers["Authorization"], "Bearer from-the-vault")
+ * assert.strictEqual(headers["accept"], "application/json")
+ *
+ * // The hop-by-hop header and the empty body's length are both dropped.
+ * assert.strictEqual("connection" in headers, false)
+ * assert.strictEqual("Content-Length" in headers, false)
+ *
+ * @returns the headers to send upstream
  */
 export const outboundHeaders = (
   inbound: Readonly<Record<string, string | ReadonlyArray<string> | undefined>>,
@@ -114,8 +184,19 @@ export const outboundHeaders = (
  * so the default exists to satisfy the type rather than to describe real
  * traffic — and is covered here rather than left as an untested branch.
  *
+ * @remarks
+ * Pure and total. Node types `method` as optional even though a served
+ * request always has one, so the default satisfies the type rather than
+ * describing real traffic.
+ *
  * @param request - the inbound request
  * @returns the HTTP method to forward
+ *
+ * @example
+ * import { requestMethod } from "@resnovas/opp-mcp-auth-proxy/routing"
+ *
+ * assert.strictEqual(requestMethod({ method: "POST" }), "POST")
+ * assert.strictEqual(requestMethod({}), "GET")
  */
 export const requestMethod = (request: { readonly method?: string | undefined }): string =>
   request.method ?? "GET"
@@ -123,8 +204,18 @@ export const requestMethod = (request: { readonly method?: string | undefined })
 /**
  * The URL of an inbound request, defaulting to the root path.
  *
+ * @remarks
+ * Pure and total, defaulting to the root path for the same reason as
+ * `requestMethod`.
+ *
  * @param request - the inbound request
  * @returns the path to match against the route table
+ *
+ * @example
+ * import { requestUrl } from "@resnovas/opp-mcp-auth-proxy/routing"
+ *
+ * assert.strictEqual(requestUrl({ url: "/context7" }), "/context7")
+ * assert.strictEqual(requestUrl({}), "/")
  */
 export const requestUrl = (request: { readonly url?: string | undefined }): string =>
   request.url ?? "/"
@@ -135,8 +226,28 @@ export const requestUrl = (request: { readonly url?: string | undefined }): stri
  * Content-Length is dropped because the body may be an open event stream of
  * unknown length, so framing is "read until close" instead.
  *
+ * @remarks
+ * Pure and total. Drops `Content-Length`, because the body may be an open
+ * event stream of unknown length, and sets `Connection: close` so framing
+ * becomes read-until-close.
+ *
  * @param headers - the upstream response headers
  * @returns the headers to write on the downstream response
+ *
+ * @example
+ * import { relayHeaders } from "@resnovas/opp-mcp-auth-proxy/routing"
+ *
+ * const headers = relayHeaders([
+ *   ["content-type", "text/event-stream"],
+ *   ["content-length", "42"]
+ * ])
+ *
+ * assert.strictEqual(headers["content-type"], "text/event-stream")
+ *
+ * // Dropped, because an open event stream has no length to declare; framing
+ * // becomes read-until-close.
+ * assert.strictEqual("content-length" in headers, false)
+ * assert.strictEqual(headers["Connection"], "close")
  */
 export const relayHeaders = (headers: Iterable<readonly [string, string]>): Record<string, string> => {
   const relayed: Record<string, string> = {}
