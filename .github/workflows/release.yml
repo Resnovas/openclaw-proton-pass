@@ -126,7 +126,7 @@ jobs:
             --release-version "${{ steps.version.outputs.value }}"
 
       # Injection prepends a chunk-id preamble to byte 0, which displaces the
-      # shebang esbuild put there and leaves every bin unexecutable — the state
+      # shebang esbuild put there and leaves every bin unexecutable - the state
       # 1.0.2 shipped in. Repair the first line before the tarball is built.
       - name: Restore the shebang displaced by source-map injection
         run: |
