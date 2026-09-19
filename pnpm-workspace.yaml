@@ -2,9 +2,13 @@ packages:
   - apps/*
   - libs/*
   - packages/*
+  - ai-docs
 
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true
   msgpackr-extract: true
   nx: true
+
+minimumReleaseAgeExclude:
+  - '@upstash/docs7@0.1.10'
