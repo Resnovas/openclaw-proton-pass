@@ -216,7 +216,10 @@ jobs:
         run: |
           # Single quotes on purpose: the literal is written to the file and
           # npm expands it when it reads it, so the token is never on disk.
-          printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> ~/.npmrc
+          # setup-node sets NPM_CONFIG_USERCONFIG to a temp file; npm 11 reads
+          # that instead of ~/.npmrc, so the auth line must go there.
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$npmrc"
           registry=https://npm.pkg.github.com
           if npm view "@resnovas/openclaw-proton-pass@$VERSION" version \
             --registry="$registry" >/dev/null 2>&1; then
