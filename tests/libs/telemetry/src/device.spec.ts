@@ -37,9 +37,10 @@
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { NodeContext } from "@effect/platform-node"
 import { Paths } from "@resnovas/opp-config"
-import { deviceContext, installId } from "@resnovas/opp-telemetry"
+import { deviceContext, installId, installIdFrom } from "@resnovas/opp-telemetry"
 import { Effect, Layer } from "effect"
-import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
 
@@ -63,50 +64,132 @@ const resolveId = () => Effect.runPromise(installId.pipe(Effect.provide(layer)))
 const resolveDevice = () => Effect.runPromise(deviceContext.pipe(Effect.provide(layer)))
 
 describe("installId", () => {
-  it("generates and persists an identifier on first use", async () => {
+  const MACHINE_ID = "/etc/machine-id"
+
+  it("derives the same identity for different configuration directories", async () => {
+    // The regression this exists for: keying identity to the config directory
+    // made one machine report as a new install whenever that directory moved,
+    // which is how a single test run produced 26 separate "people".
     workspace = makeWorkspace({})
-    const id = await resolveId()
-    expect(id).toMatch(/^[0-9a-f-]{36}$/)
-    expect(readFileSync(join(workspace.configDir, "install-id"), "utf8").trim()).toBe(id)
+    const first = await resolveId()
+    workspace.dispose()
+    workspace = makeWorkspace({})
+    const second = await resolveId()
+    expect(second).toBe(first)
   })
 
-  it("returns the same identifier on a second run", async () => {
-    // Stability is the whole point: it is what makes "this one host keeps
-    // failing" a question anyone can answer.
+  it("derives a stable identity across runs", async () => {
     workspace = makeWorkspace({})
     expect(await resolveId()).toBe(await resolveId())
   })
 
-  it("stores the identifier readable only by its owner", async () => {
+  it("never transmits the raw machine identifier", async () => {
+    workspace = makeWorkspace({})
+    const raw = readFileSync(MACHINE_ID, "utf8").trim()
+    const id = await resolveId()
+    expect(id).not.toContain(raw)
+    expect(id).toMatch(/^[0-9a-f]{32}$/)
+  })
+
+  it("salts the hash, so it cannot be matched against the bare machine id", async () => {
+    workspace = makeWorkspace({})
+    const raw = readFileSync(MACHINE_ID, "utf8").trim()
+    const unsalted = createHash("sha256").update(raw).digest("hex").slice(0, 32)
+    expect(await resolveId()).not.toBe(unsalted)
+  })
+
+  it("writes nothing into the configuration directory", async () => {
+    // Identity no longer lives beside the config, so moving the config keeps it.
     workspace = makeWorkspace({})
     await resolveId()
-    expect(statSync(join(workspace.configDir, "install-id")).mode & 0o777).toBe(0o600)
-  })
-
-  it("reuses an identifier written by an earlier version", async () => {
-    workspace = makeWorkspace({})
-    writeFileSync(join(workspace.configDir, "install-id"), "existing-identity\n")
-    expect(await resolveId()).toBe("existing-identity")
-  })
-
-  it("falls back to a derived identifier when nothing can be written", async () => {
-    // A read-only or ephemeral filesystem must still group a host's runs
-    // together rather than inventing a new install each time.
-    workspace = makeWorkspace({})
-    chmodSync(workspace.configDir, 0o500)
-    const first = await resolveId()
-    const second = await resolveId()
-    expect(first).toMatch(/^derived-[0-9a-f]{32}$/)
-    expect(second).toBe(first)
     expect(existsSync(join(workspace.configDir, "install-id"))).toBe(false)
   })
 
-  it("is not derived from anything describing the machine", async () => {
+  it("tries each machine id location in turn", async () => {
     workspace = makeWorkspace({})
-    const id = await resolveId()
-    // A random UUID identifies the install without encoding what it is.
-    expect(id).not.toContain(process.platform)
-    expect(id.startsWith("derived-")).toBe(false)
+    const viaSecond = await Effect.runPromise(
+      installIdFrom(["/nonexistent/machine-id", MACHINE_ID]).pipe(Effect.provide(layer))
+    )
+    expect(viaSecond).toBe(await resolveId())
+  })
+
+  it("falls back to a persisted identity when no machine id exists", async () => {
+    workspace = makeWorkspace({})
+    const stateHome = join(workspace.dir, "state")
+    const original = process.env["XDG_STATE_HOME"]
+    process.env["XDG_STATE_HOME"] = stateHome
+    try {
+      const first = await Effect.runPromise(
+        installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(layer))
+      )
+      expect(first).toMatch(/^[0-9a-f-]{36}$/)
+      const stored = join(stateHome, "openclaw-proton-pass", "install-id")
+      expect(readFileSync(stored, "utf8").trim()).toBe(first)
+      expect(statSync(stored).mode & 0o777).toBe(0o600)
+
+      const second = await Effect.runPromise(
+        installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(layer))
+      )
+      expect(second).toBe(first)
+    } finally {
+      if (original === undefined) delete process.env["XDG_STATE_HOME"]
+      else process.env["XDG_STATE_HOME"] = original
+    }
+  })
+
+  it("falls back to machine attributes when nothing can be persisted", async () => {
+    workspace = makeWorkspace({})
+    const stateHome = join(workspace.dir, "readonly")
+    mkdirSync(stateHome, { recursive: true })
+    chmodSync(stateHome, 0o500)
+    const original = process.env["XDG_STATE_HOME"]
+    process.env["XDG_STATE_HOME"] = stateHome
+    try {
+      const id = await Effect.runPromise(
+        installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(layer))
+      )
+      expect(id).toMatch(/^derived-[0-9a-f]{32}$/)
+    } finally {
+      chmodSync(stateHome, 0o700)
+      if (original === undefined) delete process.env["XDG_STATE_HOME"]
+      else process.env["XDG_STATE_HOME"] = original
+    }
+  })
+
+  it("uses the home state directory when XDG_STATE_HOME is unset", async () => {
+    workspace = makeWorkspace({})
+    const original = process.env["XDG_STATE_HOME"]
+    const originalHome = process.env["HOME"]
+    delete process.env["XDG_STATE_HOME"]
+    process.env["HOME"] = workspace.dir
+    try {
+      const id = await Effect.runPromise(
+        installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(layer))
+      )
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    } finally {
+      if (original !== undefined) process.env["XDG_STATE_HOME"] = original
+      if (originalHome !== undefined) process.env["HOME"] = originalHome
+    }
+  })
+
+  it("ignores an empty machine id file", async () => {
+    workspace = makeWorkspace({})
+    const empty = join(workspace.dir, "empty-machine-id")
+    writeFileSync(empty, "   \n")
+    const stateHome = join(workspace.dir, "state2")
+    const original = process.env["XDG_STATE_HOME"]
+    process.env["XDG_STATE_HOME"] = stateHome
+    try {
+      const id = await Effect.runPromise(
+        installIdFrom([empty]).pipe(Effect.provide(layer))
+      )
+      // Falls through to the persisted identity rather than hashing "".
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    } finally {
+      if (original === undefined) delete process.env["XDG_STATE_HOME"]
+      else process.env["XDG_STATE_HOME"] = original
+    }
   })
 })
 

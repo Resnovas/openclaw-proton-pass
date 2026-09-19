@@ -38,7 +38,7 @@ import { Command, FileSystem } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
 import { Effect } from "effect"
 import { createHash, randomUUID } from "node:crypto"
-import { arch, cpus, hostname, platform, release, totalmem } from "node:os"
+import { arch, cpus, homedir, hostname, platform, release, totalmem } from "node:os"
 import { join } from "node:path"
 
 /**
@@ -80,22 +80,59 @@ const versionOf = (command: string, ...args: ReadonlyArray<string>) =>
   )
 
 /**
- * A stable, pseudonymous identifier for this install.
+ * Constant mixed into every derived identifier.
  *
- * Persisted so the same machine is recognisable across runs, which is what
- * makes "this one host keeps failing" answerable at all. It is a random UUID
- * rather than anything derived from the machine, so it identifies an install
- * without encoding what that machine is; deleting the file starts a new
- * identity.
- *
- * When the file cannot be written — a read-only or ephemeral filesystem — a
- * hash of stable machine attributes stands in, so repeated runs from one host
- * still group together instead of each looking like a new install.
+ * A machine id is shared with everything else on the host that reads it, so
+ * hashing it with a salt specific to this project means the value reported here
+ * cannot be lined up against the same machine's identifier as seen by anything
+ * else. The raw identifier never leaves the machine.
  */
-export const installId = Effect.gen(function* () {
-  const paths = yield* Paths
+const ID_SALT = "openclaw-proton-pass/install-id/v1"
+
+/** Files holding a machine identifier, in the order they are trusted. */
+const MACHINE_ID_FILES = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
+
+/**
+ * A stable, pseudonymous identifier for this machine.
+ *
+ * Derived from the host's machine id rather than stored beside the
+ * configuration. Keying it to the config directory looked simpler, but it meant
+ * one machine reported as a different install every time that directory moved —
+ * a changed `OPENCLAW_PROTONPASS_CONFIG_DIR`, a container, an ephemeral home,
+ * or a test run against a temporary directory. Counting those as separate
+ * installs makes every per-install question meaningless.
+ *
+ * The machine id is salted and hashed, so what leaves the machine identifies it
+ * consistently without disclosing the identifier itself or being correlatable
+ * with any other product that reads the same file.
+ *
+ * Where no machine id exists, a UUID persisted under the state directory stands
+ * in; that path does not move when the configuration directory is overridden.
+ * Where nothing can be written either, a hash of durable machine attributes is
+ * the last resort, so a read-only or ephemeral host still reports consistently.
+ */
+export const installIdFrom = (machineIdFiles: ReadonlyArray<string>) =>
+  Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
-  const file = join(paths.configDir, "install-id")
+
+  const digest = (value: string) =>
+    createHash("sha256").update(`${ID_SALT}|${value}`).digest("hex").slice(0, 32)
+
+  for (const file of machineIdFiles) {
+    const contents = yield* fs.readFileString(file).pipe(
+      Effect.map((text) => text.trim()),
+      Effect.orElseSucceed(() => "")
+    )
+    if (contents !== "") return digest(contents)
+  }
+
+  // Not tied to the configuration directory: an identity that moves with the
+  // config is exactly the bug this function exists to avoid.
+  // homedir() rather than the HOME variable: it always yields a path, and it
+  // is what the OS actually considers home when the variable is absent.
+  const stateHome = process.env["XDG_STATE_HOME"] ?? join(homedir(), ".local", "state")
+  const stateDir = join(stateHome, "openclaw-proton-pass")
+  const file = join(stateDir, "install-id")
 
   const existing = yield* fs.readFileString(file).pipe(
     Effect.map((contents) => contents.trim()),
@@ -105,7 +142,7 @@ export const installId = Effect.gen(function* () {
 
   const generated = randomUUID()
   const written = yield* fs
-    .makeDirectory(paths.configDir, { recursive: true })
+    .makeDirectory(stateDir, { recursive: true })
     .pipe(
       Effect.zipRight(fs.writeFileString(file, `${generated}\n`)),
       Effect.zipRight(fs.chmod(file, 0o600)),
@@ -114,11 +151,17 @@ export const installId = Effect.gen(function* () {
     )
   if (written) return generated
 
-  // Derived rather than random, so an install that cannot persist anything
-  // still reports consistently instead of looking like a new host each run.
-  const fingerprint = [hostname(), platform(), arch(), paths.configDir].join("|")
-  return `derived-${createHash("sha256").update(fingerprint).digest("hex").slice(0, 32)}`
+  return `derived-${digest([hostname(), platform(), arch()].join("|"))}`
 })
+
+/**
+ * This machine's identifier.
+ *
+ * The file list is a parameter of {@link installIdFrom} so the fallbacks can be
+ * exercised: on any host that has a machine id, they are otherwise unreachable
+ * and would ship untested.
+ */
+export const installId = installIdFrom(MACHINE_ID_FILES)
 
 /**
  * Describe this machine.
