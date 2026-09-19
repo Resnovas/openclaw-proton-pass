@@ -107,7 +107,13 @@ export const toOtlpLogs = (
               body: { stringValue: record.logId },
               attributes: [
                 attribute("log.id", record.logId),
-                attribute("log.count", record.count)
+                attribute("log.count", record.count),
+                // PostHog joins a log to a person through a log attribute, not
+                // through the resource. Without this the record is correctly
+                // identified by install but never appears against the person,
+                // which is exactly how it looked: events on the person, logs
+                // nowhere near it.
+                attribute("posthogDistinctId", resource.installId)
               ]
             }
           })

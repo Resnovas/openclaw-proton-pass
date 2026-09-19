@@ -91,7 +91,17 @@ describe("toOtlpLogs", () => {
     expect(attributes.find((a) => a.key === "log.count")?.value).toEqual({ intValue: "4" })
   })
 
-  it("identifies the install on the resource, not the record", () => {
+  it("carries the person key as a log attribute", () => {
+    // PostHog joins logs to a person through a log attribute; a resource
+    // attribute alone leaves the record unattached to anyone.
+    const body = build([{ logId: "session.probe_failed", level: "info", count: 1 }], resource)
+    const attributes = records(body)[0]!.attributes
+    expect(attributes.find((a) => a.key === "posthogDistinctId")?.value).toEqual({
+      stringValue: resource.installId
+    })
+  })
+
+  it("identifies the install on the resource as well", () => {
     const body = build([{ logId: "cli.config_seeded", level: "info", count: 1 }], resource)
     const attributes = body.resourceLogs[0]!.resource.attributes
     expect(attributes.find((a) => a.key === "service.instance.id")?.value).toEqual({

@@ -205,7 +205,13 @@ export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
           // A real span, so it appears in the Tracing product with its timing
           // and outcome rather than only as an event row.
           const span = client.startSpan(name, {
-            attributes: { outcome, "service.name": serviceName }
+            attributes: {
+              outcome,
+              "service.name": serviceName,
+              // The SDK fills a span's person from its own request context,
+              // which a CLI never has, so the identity is set as an attribute.
+              posthogDistinctId: identity
+            }
           })
           span.end()
           client.metrics.histogram(`openclaw_proton_pass.span.${name}`, durationMs, {
