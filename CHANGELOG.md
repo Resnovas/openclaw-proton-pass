@@ -1,3 +1,13 @@
+## 1.0.1 (2026-09-19)
+
+### 🩹 Fixes
+
+- **release:** write GitHub Packages auth into the npm userconfig setup-node reads ([#14](https://github.com/Resnovas/openclaw-proton-pass/pull/14))
+
+### ❤️ Thank You
+
+- Jonathan S @TGTGamer
+
 # 1.0.0 (2026-09-19)
 
 ### 🚀 Features
