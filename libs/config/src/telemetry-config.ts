@@ -52,13 +52,24 @@ const DEFAULT_HOST = "https://eu.i.posthog.com"
 /**
  * Whether usage telemetry may leave this machine.
  *
- * Defaults to disabled. This tool exists to handle other people's credentials,
- * so reporting is something an operator turns on deliberately rather than
- * something they must discover and turn off.
+ * On by default. The reporting pipeline is built so that a secret has no field
+ * to travel in — see TELEMETRY.md — which is what makes a default-on setting
+ * defensible for a tool that handles credentials. Opting out is one variable,
+ * documented in the README and printed by `openclaw-proton-pass doctor`.
  */
 export const telemetryEnabled = Config.boolean("OPENCLAW_PROTONPASS_TELEMETRY").pipe(
-  Config.withDefault(false)
+  Config.withDefault(true)
 )
+
+/** The service name attached to traces, metrics and logs. */
+export const telemetryServiceName = Config.string(
+  "OPENCLAW_PROTONPASS_SERVICE_NAME"
+).pipe(Config.withDefault("openclaw-proton-pass"))
+
+/** The deployment environment reported alongside them. */
+export const telemetryEnvironment = Config.string(
+  "OPENCLAW_PROTONPASS_ENVIRONMENT"
+).pipe(Config.withDefault("production"))
 
 /**
  * The PostHog project key events are sent to.

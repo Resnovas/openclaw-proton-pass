@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
  * File: telemetry.ts
- * Last Modified: 2026-09-18
+ * Last Modified: 2026-09-19
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,31 +34,34 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { telemetryEnabled, telemetryHost, telemetryProjectKey } from "@resnovas/opp-config"
+import {
+  Paths,
+  telemetryEnabled,
+  telemetryEnvironment,
+  telemetryHost,
+  telemetryProjectKey,
+  telemetryServiceName
+} from "@resnovas/opp-config"
 import { Clock, Effect, Option, Redacted } from "effect"
 import { PostHog } from "posthog-node"
+import { deviceContext, installId, type DeviceContext } from "./device.js"
 import type { ErrorTag, LogId, LogLevel, Outcome, SpanName, TelemetryEvent } from "./events.js"
+import { sendLogs, type LogResource } from "./logs.js"
 import { toProperties, toReportableError } from "./payload.js"
 
 /** What the telemetry service offers, whether or not reporting is enabled. */
 export interface TelemetryApi {
-  /** Report one analytics or metric event. */
+  /** Report one analytics event, and its numeric fields as metrics. */
   readonly capture: (event: TelemetryEvent) => Effect.Effect<void>
   /** Report a failure to error tracking, by tag. */
   readonly captureError: (tag: ErrorTag, stack?: string) => Effect.Effect<void>
-  /** Report a structured diagnostic. */
+  /** Report a structured diagnostic to logs. */
   readonly diagnostic: (
     logId: LogId,
     level: LogLevel,
     count?: number
   ) => Effect.Effect<void>
-  /**
-   * Record an effect as a span: timed, named, and reported with its outcome.
-   *
-   * Wraps `Effect.withSpan`, so the span also exists in the Effect runtime for
-   * anyone attaching a local tracer, while what leaves the process is the
-   * guarded summary rather than the span's raw attributes.
-   */
+  /** Record an effect as a distributed-tracing span. */
   readonly span: <A, E, R>(
     name: SpanName,
     effect: Effect.Effect<A, E, R>
@@ -69,27 +72,50 @@ export interface TelemetryApi {
   readonly active: boolean
 }
 
-/** The identity events are attributed to. */
-const DISTINCT_ID = "openclaw-proton-pass"
+/**
+ * Device fields sent as person properties.
+ *
+ * Free-form strings are acceptable here, unlike in event properties, because
+ * each is read from `node:os`, `process`, or a version command. None is derived
+ * from a secret, a vault reference, or anything an operator typed, so the
+ * reason the event allowlist exists does not apply to them.
+ */
+const personProperties = (device: DeviceContext): Record<string, string | number | boolean> => ({
+  hostname: device.hostname,
+  os: device.os,
+  os_release: device.osRelease,
+  arch: device.arch,
+  node_version: device.nodeVersion,
+  npm_version: device.npmVersion,
+  pnpm_version: device.pnpmVersion,
+  pass_cli_version: device.passCliVersion,
+  cpu_count: device.cpuCount,
+  memory_gb: device.memoryGb,
+  timezone: device.timezone,
+  is_ci: device.isCi,
+  installed_as_plugin: device.installedAsPlugin,
+  app_version: device.appVersion
+})
 
 /**
- * Usage reporting, off unless explicitly enabled.
+ * Usage reporting: analytics, metrics, logs, traces and error tracking.
  *
- * Covers product analytics, metrics, structured logs, error tracking and
- * tracing — all through one function, {@link toProperties}, which is the only
- * place a property is built. Adding a capture path without going through it is
- * the one mistake that could leak, so there is deliberately nowhere else to
- * construct an event.
+ * On by default. The reporting pipeline is built so that a secret has no field
+ * to travel in, which is what makes that defensible for a tool handling
+ * credentials — see TELEMETRY.md. Opting out is one environment variable.
  *
- * Off by default: this tool handles other people's credentials, so reporting is
- * something an operator turns on rather than something they must discover and
- * turn off.
+ * Each signal goes to the PostHog product that displays it: analytics and
+ * errors as events, metrics through the SDK's metrics client, spans through its
+ * tracing client, and diagnostics as OTLP log records. Event properties still
+ * pass through {@link toProperties}, the single place a property is built.
  */
 export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
   effect: Effect.gen(function* () {
     const enabled = yield* telemetryEnabled
     const key = yield* telemetryProjectKey
     const host = yield* telemetryHost
+    const serviceName = yield* telemetryServiceName
+    const environment = yield* telemetryEnvironment
 
     /** Time an effect and report it as a span, whatever the service's state. */
     const timedSpan =
@@ -115,16 +141,49 @@ export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
       return inert
     }
 
-    const client = new PostHog(Redacted.value(key.value), { host })
+    const identity = yield* installId
+    const device = yield* deviceContext
+    const projectKey = Redacted.value(key.value)
 
-    /** Hand one event to the client. Reporting must never fail the caller. */
+    const client = new PostHog(projectKey, {
+      host,
+      // Turning these on is what routes spans and measurements to the Tracing
+      // and Metrics products rather than leaving them as ordinary events.
+      traces: { serviceName, serviceVersion: device.appVersion, environment },
+      metrics: { serviceName, serviceVersion: device.appVersion, environment }
+    })
+
+    const resource: LogResource = {
+      serviceName,
+      serviceVersion: device.appVersion,
+      environment,
+      installId: identity,
+      os: device.os,
+      nodeVersion: device.nodeVersion
+    }
+
+    // Identify the install once, so every later event joins to a person
+    // carrying the machine's description.
+    client.identify({ distinctId: identity, properties: personProperties(device) })
+
+    /** Send one event, plus its numeric fields as metric series. */
     const send = (event: TelemetryEvent) =>
       Effect.sync(() => {
-        client.capture({
-          distinctId: DISTINCT_ID,
-          event: event.name,
-          properties: toProperties(event)
-        })
+        const properties = toProperties(event)
+        client.capture({ distinctId: identity, event: event.name, properties })
+
+        // The same numbers, as metrics, so they are chartable as series rather
+        // than only queryable as events.
+        for (const [field, value] of Object.entries(properties)) {
+          if (typeof value !== "number") continue
+          const metric = `openclaw_proton_pass.${event.name}.${field}`
+          if (field === "durationMs") {
+            client.metrics.histogram(metric, value, { unit: "ms" })
+          } else {
+            client.metrics.count(metric, value)
+          }
+        }
+        client.metrics.count(`openclaw_proton_pass.${event.name}.total`, 1)
       }).pipe(Effect.ignore)
 
     const live: TelemetryApi = {
@@ -133,18 +192,38 @@ export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
         Effect.sync(() => {
           // The original error never travels: its message is free text and its
           // fields may hold a path. Only the tag and a sanitised stack do.
-          client.captureException(toReportableError(tag, stack), DISTINCT_ID, {
-            errorTag: tag
-          })
+          client.captureException(toReportableError(tag, stack), identity, { errorTag: tag })
+          client.metrics.count(`openclaw_proton_pass.error.${tag}`, 1)
         }).pipe(Effect.ignore),
       diagnostic: (logId, level, count = 1) =>
-        send({ name: "diagnostic", logId, level, count }),
+        Effect.promise(() => sendLogs(host, projectKey, [{ logId, level, count }], resource)).pipe(
+          Effect.zipRight(send({ name: "diagnostic", logId, level, count })),
+          Effect.ignore
+        ),
       span: timedSpan((name, durationMs, outcome) =>
-        send({ name: "span_completed", span: name, durationMs, outcome })
+        Effect.sync(() => {
+          // A real span, so it appears in the Tracing product with its timing
+          // and outcome rather than only as an event row.
+          const span = client.startSpan(name, {
+            attributes: { outcome, "service.name": serviceName }
+          })
+          span.end()
+          client.metrics.histogram(`openclaw_proton_pass.span.${name}`, durationMs, {
+            unit: "ms",
+            attributes: { outcome }
+          })
+        }).pipe(
+          Effect.ignore,
+          Effect.zipRight(send({ name: "span_completed", span: name, durationMs, outcome }))
+        )
       ),
       flush: Effect.promise(() => client.shutdown()).pipe(Effect.ignore),
       active: true
     }
     return live
-  })
+  }),
+  // Telemetry reads the install id and device profile from the config
+  // directory, so it owns that dependency rather than making every caller
+  // remember to provide it.
+  dependencies: [Paths.Default]
 }) {}
