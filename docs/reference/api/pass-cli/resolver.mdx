@@ -1,0 +1,38 @@
+---
+title: "resolver.ts"
+description: "Turning opaque ids into values, one vault round trip per request. Values are carried as `Redacted` from the moment they leave pass-cli and unwrapped only at the boundary that needs them."
+---
+
+## models
+
+### Resolved (type alias)
+
+The outcome for one requested id: a value, or the reason there is none.
+
+**Signature**
+
+```ts
+export type Resolved =
+  { readonly _tag: "Value"; readonly value: Redacted.Redacted<string> } | { readonly _tag: "NotFound" }
+```
+
+Added in v0.1.0
+
+## services
+
+### SecretResolver (class)
+
+Resolves opaque secret ids to their values via Proton Pass.
+
+Values are carried as `Redacted` from the moment they leave pass-cli,
+so a stray log line or error message cannot print one. Unwrapping is explicit
+and happens only where the value is genuinely needed: the protocol response
+on stdout, or the outbound HTTP header.
+
+**Signature**
+
+```ts
+export declare class SecretResolver
+```
+
+Added in v0.1.0

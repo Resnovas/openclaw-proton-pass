@@ -1,0 +1,175 @@
+---
+title: "routing.ts"
+description: "Route matching and header rewriting. Pure functions, separated from the server so each rewriting rule can be tested without a socket."
+---
+
+## utils
+
+### HOP_BY_HOP
+
+Headers describing a single hop, which must not be forwarded across one.
+
+**Signature**
+
+```ts
+export declare const HOP_BY_HOP: ReadonlySet<string>
+```
+
+### matchRoute
+
+Find the route serving a request path.
+
+A trailing slash is accepted either way, because an operator writing
+`/example/` in OpenClaw and `/example` in the route file has made no
+meaningful mistake.
+
+**Signature**
+
+```ts
+export declare const matchRoute: (config: ProxyConfig, url: string) => Option.Option<Route>
+```
+
+**Example**
+
+```ts
+import { ProxyConfig } from "@resnovas/opp-domain"
+import { matchRoute } from "@resnovas/opp-mcp-auth-proxy/routing"
+import { Option, Schema } from "effect"
+
+const config = Schema.decodeUnknownSync(ProxyConfig)({
+  routes: {
+    "/context7": {
+      upstream: "https://mcp.context7.com/mcp",
+      secretId: "CONTEXT7_MCP_AUTHORIZATION"
+    }
+  }
+})
+
+// A trailing slash either way is the same route, and the query is ignored.
+assert.strictEqual(Option.isSome(matchRoute(config, "/context7")), true)
+assert.strictEqual(Option.isSome(matchRoute(config, "/context7/")), true)
+assert.strictEqual(Option.isSome(matchRoute(config, "/context7?session=1")), true)
+assert.strictEqual(Option.isNone(matchRoute(config, "/elsewhere")), true)
+```
+
+### outboundHeaders
+
+Build the header set to send upstream.
+
+Hop-by-hop headers and the inbound Host are dropped, the credential header is
+set from the resolved secret, and Content-Length is restated for the body
+actually being forwarded.
+
+**Signature**
+
+```ts
+export declare const outboundHeaders: (
+  inbound: Readonly<Record<string, string | ReadonlyArray<string> | undefined>>,
+  route: Route,
+  secret: string,
+  upstreamHost: string,
+  bodyLength: number
+) => Record<string, string>
+```
+
+**Example**
+
+```ts
+import { Route } from "@resnovas/opp-domain"
+import { outboundHeaders } from "@resnovas/opp-mcp-auth-proxy/routing"
+import { Schema } from "effect"
+
+const route = Schema.decodeUnknownSync(Route)({
+  upstream: "https://mcp.context7.com/mcp",
+  secretId: "CONTEXT7_MCP_AUTHORIZATION"
+})
+
+const headers = outboundHeaders(
+  { host: "127.0.0.1:18890", connection: "keep-alive", accept: "application/json" },
+  route,
+  "Bearer from-the-vault",
+  "mcp.context7.com",
+  0
+)
+
+assert.strictEqual(headers["Host"], "mcp.context7.com")
+assert.strictEqual(headers["Authorization"], "Bearer from-the-vault")
+assert.strictEqual(headers["accept"], "application/json")
+
+// The hop-by-hop header and the empty body's length are both dropped.
+assert.strictEqual("connection" in headers, false)
+assert.strictEqual("Content-Length" in headers, false)
+```
+
+### relayHeaders
+
+The headers to send back to the client from an upstream response.
+
+Content-Length is dropped because the body may be an open event stream of
+unknown length, so framing is "read until close" instead.
+
+**Signature**
+
+```ts
+export declare const relayHeaders: (headers: Iterable<readonly [string, string]>) => Record<string, string>
+```
+
+**Example**
+
+```ts
+import { relayHeaders } from "@resnovas/opp-mcp-auth-proxy/routing"
+
+const headers = relayHeaders([
+  ["content-type", "text/event-stream"],
+  ["content-length", "42"]
+])
+
+assert.strictEqual(headers["content-type"], "text/event-stream")
+
+// Dropped, because an open event stream has no length to declare; framing
+// becomes read-until-close.
+assert.strictEqual("content-length" in headers, false)
+assert.strictEqual(headers["Connection"], "close")
+```
+
+### requestMethod
+
+The method of an inbound request, defaulting to GET.
+
+Node types `method` as optional even though a served request always has one,
+so the default exists to satisfy the type rather than to describe real
+traffic — and is covered here rather than left as an untested branch.
+
+**Signature**
+
+```ts
+export declare const requestMethod: (request: { readonly method?: string | undefined }) => string
+```
+
+**Example**
+
+```ts
+import { requestMethod } from "@resnovas/opp-mcp-auth-proxy/routing"
+
+assert.strictEqual(requestMethod({ method: "POST" }), "POST")
+assert.strictEqual(requestMethod({}), "GET")
+```
+
+### requestUrl
+
+The URL of an inbound request, defaulting to the root path.
+
+**Signature**
+
+```ts
+export declare const requestUrl: (request: { readonly url?: string | undefined }) => string
+```
+
+**Example**
+
+```ts
+import { requestUrl } from "@resnovas/opp-mcp-auth-proxy/routing"
+
+assert.strictEqual(requestUrl({ url: "/context7" }), "/context7")
+assert.strictEqual(requestUrl({}), "/")
+```

@@ -1,0 +1,188 @@
+---
+title: "route.ts"
+description: "The loopback proxy's configuration, with its safety rule in the type. A route names a local path, the remote MCP server behind it, and the secret id whose value is attached on the way through. The listen address cannot represent anything but loopback."
+---
+
+## models
+
+### ListenAddress (type alias)
+
+The type of a validated `ListenAddress`: an address the proxy is
+allowed to bind, which is always a loopback one.
+
+**Signature**
+
+```ts
+export type ListenAddress = typeof ListenAddress.Type
+```
+
+Added in v0.1.0
+
+### ProxyConfig (type alias)
+
+The decoded form of `ProxyConfig`: every route this proxy serves, and
+the address it listens on.
+
+**Signature**
+
+```ts
+export type ProxyConfig = typeof ProxyConfig.Type
+```
+
+Added in v0.1.0
+
+### Route (type alias)
+
+The decoded form of `Route`, with the header name and timeout filled
+in from their defaults.
+
+**Signature**
+
+```ts
+export type Route = typeof Route.Type
+```
+
+Added in v0.1.0
+
+## schemas
+
+### ListenAddress
+
+A listen address the proxy will accept.
+
+Binding beyond loopback would expose an unauthenticated route that attaches a
+real credential to anything reaching it, so the type refuses to represent one
+and the failure happens at configuration load rather than at first request.
+
+**Signature**
+
+```ts
+export declare const ListenAddress: Schema.brand<Schema.filter<typeof Schema.String>, "ListenAddress">
+```
+
+**Example**
+
+```ts
+import { ListenAddress } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+const decode = Schema.decodeUnknownSync(ListenAddress)
+
+assert.strictEqual(decode("127.0.0.1:18890"), "127.0.0.1:18890")
+
+// The loopback-only rule lives in the type, so a configuration that would
+// serve credentials to the network fails at load rather than at first
+// request.
+assert.throws(() => decode("0.0.0.0:18890"))
+assert.throws(() => decode("127.0.0.1:not-a-port"))
+```
+
+Added in v0.1.0
+
+### ProxyConfig
+
+The proxy's whole configuration file.
+
+**Signature**
+
+```ts
+export declare const ProxyConfig: Schema.Struct<{
+  listen: Schema.optionalWith<
+    Schema.brand<Schema.filter<typeof Schema.String>, "ListenAddress">,
+    { default: () => ListenAddress }
+  >
+  routes: Schema.Record$<
+    typeof Schema.String,
+    Schema.Struct<{
+      upstream: Schema.filter<typeof Schema.String>
+      header: Schema.optionalWith<typeof Schema.String, { default: () => string }>
+      secretId: Schema.brand<Schema.filter<typeof Schema.String>, "SecretId">
+      timeoutSeconds: Schema.optionalWith<Schema.filter<typeof Schema.Number>, { default: () => number }>
+    }>
+  >
+}>
+```
+
+**Example**
+
+```ts
+import { ProxyConfig } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+const config = Schema.decodeUnknownSync(ProxyConfig)({
+  routes: {
+    "/context7": {
+      upstream: "https://mcp.context7.com/mcp",
+      secretId: "CONTEXT7_MCP_AUTHORIZATION"
+    }
+  }
+})
+
+assert.strictEqual(config.listen, "127.0.0.1:18890")
+```
+
+Added in v0.1.0
+
+### Route
+
+One loopback route: a local path, and the remote MCP server it fronts.
+
+`secretId` names an entry in the secret map rather than a `pass://` URI, so
+this file records no vault location either.
+
+**Signature**
+
+```ts
+export declare const Route: Schema.Struct<{
+  upstream: Schema.filter<typeof Schema.String>
+  header: Schema.optionalWith<typeof Schema.String, { default: () => string }>
+  secretId: Schema.brand<Schema.filter<typeof Schema.String>, "SecretId">
+  timeoutSeconds: Schema.optionalWith<Schema.filter<typeof Schema.Number>, { default: () => number }>
+}>
+```
+
+**Example**
+
+```ts
+import { Route } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+// `header` and `timeoutSeconds` have defaults, so a route is two fields.
+const route = Schema.decodeUnknownSync(Route)({
+  upstream: "https://mcp.context7.com/mcp",
+  secretId: "CONTEXT7_MCP_AUTHORIZATION"
+})
+
+assert.strictEqual(route.header, "Authorization")
+assert.strictEqual(route.timeoutSeconds, 120)
+```
+
+Added in v0.1.0
+
+## utils
+
+### splitAddress
+
+Split a validated listen address into its host and port.
+
+**Signature**
+
+```ts
+export declare const splitAddress: (address: ListenAddress) => { readonly host: string; readonly port: number }
+```
+
+**Example**
+
+```ts
+import { ListenAddress, splitAddress } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+const address = Schema.decodeUnknownSync(ListenAddress)("127.0.0.1:18890")
+
+assert.deepStrictEqual(splitAddress(address), { host: "127.0.0.1", port: 18890 })
+
+// IPv6 splits on the last colon, not the first.
+assert.deepStrictEqual(splitAddress(Schema.decodeUnknownSync(ListenAddress)("::1:18890")), { host: "::1", port: 18890 })
+```
+
+Added in v0.1.0

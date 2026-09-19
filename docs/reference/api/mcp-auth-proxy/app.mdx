@@ -1,0 +1,38 @@
+---
+title: "app.ts"
+description: "The loopback credential-injecting proxy. Runs until interrupted. A route configuration that cannot be loaded is reported and exits non-zero rather than serving a partial route table."
+---
+
+## entrypoints
+
+### layer
+
+Everything the proxy needs in order to run.
+
+**Signature**
+
+```ts
+export declare const layer: Layer.Layer<
+  Paths | Telemetry | SecretResolver | PassSession | NodeContext.NodeContext,
+  ConfigError,
+  never
+>
+```
+
+Added in v0.1.0
+
+### main
+
+Serve until interrupted.
+
+**Signature**
+
+```ts
+export declare const main: Effect.Effect<
+  void,
+  ProxyIoError,
+  Paths | FileSystem | Telemetry | CommandExecutor | SecretResolver
+>
+```
+
+Added in v0.1.0

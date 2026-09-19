@@ -1,0 +1,121 @@
+---
+title: "errors.ts"
+description: "Every way this system can fail, as one closed union. Each member is a tagged error rather than a bare `Error`, so a caller can match on the tag and the compiler can tell them when a new failure mode is added."
+---
+
+## errors
+
+### MissingAgentTokenError (class)
+
+Raised when no Proton Pass agent token is present at the configured path.
+
+**Signature**
+
+```ts
+export declare class MissingAgentTokenError
+```
+
+Added in v0.1.0
+
+### ProtocolError (class)
+
+Raised when the request on stdin is not a well-formed provider request.
+
+**Signature**
+
+```ts
+export declare class ProtocolError
+```
+
+Added in v0.1.0
+
+### ProxyIoError (class)
+
+Raised when the proxy cannot read a request body or bind its listener.
+
+Tagged rather than a bare `Error` on purpose: `Data.TaggedError` extends
+`Error`, so a single untagged member in an error union widens the whole union
+to `Error` and makes every `catchTag` unusable.
+
+**Signature**
+
+```ts
+export declare class ProxyIoError
+```
+
+Added in v0.1.0
+
+### ResolutionError (class)
+
+Raised when pass-cli exits non-zero while resolving references.
+
+**Signature**
+
+```ts
+export declare class ResolutionError
+```
+
+Added in v0.1.0
+
+### RouteConfigError (class)
+
+Raised when the proxy route configuration cannot be read or does not parse.
+
+**Signature**
+
+```ts
+export declare class RouteConfigError
+```
+
+Added in v0.1.0
+
+### SecretMapError (class)
+
+Raised when the secret map cannot be read or does not parse.
+
+Carries the path so the operator is told which file to look at rather than
+being left to guess between the map, the route file and the agent token.
+
+**Signature**
+
+```ts
+export declare class SecretMapError
+```
+
+Added in v0.1.0
+
+### SessionError (class)
+
+Raised when a pass-cli session could not be established, even after recovery.
+
+**Signature**
+
+```ts
+export declare class SessionError
+```
+
+Added in v0.1.0
+
+## models
+
+### ProtonPassError (type alias)
+
+Every error this system can fail with.
+
+Exhaustive so callers can match without a default branch; adding a member is
+a deliberate, compiler-enforced change at every handling site.
+
+**Signature**
+
+```ts
+export type ProtonPassError =
+  | SecretMapError
+  | MissingAgentTokenError
+  | SessionError
+  | ResolutionError
+  | ProtocolError
+  | RouteConfigError
+  | ProxyIoError
+```
+
+Added in v0.1.0

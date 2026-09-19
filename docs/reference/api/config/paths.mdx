@@ -1,0 +1,23 @@
+---
+title: "paths.ts"
+description: "Every filesystem location this system reads, discovered once. Each path has a default and an environment override, so the three binaries cannot disagree about where the secret map lives."
+---
+
+## services
+
+### Paths (class)
+
+Every filesystem location this system reads, resolved once.
+
+Each has a default and an environment override, so a non-default install
+prefix or an XDG-relocated home needs no code change. Discovery happens here
+rather than at each call site so the three binaries cannot disagree about
+where the secret map lives.
+
+**Signature**
+
+```ts
+export declare class Paths
+```
+
+Added in v0.1.0

@@ -1,0 +1,34 @@
+---
+title: "app.ts"
+description: "The OpenClaw exec secret provider. Reads one JSON request from stdin, writes one JSON response to stdout, and exits. stdout carries the protocol and nothing else, so every log line in this process goes to stderr."
+---
+
+## entrypoints
+
+### layer
+
+Everything the resolver needs in order to run.
+
+**Signature**
+
+```ts
+export declare const layer: Layer.Layer<
+  SecretResolver | Paths | Telemetry | PassSession | NodeContext.NodeContext,
+  ConfigError,
+  never
+>
+```
+
+Added in v0.1.0
+
+### main
+
+Answer one Gateway request, or bootstrap a session and stop.
+
+**Signature**
+
+```ts
+export declare const main: Effect.Effect<void, never, SecretResolver | Telemetry | CommandExecutor | PassSession>
+```
+
+Added in v0.1.0

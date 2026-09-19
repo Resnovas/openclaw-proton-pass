@@ -21,9 +21,17 @@
     "coverage": "vitest run --coverage",
     "coverage:depth": "node --experimental-strip-types scripts/coverage-depth.ts",
     "lint:headers": "node --experimental-strip-types scripts/check-headers.ts",
-    "verify": "pnpm check && pnpm lint:headers && pnpm coverage && pnpm coverage:depth"
+    "lint:contracts": "node --experimental-strip-types scripts/check-contracts.ts",
+    "ai-docgen": "node --experimental-strip-types scripts/ai-docgen.ts",
+    "ai-docgen:check": "node --experimental-strip-types scripts/ai-docgen.ts --check",
+    "docs:api": "node --experimental-strip-types scripts/docs-api.ts",
+    "docs:check": "node --experimental-strip-types scripts/docs-api.ts --check",
+    "docs:dev": "docs7 dev ./docs",
+    "docs:deploy": "docs7 deploy ./docs",
+    "verify": "pnpm check && pnpm lint:headers && pnpm lint:contracts && pnpm coverage && pnpm coverage:depth && pnpm docs:check && pnpm ai-docgen:check"
   },
   "devDependencies": {
+    "@effect/docgen": "0.5.2",
     "@effect/platform": "^0.97.2",
     "@effect/platform-node": "^0.108.2",
     "@effect/vitest": "^0.30.0",
@@ -31,10 +39,12 @@
     "@resnovas/opp-domain": "workspace:*",
     "@resnovas/opp-telemetry": "workspace:*",
     "@types/node": "^24.0.0",
+    "@upstash/docs7": "^0.1.10",
     "@vitest/coverage-v8": "^3.2.7",
     "effect": "^3.22.2",
     "esbuild": "^0.28.2",
     "nx": "^23.2.1",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   }

@@ -1,0 +1,44 @@
+---
+title: "setup.ts"
+description: "Preparing the configuration directory. Seeds the two configuration files if they are absent and writes the systemd unit. An existing configuration file is never overwritten."
+---
+
+## utils
+
+### setup
+
+Prepare the configuration directory.
+
+An existing file is never overwritten: the secret map is the one piece of
+state a re-run must not disturb, so seeding only ever fills a gap.
+
+**Signature**
+
+```ts
+export declare const setup: Effect.Effect<void, PlatformError, Paths | Path.Path | FileSystem.FileSystem | Telemetry>
+```
+
+### systemdUnit
+
+Build the systemd user unit for the MCP auth proxy.
+
+The unit is generated rather than shipped because only the running installer
+knows where the proxy actually landed: a checkout can live anywhere, and a
+hardcoded path is exactly the portability bug this rewrite set out to remove.
+
+**Signature**
+
+```ts
+export declare const systemdUnit: (node: string, entry: string) => string
+```
+
+**Example**
+
+```ts
+import { systemdUnit } from "@resnovas/opp-cli/setup"
+
+const unit = systemdUnit("/usr/bin/node", "/opt/openclaw-proton-pass/proxy.mjs")
+
+assert.strictEqual(unit.includes("ExecStart=/usr/bin/node /opt/openclaw-proton-pass/proxy.mjs"), true)
+assert.strictEqual(unit.includes("Restart=always"), true)
+```

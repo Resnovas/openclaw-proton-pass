@@ -1,0 +1,167 @@
+---
+title: "payload.ts"
+description: "The two filters every reported property passes through. A value allowlist is the guarantee — a string is sent only if it appears verbatim in the literals this codebase declares — and a name denylist sits behind it as defence in depth."
+---
+
+## models
+
+### SafeValue (type alias)
+
+The only value types that may appear on the wire.
+
+**Signature**
+
+```ts
+export type SafeValue = number | boolean | string
+```
+
+Added in v0.1.0
+
+## utils
+
+### sanitiseStack
+
+Reduce a stack trace to file names, line numbers and function names.
+
+Stack traces are worth having for diagnosis, but an absolute path names the
+operator's home directory and their install layout. Reducing each frame to a
+basename keeps every diagnostically useful part — which function, which file,
+which line — and discards the part that identifies the machine.
+
+**Signature**
+
+```ts
+export declare const sanitiseStack: (stack: string | undefined) => string | undefined
+```
+
+**Example**
+
+```ts
+import { sanitiseStack } from "@resnovas/opp-telemetry"
+
+assert.strictEqual(
+  sanitiseStack("SessionError\n    at ensure (/home/someone/.local/lib/session.mjs:12:9)"),
+  "SessionError\n    at ensure (session.mjs:12:9)"
+)
+
+// Which function, which file and which line all survive; which machine
+// does not.
+assert.strictEqual(sanitiseStack(undefined), undefined)
+```
+
+Added in v0.1.0
+
+### scrub
+
+Remove properties whose names suggest they carry content rather than shape.
+
+**Signature**
+
+```ts
+export declare const scrub: (properties: Readonly<Record<string, SafeValue>>) => Record<string, SafeValue>
+```
+
+**Example**
+
+```ts
+import { scrub } from "@resnovas/opp-telemetry"
+
+// Shape passes through untouched.
+assert.deepStrictEqual(scrub({ requested: 3, durationMs: 41 }), {
+  requested: 3,
+  durationMs: 41
+})
+
+// Anything named as though it described content is dropped, whatever it
+// actually holds.
+assert.deepStrictEqual(scrub({ apiKey: "anything", upstream: "anything" }), {})
+```
+
+Added in v0.1.0
+
+### toProperties
+
+Convert an event into the properties sent to the analytics backend.
+
+This is the single place a property is ever constructed, and it filters on
+the **value** rather than the field name. A number or a boolean cannot carry
+a credential. A string is transmitted only when it appears verbatim in
+`ALLOWED_VALUES`, which contains nothing but literals declared in this
+codebase.
+
+Filtering by value rather than by name matters: a name-based denylist can
+only block the names someone thought of, and is defeated the moment a secret
+is placed under an innocuous key. A value allowlist has the opposite failure
+mode — an unanticipated field is dropped rather than leaked.
+
+**Signature**
+
+```ts
+export declare const toProperties: (event: TelemetryEvent) => Record<string, SafeValue>
+```
+
+**Example**
+
+```ts
+import { toProperties } from "@resnovas/opp-telemetry"
+
+// Counts, durations and declared literals survive.
+assert.deepStrictEqual(toProperties({ name: "session_established", sessionOutcome: "reused", durationMs: 8 }), {
+  sessionOutcome: "reused",
+  durationMs: 8
+})
+
+// The event name identifies the event; it is not also a property.
+assert.strictEqual("name" in toProperties({ name: "proxy_started", routes: 2 }), false)
+```
+
+**Example**
+
+```ts
+import { toProperties } from "@resnovas/opp-telemetry"
+
+// The guarantee, demonstrated: a string that is not a literal declared in
+// this codebase is dropped, however it got there. The cast is what a
+// JavaScript caller or a future refactor would do by accident; the filter
+// is what makes that harmless.
+const smuggled = { name: "proxy_started", routes: "a-value-from-a-vault" } as unknown
+
+assert.deepStrictEqual(toProperties(smuggled as never), {})
+```
+
+Added in v0.1.0
+
+### toReportableError
+
+Build the error object sent to error tracking.
+
+The original error is never forwarded. Domain errors carry fields such as the
+path of an unreadable secret map, and an error message is free text, so only
+the tag — a compile-time constant — becomes the message. The stack is kept
+because it locates the fault, and is sanitised because it also locates the
+operator.
+
+**Signature**
+
+```ts
+export declare const toReportableError: (tag: string, stack?: string) => Error
+```
+
+**Example**
+
+```ts
+import { toReportableError } from "@resnovas/opp-telemetry"
+
+const reported = toReportableError(
+  "SecretMapError",
+  "SecretMapError: cannot read /home/someone/.config/proton-pass-cli/map.json"
+)
+
+// The message is the tag alone, because a domain error's own message names
+// the file it failed on.
+assert.strictEqual(reported.message, "SecretMapError")
+assert.strictEqual(reported.name, "SecretMapError")
+assert.strictEqual(reported.stack, "SecretMapError: cannot read map.json")
+```
+
+Added in v0.1.0

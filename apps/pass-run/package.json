@@ -13,5 +13,6 @@
     "@resnovas/opp-pass-cli": "workspace:*",
     "@resnovas/opp-telemetry": "workspace:*",
     "effect": "^3.22.2"
-  }
+  },
+  "homepage": "https://github.com/Resnovas/openclaw-proton-pass"
 }

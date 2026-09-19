@@ -10,3 +10,9 @@ packages/openclaw-proton-pass/bin/
 packages/openclaw-proton-pass/README.md
 packages/openclaw-proton-pass/TELEMETRY.md
 packages/openclaw-proton-pass/LICENSE
+
+# docgen scratch output; the published pages live in docs/reference/api.
+libs/*/.docgen/
+
+# Docs7 site link, written by `docs7 deploy`.
+docs/.docs7/

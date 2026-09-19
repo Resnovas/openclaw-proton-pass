@@ -1,0 +1,283 @@
+---
+title: "events.ts"
+description: "The closed set of events this system can report, and the closed set of string values they may carry. No event has a field of type `string`, so a secret has no field to travel in. This is the whole safety argument, stated as types."
+---
+
+## constants
+
+### ALLOWED_VALUES
+
+Every string value any event field is permitted to carry.
+
+This is the runtime half of the compile-time guarantee. The type system stops
+a TypeScript caller assigning a secret to a field; this set stops anything
+else — a JavaScript caller, a future refactor, a mistake — because a value is
+transmitted only if it appears here verbatim. Membership is tested against
+the value, not the field name, so it cannot be defeated by choosing an
+innocuous-looking key.
+
+**Signature**
+
+```ts
+export declare const ALLOWED_VALUES: ReadonlySet<string>
+```
+
+**Example**
+
+```ts
+import { ALLOWED_VALUES } from "@resnovas/opp-telemetry"
+
+// Every permitted string is a literal written in this codebase.
+assert.strictEqual(ALLOWED_VALUES.has("reused"), true)
+assert.strictEqual(ALLOWED_VALUES.has("SecretMapError"), true)
+
+// A value read from a vault is not one of them, and never can be.
+assert.strictEqual(ALLOWED_VALUES.has("a-value-from-a-vault"), false)
+```
+
+Added in v0.1.0
+
+## models
+
+### Binary (type alias)
+
+Which executable produced the event.
+
+**Signature**
+
+```ts
+export type Binary = "resolver" | "pass-run" | "mcp-auth-proxy" | "cli"
+```
+
+Added in v0.1.0
+
+### CommandName (type alias)
+
+Subcommands of the management CLI.
+
+**Signature**
+
+```ts
+export type CommandName = "setup" | "doctor" | "help"
+```
+
+Added in v0.1.0
+
+### ErrorTag (type alias)
+
+The tag of a domain error. Tags are compile-time constants, never content.
+
+**Signature**
+
+```ts
+export type ErrorTag =
+  | "SecretMapError"
+  | "MissingAgentTokenError"
+  | "SessionError"
+  | "ResolutionError"
+  | "ProtocolError"
+  | "RouteConfigError"
+  | "ProxyIoError"
+  | "Unknown"
+```
+
+Added in v0.1.0
+
+### EventName (type alias)
+
+The name of any member of `TelemetryEvent`: the closed list of events
+this system is able to send.
+
+**Signature**
+
+```ts
+export type EventName = TelemetryEvent["name"]
+```
+
+Added in v0.1.0
+
+### LogId (type alias)
+
+Structured log records, identified rather than written out.
+
+A human log line is free text and this project's log lines routinely contain
+filesystem paths, so log _messages_ are never transmitted. Each diagnostic
+worth aggregating gets an id here instead, and the id travels with counts.
+
+**Signature**
+
+```ts
+export type LogId =
+  | "session.probe_failed"
+  | "session.login_failed"
+  | "session.directory_rebuilt"
+  | "resolver.map_unreadable"
+  | "resolver.id_not_in_map"
+  | "resolver.empty_value"
+  | "proxy.route_not_found"
+  | "proxy.credential_refreshed"
+  | "proxy.upstream_unreachable"
+  | "proxy.relay_interrupted"
+  | "cli.config_seeded"
+  | "cli.check_failed"
+```
+
+Added in v0.1.0
+
+### LogLevel (type alias)
+
+Severity for a structured log record.
+
+**Signature**
+
+```ts
+export type LogLevel = "debug" | "info" | "warn" | "error"
+```
+
+Added in v0.1.0
+
+### Outcome (type alias)
+
+Coarse result of an operation.
+
+**Signature**
+
+```ts
+export type Outcome = "success" | "failure"
+```
+
+Added in v0.1.0
+
+### SessionPath (type alias)
+
+Why a session bootstrap did what it did.
+
+**Signature**
+
+```ts
+export type SessionPath = "reused" | "logged-in" | "rebuilt"
+```
+
+Added in v0.1.0
+
+### SpanName (type alias)
+
+Spans this system records.
+
+Span names are constants for the same reason event fields are: a span name
+is transmitted, so it must not be derived from anything at runtime.
+
+**Signature**
+
+```ts
+export type SpanName =
+  | "resolver.handle_request"
+  | "resolver.load_map"
+  | "resolver.resolve_refs"
+  | "session.ensure"
+  | "proxy.handle_request"
+  | "proxy.forward"
+  | "proxy.relay"
+  | "cli.setup"
+  | "cli.doctor"
+```
+
+Added in v0.1.0
+
+### TelemetryEvent (type alias)
+
+The events themselves.
+
+`name` is the PostHog event name; every other field becomes a property.
+
+**Signature**
+
+```ts
+export type TelemetryEvent =
+  /** Product analytics: which binary ran at all, and on what shape of host. */
+  | {
+      readonly name: "binary_started"
+      readonly binary: Binary
+      readonly nodeMajor: number
+      readonly installedAsPlugin: boolean
+    }
+  /** The provider answered the Gateway. The headline metric. */
+  | {
+      readonly name: "provider_resolved"
+      readonly requested: number
+      readonly resolved: number
+      readonly missing: number
+      readonly decorated: number
+      readonly durationMs: number
+      readonly sessionOutcome: SessionPath
+    }
+  /** The provider could produce nothing. */
+  | {
+      readonly name: "provider_failed"
+      readonly requested: number
+      readonly errorTag: ErrorTag
+      readonly durationMs: number
+    }
+  /** A vault session was established, and what it cost. */
+  | {
+      readonly name: "session_established"
+      readonly sessionOutcome: SessionPath
+      readonly durationMs: number
+    }
+  /** A stdio MCP server was launched through the wrapper. */
+  | {
+      readonly name: "mcp_server_launched"
+      readonly outcome: Outcome
+      readonly exitCode: number
+      readonly durationMs: number
+    }
+  /** The proxy bound its listener. */
+  | {
+      readonly name: "proxy_started"
+      readonly routes: number
+    }
+  /** One proxied request completed. */
+  | {
+      readonly name: "proxy_request"
+      readonly status: number
+      readonly durationMs: number
+      readonly credentialRetried: boolean
+      readonly outcome: Outcome
+    }
+  /** A management command ran. */
+  | {
+      readonly name: "command_run"
+      readonly command: CommandName
+      readonly outcome: Outcome
+      readonly durationMs: number
+    }
+  /** `doctor` reported on a host, as a count of passes and failures. */
+  | {
+      readonly name: "doctor_report"
+      readonly passed: number
+      readonly failed: number
+    }
+  /**
+   * One completed span.
+   *
+   * Tracing is reported through the same guarded channel as everything else
+   * rather than through a separate exporter. An OpenTelemetry exporter would
+   * serialise whatever attributes a span happens to carry, which reintroduces
+   * exactly the unguarded path this design exists to remove.
+   */
+  | {
+      readonly name: "span_completed"
+      readonly span: SpanName
+      readonly durationMs: number
+      readonly outcome: Outcome
+    }
+  /** A structured diagnostic, identified rather than written out. */
+  | {
+      readonly name: "diagnostic"
+      readonly logId: LogId
+      readonly level: LogLevel
+      readonly count: number
+    }
+```
+
+Added in v0.1.0

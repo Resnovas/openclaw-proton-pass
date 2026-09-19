@@ -1,0 +1,126 @@
+---
+title: "logs.ts"
+description: "Structured logs over OTLP, carrying ids rather than messages. This project's log lines routinely contain filesystem paths, so the record body is an id drawn from a closed list instead of rendered text."
+---
+
+## constructors
+
+### toOtlpLogs
+
+Build an OTLP/JSON payload for PostHog's log ingestion.
+
+The record body is the log id, never a rendered message. This system's log
+lines routinely contain filesystem paths, so transmitting message text would
+undo the guarantee the rest of the pipeline provides; an id from a closed
+list carries the same diagnostic meaning and cannot carry anything else.
+
+**Signature**
+
+```ts
+export declare const toOtlpLogs: (records: ReadonlyArray<LogRecord>, resource: LogResource) => unknown
+```
+
+**Example**
+
+```ts
+import { toOtlpLogs } from "@resnovas/opp-telemetry"
+
+const body = toOtlpLogs([{ logId: "session.probe_failed", level: "info", count: 1 }], {
+  serviceName: "openclaw-proton-pass",
+  serviceVersion: "0.1.0",
+  environment: "production",
+  installId: "an-install-identifier",
+  os: "linux",
+  nodeVersion: "v22.0.0"
+}) as {
+  resourceLogs: ReadonlyArray<{
+    scopeLogs: ReadonlyArray<{
+      logRecords: ReadonlyArray<{ body: { stringValue: string }; severityText: string }>
+    }>
+  }>
+}
+
+const record = body.resourceLogs[0]!.scopeLogs[0]!.logRecords[0]!
+
+// The body is the log id, never a rendered message.
+assert.strictEqual(record.body.stringValue, "session.probe_failed")
+assert.strictEqual(record.severityText, "INFO")
+```
+
+Added in v0.1.0
+
+## models
+
+### LogRecord (interface)
+
+A log record ready for OTLP transport.
+
+**Signature**
+
+```ts
+export interface LogRecord {
+  readonly logId: LogId
+  readonly level: LogLevel
+  readonly count: number
+}
+```
+
+Added in v0.1.0
+
+### LogResource (interface)
+
+Identity of the reporting install, attached to every record.
+
+**Signature**
+
+```ts
+export interface LogResource {
+  readonly serviceName: string
+  readonly serviceVersion: string
+  readonly environment: string
+  readonly installId: string
+  readonly os: string
+  readonly nodeVersion: string
+}
+```
+
+Added in v0.1.0
+
+## transport
+
+### sendLogs
+
+Send log records to PostHog.
+
+Fire and forget: a logging backend that is slow or unreachable must never
+delay or fail a credential resolution, so the result is discarded either way.
+
+**Signature**
+
+```ts
+export declare const sendLogs: (
+  host: string,
+  projectKey: string,
+  records: ReadonlyArray<LogRecord>,
+  resource: LogResource
+) => Promise<void>
+```
+
+**Example**
+
+```ts
+import { sendLogs } from "@resnovas/opp-telemetry"
+
+// Nothing is sent for an empty batch, and the call resolves either way: a
+// logging backend must never be able to fail a credential resolution.
+await sendLogs("https://example.invalid", "phc_not_a_real_key", [], {
+  serviceName: "openclaw-proton-pass",
+  serviceVersion: "0.1.0",
+  environment: "test",
+  installId: "an-install-identifier",
+  os: "linux",
+  nodeVersion: "v22.0.0"
+})
+```
+
+Added in v0.1.0
