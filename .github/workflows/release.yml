@@ -206,6 +206,20 @@ jobs:
       # attestation. Staging is an npmjs concept, so this registry always gets
       # a direct publish, and it is the copy that exists immediately even when
       # the npm one is waiting for approval.
+      #
+      # npmjs.org is configured above; GitHub Packages needs its own registry
+      # URL, scope mapping, and auth token. setup-node writes all three into
+      # NPM_CONFIG_USERCONFIG. Appending only an auth line to the npmjs file
+      # still left publish unauthenticated because the @resnovas scope was not
+      # mapped to npm.pkg.github.com.
+      - name: Configure npm for GitHub Packages
+        if: ${{ !inputs.dry_run }}
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@resnovas"
+
       - name: Publish to GitHub Packages
         if: ${{ !inputs.dry_run }}
         working-directory: packages/openclaw-proton-pass
@@ -214,18 +228,10 @@ jobs:
           NPM_CONFIG_PROVENANCE: "false"
           VERSION: ${{ steps.version.outputs.value }}
         run: |
-          # Single quotes on purpose: the literal is written to the file and
-          # npm expands it when it reads it, so the token is never on disk.
-          # setup-node sets NPM_CONFIG_USERCONFIG to a temp file; npm 11 reads
-          # that instead of ~/.npmrc, so the auth line must go there.
-          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> "$npmrc"
-          registry=https://npm.pkg.github.com
-          if npm view "@resnovas/openclaw-proton-pass@$VERSION" version \
-            --registry="$registry" >/dev/null 2>&1; then
+          if npm view "@resnovas/openclaw-proton-pass@$VERSION" version >/dev/null 2>&1; then
             echo "v$VERSION is already in GitHub Packages; leaving it alone"
           else
-            npm publish --registry="$registry"
+            npm publish
           fi
 
       - name: Attach artefacts to the GitHub release
