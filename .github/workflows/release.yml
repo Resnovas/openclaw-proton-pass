@@ -136,13 +136,19 @@ jobs:
       - name: Install an npm that can publish without a long-lived token
         run: npm install --global npm@11
 
-      # Published with npm rather than `nx release publish`. nx delegates to
-      # the detected package manager, which is pnpm here, and pnpm does not
-      # implement npm's OIDC trusted publishing (pnpm/pnpm#9812), so going
-      # through it rules out the only publishing method that needs no token
-      # at all. Nothing is lost: nx's pnpm path exists to rewrite
-      # `workspace:*` dependency protocols, and this package declares no
-      # dependencies, because every one of them is inside the bundles.
+      # Published with npm rather than `nx release publish`, because nx
+      # delegates to the detected package manager, which is pnpm here, and
+      # pnpm does not implement npm's OIDC trusted publishing
+      # (pnpm/pnpm#9812). Going through it rules out the only publishing
+      # method that needs no stored token at all.
+      #
+      # The workspace-protocol rewriting that nx's pnpm path provides is not
+      # in play here. Every library and application does declare
+      # `workspace:*`, but all of them are `private: true`, and nx's publish
+      # executor skips a private package outright; `release.projects` in
+      # nx.json names only `openclaw-proton-pass`, and that package declares
+      # no dependencies because every one is inside the bundles.
+      #
       # Versioning, the changelog, the tag and the GitHub release are still
       # nx's, above.
       #
@@ -156,10 +162,22 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+          VERSION: ${{ steps.version.outputs.value }}
+        # `nx release publish` treated a version already on the registry as
+        # success rather than an error, which is what made re-running a
+        # release safe when a later step was the one that failed. `npm
+        # publish` exits EPUBLISHCONFLICT instead, so that behaviour is
+        # reproduced here rather than quietly lost.
+        #
         # `publishConfig.access` in package.json already says public, so no
         # --access flag is passed: it would have to be valid for both
         # subcommands, and one source of that setting is better than two.
-        run: npm ${{ inputs.stage && 'stage publish' || 'publish' }}
+        run: |
+          if npm view "@resnovas/openclaw-proton-pass@$VERSION" version >/dev/null 2>&1; then
+            echo "v$VERSION is already on npm; leaving it alone"
+          else
+            npm ${{ inputs.stage && 'stage publish' || 'publish' }}
+          fi
 
       - name: Say that the release is waiting for approval
         if: ${{ !inputs.dry_run && inputs.stage }}
@@ -194,11 +212,18 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "false"
+          VERSION: ${{ steps.version.outputs.value }}
         run: |
           # Single quotes on purpose: the literal is written to the file and
           # npm expands it when it reads it, so the token is never on disk.
           printf '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n' >> ~/.npmrc
-          npm publish --registry=https://npm.pkg.github.com
+          registry=https://npm.pkg.github.com
+          if npm view "@resnovas/openclaw-proton-pass@$VERSION" version \
+            --registry="$registry" >/dev/null 2>&1; then
+            echo "v$VERSION is already in GitHub Packages; leaving it alone"
+          else
+            npm publish --registry="$registry"
+          fi
 
       - name: Attach artefacts to the GitHub release
         if: ${{ !inputs.dry_run }}

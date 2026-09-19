@@ -369,9 +369,19 @@ implement npm's OIDC trusted publishing
 ([pnpm/pnpm#9812](https://github.com/pnpm/pnpm/issues/9812)). Going through it
 would rule out the only publishing method that needs no token at all.
 
-Nothing is lost by the swap. nx's pnpm path exists to rewrite `workspace:*`
-dependency protocols at publish time, and this package declares no dependencies
-whatsoever: every one of them is inside the bundles.
+The workspace-protocol rewriting that nx's pnpm path provides is not in play
+here, though not because the workspace avoids the protocol. Every library and
+application declares `workspace:*` against its siblings. All of them are also
+`private: true`, and nx's publish executor skips a private package outright;
+`release.projects` in `nx.json` names only `openclaw-proton-pass`, and that
+one package declares no dependencies at all, because every one is inside the
+bundles.
+
+One behaviour did have to be rebuilt by hand. `nx release publish` treats a
+version already on the registry as success rather than an error, which is what
+makes re-running a release safe when a later step was the one that failed.
+`npm publish` exits `EPUBLISHCONFLICT` instead, so both publish steps check
+the registry first and skip a version that is already there.
 
 ### Release names line up on purpose
 
