@@ -103,12 +103,12 @@ ssh -L 18890:127.0.0.1:18890 user@host
 The rule stays enforced, and access is authenticated by SSH rather than by
 nothing.
 
-<Visibility for="agents">
+<Accordion title="Notes for AI agents">
 Never widen `listen` beyond `127.0.0.1`, `::1` or `localhost` to resolve a
 connectivity problem. The schema refuses it, and the refusal is the security
 control - the proxy attaches a real credential to anything that reaches it and
 authenticates nothing. Forward a port over SSH instead.
-</Visibility>
+</Accordion>
 </Accordion>
 
 ## What the proxy does per request

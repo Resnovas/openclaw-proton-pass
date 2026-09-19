@@ -209,7 +209,7 @@ message text. Command arguments. Anything typed by a person.
 
 Not "is filtered out" - **has no field to travel in**.
 
-<Visibility for="agents">
+<Accordion title="Notes for AI agents">
 If you are adding an event: add it to the `TelemetryEvent` union in
 `libs/telemetry/src/events.ts` using numbers, booleans and string literal
 unions only, and add any new literals to `ALLOWED_VALUES` or they are dropped
@@ -217,7 +217,7 @@ at runtime despite compiling.
 
 Never add a field of type `string` to that union. It is the mechanism that
 makes this guarantee true, not a convention layered on top of it.
-</Visibility>
+</Accordion>
 
 ## How this is verified
 

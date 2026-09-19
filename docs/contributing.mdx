@@ -73,14 +73,39 @@ follow the graph rather than the package manager.
 
 ## Documentation
 
-This site is [Docs7](https://context7.com/docs/docs7/overview). Pages are MDX
-under `docs/`, and `docs/docs.json` holds the navigation.
+Pages are MDX under `docs/`, and `docs/docs.json` holds the navigation.
 
 ```bash
-pnpm docs:dev       # preview at http://localhost:3333, live reload
-pnpm docs:api       # regenerate the API reference from JSDoc
-pnpm docs:check     # fail if the generated pages are out of date
+pnpm docs:dev         # preview at http://localhost:3333, live reload
+pnpm docs:dev:docs7   # the same source through the Docs7 renderer, on 3334
+pnpm docs:api         # regenerate the API reference from JSDoc
+pnpm docs:check       # fail if the generated pages are out of date
 ```
+
+### Two renderers, one source
+
+`docs.json` follows the format Mintlify established, and
+[Docs7](https://context7.com/docs/docs7/overview) implements it, so the same
+`docs/` folder renders through both.
+
+| | Renderer | Why |
+| --- | --- | --- |
+| Local preview | Mintlify | It implements the page context menu; Docs7 so far does not |
+| Published | Docs7 | Markdown for every page, `llms.txt`, and the Context7 integration |
+
+That split is temporary. Docs7 validates the whole contextual option set and is
+expected to implement the rest, at which point one renderer does both jobs.
+
+<Warning>
+Write for both. Docs7-only components have no Mintlify equivalent, and Mintlify
+raises `missingMdxReference` and drops the block rather than degrading. Check a
+new component through `pnpm docs:dev:docs7` as well as `pnpm docs:dev` before
+relying on it.
+</Warning>
+
+The Mintlify CLI is run through `pnpm dlx` rather than added as a dependency,
+because it pulls in puppeteer and downloads a browser on install, which is a
+cost every contributor and CI run would otherwise pay for a local preview.
 
 ### The API reference is generated
 
@@ -137,21 +162,27 @@ markdown at `<page>.md`, and the site publishes `llms.txt`, `llms-full.txt`,
 a search endpoint and an Agent Skills index, so an agent reads the same words
 without a second copy to maintain.
 
-**Add agent-only context sparingly.** Reach for `Visibility` when an agent
-needs something a person does not - usually a fact that is destructive to get
-wrong, or one nobody would infer from the prose:
+**Add agent-only context sparingly**, and put it in a collapsed accordion
+titled `Notes for AI agents`. Reach for one when an agent needs something a
+person does not: usually a fact that is destructive to get wrong, or one
+nobody would infer from the prose.
 
-```mdx
-<Visibility for="agents">
+````mdx
+<Accordion title="Notes for AI agents">
 Deleting `~/.local/state/openclaw-protonpass` is safe. Deleting
 `openclaw-secret-map.json` is not: it is the only record of which vault item
 each id points at.
-</Visibility>
-```
+</Accordion>
+````
 
-Content in `for="agents"` appears in the markdown output but not on the page;
-`for="humans"` does the reverse. If the content helps both, it is not a
-`Visibility` block - it is the page.
+An accordion rather than Docs7's `Visibility` component, because this site is
+rendered by two engines. Docs7 keeps the content in each page's Markdown, which
+is what an agent reads, and Mintlify has no `Visibility` component at all: it
+raises `missingMdxReference` and drops the block, so a page using one would be
+broken there. A collapsed accordion renders natively in both and stays out of a
+reader's way.
+
+If the content helps both audiences, it is not an accordion - it is the page.
 
 **Be exact where an agent will pattern-match.** Error strings, configuration
 keys, environment variable names and command flags are quoted verbatim, and

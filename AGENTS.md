@@ -45,7 +45,8 @@ pnpm lint:headers     # every file carries the FCL-1.0-MIT header
 pnpm lint:contracts   # every exported callable's contract survives into dist
 pnpm docs:api         # regenerate docs/reference/api from JSDoc
 pnpm ai-docgen        # regenerate LLMS.md from ai-docs/src
-pnpm docs:dev         # preview the documentation site
+pnpm docs:dev         # preview the site with Mintlify (port 3333)
+pnpm docs:dev:docs7   # preview the same source with Docs7 (port 3334)
 ```
 
 ## Documentation is generated, and checked

@@ -115,14 +115,14 @@ openclaw config set models.providers.openai.apiKey \
   --ref-provider protonpass --ref-source exec --ref-id CONTEXT7_API_KEY
 ```
 
-<Visibility for="agents">
+<Accordion title="Notes for AI agents">
 Do not run the `openclaw-protonpass-resolver` verification command on a user's
 behalf without saying that it prints the credential to the terminal. Prefer
 `openclaw-proton-pass doctor`, which reports paths and outcomes only.
 
 `setup` never overwrites an existing `openclaw-secret-map.json`. If a map
 already exists, edit it; do not delete it to make `setup` reseed it.
-</Visibility>
+</Accordion>
 
 ## Next
 

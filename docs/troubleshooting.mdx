@@ -12,7 +12,7 @@ openclaw-proton-pass doctor
 It prints the paths it actually resolved, which is usually enough - an override
 that is not doing what you expected shows up immediately.
 
-<Visibility for="agents">
+<Accordion title="Notes for AI agents">
 Match on these exact strings when diagnosing from output:
 
 - `Already authenticated` - from `pass-cli login --pat`, means a session file
@@ -28,7 +28,7 @@ repair for an undecryptable session. Deleting
 `~/.config/proton-pass-cli/openclaw-secret-map.json` is **not** safe: it is the
 only record of which vault item each id points at, and it is not recoverable
 from the vault.
-</Visibility>
+</Accordion>
 
 ## Resolution fails
 

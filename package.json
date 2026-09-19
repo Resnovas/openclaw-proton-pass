@@ -27,7 +27,8 @@
     "ai-docgen:check": "node --experimental-strip-types scripts/ai-docgen.ts --check",
     "docs:api": "node --experimental-strip-types scripts/docs-api.ts",
     "docs:check": "node --experimental-strip-types scripts/docs-api.ts --check",
-    "docs:dev": "docs7 dev ./docs",
+    "docs:dev": "cd docs && pnpm dlx mint@4.2.908 dev --port 3333",
+    "docs:dev:docs7": "docs7 dev ./docs --port 3334",
     "docs:deploy": "docs7 deploy ./docs",
     "verify": "pnpm check && pnpm lint:headers && pnpm lint:prose && pnpm lint:contracts && pnpm coverage && pnpm coverage:depth && pnpm docs:check && pnpm ai-docgen:check"
   },

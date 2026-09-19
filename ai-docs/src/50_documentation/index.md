@@ -41,9 +41,19 @@ generated page.
 
 ### The human-facing site
 
-`docs/` is a [Docs7](https://context7.com/docs/docs7/overview) site. Preview it
-with `pnpm docs:dev`. It publishes `llms.txt`, `llms-full.txt` and a `.md` form
-of every page, so an agent reading the published documentation gets markdown
-rather than a rendered layout.
+`docs/` is one source rendered by two engines. `docs.json` follows the format
+Mintlify established and Docs7 implements, so both read the same tree.
+
+- `pnpm docs:dev` previews with Mintlify on port 3333. It is the local default
+  because it implements the page context menu, which Docs7 has not yet.
+- `pnpm docs:dev:docs7` previews with Docs7 on port 3334. Docs7 is what gets
+  published: it serves `llms.txt`, `llms-full.txt` and a `.md` form of every
+  page, and feeds the Context7 integration.
+
+Write for both. Docs7-only components have no Mintlify equivalent, and Mintlify
+raises `missingMdxReference` and drops the block rather than degrading. That is
+why agent-directed notes use a collapsed `Accordion` titled `Notes for AI
+agents` rather than Docs7's `Visibility`: an accordion renders in both, stays
+out of a reader's way, and still reaches agents through the page's Markdown.
 
 Prose pages are written by hand; everything under `docs/reference/api` is not.
