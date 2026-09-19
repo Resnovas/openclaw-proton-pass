@@ -37,7 +37,10 @@ for (const [name, entry] of Object.entries(ENTRIES)) {
     format: "esm",
     target: "node20",
     minify: false,
-    sourcemap: false,
+    // Source maps are uploaded to PostHog during the release, so a stack trace
+    // from a bundled file resolves back to the TypeScript that produced it.
+    // Without them an error report points at a line in a 2 MB bundle.
+    sourcemap: true,
     // Nothing is external. ClawHub runs the resolver as a bare
     // `${node} ./bin/<script>.mjs` from the plugin root, with no node_modules
     // beside it, so every dependency has to be inside the file.
@@ -51,6 +54,12 @@ for (const [name, entry] of Object.entries(ENTRIES)) {
         "const require = __createRequire(import.meta.url)"
       ].join("\n")
     },
+    define: {
+      // Stamped in at build time so reports say which release they came from.
+      "process.env.OPP_VERSION": JSON.stringify(
+        JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf8")).version
+      )
+    },
     logLevel: "warning"
   })
   console.log(`bundled ${name}.mjs`)
@@ -58,7 +67,7 @@ for (const [name, entry] of Object.entries(ENTRIES)) {
 
 // The published package carries its own copies so npm and ClawHub both show
 // the documentation and licence alongside the code.
-for (const file of ["README.md", "LICENSE"]) {
+for (const file of ["README.md", "LICENSE", "TELEMETRY.md"]) {
   copyFileSync(join(root, file), join(pkgRoot, file))
 }
 

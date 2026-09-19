@@ -27,6 +27,7 @@
     "assets",
     "openclaw.plugin.json",
     "README.md",
+    "TELEMETRY.md",
     "LICENSE"
   ],
   "keywords": [

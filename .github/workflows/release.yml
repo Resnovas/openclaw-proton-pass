@@ -71,6 +71,23 @@ jobs:
       - name: Build the publishable package
         run: pnpm exec nx run openclaw-proton-pass:build
 
+      # Inject must happen before publish: it stamps a chunk id into each
+      # bundle, and the uploaded map is keyed by that id. Publishing an
+      # uninjected bundle would leave every stack trace unresolvable.
+      - name: Upload source maps to PostHog
+        if: ${{ !inputs.dry_run }}
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: |
+          npx -y @posthog/cli@0.18 --host https://eu.posthog.com \
+            sourcemap process --directory packages/openclaw-proton-pass/bin
+
+      # The maps are 10 MB each and useless to an installer; PostHog has them
+      # now, so they do not belong in the tarball.
+      - name: Drop source maps from the package
+        run: rm -f packages/openclaw-proton-pass/bin/*.map
+
       - name: Publish to npm
         if: ${{ !inputs.dry_run }}
         env:
