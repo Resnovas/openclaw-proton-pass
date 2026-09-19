@@ -151,6 +151,17 @@ openclaw-proton-pass setup            # detects no init system on its own
 ~/.config/proton-pass-cli/openclaw-mcp-auth-proxy.sh
 ```
 
+On a host like this, supply the agent token through the environment rather
+than writing it to a file that the next rebuild throws away:
+
+```bash
+export OPENCLAW_PROTONPASS_AGENT_TOKEN='pst_...'
+```
+
+Set it wherever the platform keeps secrets for the box. The file is then
+never read, and `openclaw-proton-pass token` need not be run at all.
+`openclaw-proton-pass doctor` reports which of the two a host is using.
+
 The script runs the proxy in the foreground and replaces its own shell, so
 signals from the supervisor reach Node directly and the container stops when
 it is told to. Make it the long-running command:

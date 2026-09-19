@@ -54,6 +54,10 @@ export interface Workspace {
   readonly sessionDir: string
   readonly proxyConfig: string
   readonly passCli: string
+  /** What the stub pass-cli saw as its `login` arguments, if it ran. */
+  readonly loginArgv: string
+  /** What the stub pass-cli saw in `PROTON_PASS_PERSONAL_ACCESS_TOKEN`. */
+  readonly loginTokenEnv: string
   readonly dispose: () => void
 }
 
@@ -91,6 +95,11 @@ case "$1" in
   login)
     attempts=$(( $(cat "$state" 2>/dev/null || echo 0) + 1 ))
     echo "$attempts" > "$state"
+    # Recorded so a test can prove the token travels in the environment and
+    # never on the command line, which every other process on the host can
+    # read.
+    echo "$@" > "$state.argv"
+    printf '%s' "\${PROTON_PASS_PERSONAL_ACCESS_TOKEN:-}" > "$state.env"
     if [ "$attempts" = 1 ]; then exit ${behaviour.loginExit ?? 0}; fi
     exit ${behaviour.loginExitAfterRebuild ?? behaviour.loginExit ?? 0}
     ;;
@@ -172,6 +181,8 @@ export const makeWorkspace = (
     sessionDir,
     proxyConfig,
     passCli,
+    loginArgv: join(dir, "login-attempts.argv"),
+    loginTokenEnv: join(dir, "login-attempts.env"),
     dispose: () => {
       for (const key of [
         "OPENCLAW_PROTONPASS_CONFIG_DIR",

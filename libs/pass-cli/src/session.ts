@@ -45,10 +45,10 @@
  */
 
 import { Command, FileSystem } from "@effect/platform"
-import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
+import { agentTokenFromEnvironment, commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import { MissingAgentTokenError, SessionError } from "@resnovas/opp-domain"
 import { Telemetry, type SessionPath } from "@resnovas/opp-telemetry"
-import { Clock, Effect, Redacted } from "effect"
+import { Clock, Effect, Option, Redacted } from "effect"
 
 /**
  * A pass-cli session scoped to this provider alone.
@@ -98,7 +98,20 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
     /** True when the existing session can still be used. */
     const probe = succeeds(["info"])
 
+    /**
+     * The agent token, from the environment if it is there and the file if it
+     * is not.
+     *
+     * The environment wins because exporting the variable is a statement of
+     * intent that a leftover file on the same host should not silently
+     * override. Neither source is required to exist at startup: a host that
+     * supplies the token later still works, because this is read on the
+     * bootstrap path rather than when the service is built.
+     */
     const readToken = Effect.gen(function* () {
+      const supplied = yield* agentTokenFromEnvironment
+      if (Option.isSome(supplied)) return supplied.value
+
       const exists = yield* fs
         .exists(paths.agentPat)
         .pipe(Effect.orElseSucceed(() => false))
@@ -116,14 +129,25 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
     /**
      * One logout/login cycle.
      *
-     * The logout is not optional: `pass-cli login --pat` refuses with "Already
-     * authenticated" whenever a session file exists, including a stale one that
-     * `info` can no longer read.
+     * The token is handed over in the environment rather than as an argument.
+     * A process's command line is readable by every other process on the
+     * host: on Linux through `/proc/<pid>/cmdline`, which is world readable
+     * by default, and anywhere through `ps`. Passing the token as `--pat`
+     * disclosed it to every local account for as long as the login ran, which
+     * on a shared host is the whole vault. `PROTON_PASS_PERSONAL_ACCESS_TOKEN`
+     * is the mechanism pass-cli documents for exactly this reason, and an
+     * environment block is readable only by the same user and root.
+     *
+     * The logout is not optional: `pass-cli login` refuses with "Already
+     * authenticated" whenever a session file exists, including a stale one
+     * that `info` can no longer read.
      */
     const attemptLogin = (token: Redacted.Redacted<string>) =>
       Effect.gen(function* () {
         yield* succeeds(["logout"])
-        return yield* succeeds(["login", "--pat", Redacted.value(token)])
+        return yield* succeeds(["login"], {
+          PROTON_PASS_PERSONAL_ACCESS_TOKEN: Redacted.value(token)
+        })
       })
 
     /**

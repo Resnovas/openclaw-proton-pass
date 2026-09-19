@@ -96,13 +96,25 @@ That directory belongs solely to this provider, so deleting it is safe.
 
 <Accordion title="MissingAgentTokenError">
 
-There is no token at the configured path. `setup` cannot create it, because it
-needs your Proton Pass session:
+Neither `OPENCLAW_PROTONPASS_AGENT_TOKEN` nor a token file was found. `setup`
+cannot create one, because it needs your Proton Pass session:
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
 openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
+
+Or supply it through the environment instead, which writes no file:
+
+```bash
+export OPENCLAW_PROTONPASS_AGENT_TOKEN='pst_...'
+```
+
+If you set the variable and still see this, check that it reached the process
+that failed. Installed as a plugin, the resolver runs with a filtered
+environment: the manifest passes this variable through, but a service unit,
+launch agent or scheduled task started before you exported it will not have
+it. `openclaw-proton-pass doctor` reports which source it can see.
 
 </Accordion>
 

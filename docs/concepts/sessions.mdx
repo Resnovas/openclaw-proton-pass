@@ -16,9 +16,16 @@ pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
 openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
-The token is the one credential this system does keep on disk, at mode `0600`
-in a directory at `0700`. It is the root of the whole arrangement: anything that
-can read it can read that vault.
+The token is the one credential this system keeps, and it is the root of the
+whole arrangement: anything that can read it can read that vault. It lives
+either in a file readable only by your account, or in
+`OPENCLAW_PROTONPASS_AGENT_TOKEN`, which takes precedence when both exist.
+The two fail differently rather than one being safer; [the security
+model](/security/model) sets out which suits which host.
+
+It is never passed to `pass-cli` as a command-line argument, because a
+process's arguments are readable by every other process on the host. It
+travels in `PROTON_PASS_PERSONAL_ACCESS_TOKEN` instead.
 
 ## Every read is recorded
 

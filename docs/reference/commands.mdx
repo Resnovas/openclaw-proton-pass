@@ -74,6 +74,13 @@ portable. `install -m 0600 /dev/stdin` has no Windows equivalent, and the
 here-string that fed it is a bash and zsh feature that fish and POSIX sh do
 not have.
 
+<Note>
+`token` is not required. Exporting `OPENCLAW_PROTONPASS_AGENT_TOKEN` supplies
+the same token through the environment and no file is written or read, which
+is usually what a container or a managed host wants. The variable takes
+precedence over the file whenever both exist.
+</Note>
+
 ### `doctor`
 
 Reports what is installed, configured and missing. **Read-only** - it never

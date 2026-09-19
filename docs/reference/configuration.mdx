@@ -81,13 +81,20 @@ values](/concepts/ids-references-values) for why the two forms exist.
 
 ### `openclaw-agent-pat`
 
-The Proton Pass agent token, as a single line. Mode `0600`. Created by you, not
-by `setup`:
+The Proton Pass agent token, as a single line, readable only by your account.
+Created by you, not by `setup`:
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
 openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
+
+This file is optional. Setting `OPENCLAW_PROTONPASS_AGENT_TOKEN` supplies the
+same token through the environment and the file is then not read at all,
+which suits a container or a managed host where the platform already has
+somewhere to keep a secret. The variable wins whenever it is set, so a
+leftover file cannot silently override a deliberate export. [Which to
+use](/security/model) sets out how the two fail differently.
 
 ### `openclaw-mcp-proxy.json`
 
@@ -141,6 +148,19 @@ openclaw-proton-pass token   # paste the token, then Ctrl-D
 | `OPENCLAW_MCP_PROXY_CONFIG` | `<config dir>/openclaw-mcp-proxy.json` |
 | `OPENCLAW_PROTONPASS_SESSION_DIR` | `$XDG_STATE_HOME/openclaw-protonpass`, else `~/.local/state/openclaw-protonpass`, else `%LOCALAPPDATA%\openclaw-protonpass` on Windows |
 | `PASS_CLI` | found on `PATH`, then the Proton Pass CLI installer's own locations for this host |
+
+### Credentials
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OPENCLAW_PROTONPASS_AGENT_TOKEN` | unset | The agent token. Read instead of `openclaw-agent-pat` whenever it is set to anything but whitespace |
+
+<Warning>
+Installed as an OpenClaw plugin, the resolver runs with a filtered
+environment. The manifest lists the variables that are passed through, and
+this one is among them, but a variable you add yourself will not reach the
+resolver unless you add it to `passEnv` in the plugin manifest too.
+</Warning>
 
 The home directory every default derives from is read from `HOME`, then on
 Windows `USERPROFILE` and the `HOMEDRIVE` and `HOMEPATH` pair, and finally

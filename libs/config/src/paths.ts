@@ -54,6 +54,7 @@ import {
   executableNames,
   executableSearchPath,
   homeDirectory,
+  hostEnvironment,
   hostPlatform,
   stateHome as stateHomeFor,
   type HostPlatform
@@ -92,7 +93,9 @@ export class Paths extends Effect.Service<Paths>()("Paths", {
     const fs = yield* FileSystem.FileSystem
 
     const platform: HostPlatform = hostPlatform(osPlatform())
-    const env = process.env
+    // Through Config rather than process.env, so a supplied ConfigProvider
+    // governs discovery the same way it governs every other setting here.
+    const env = yield* hostEnvironment
     const home = homeDirectory(platform, env, homedir())
     const configHome = configHomeFor(platform, env, home)
     const stateHome = stateHomeFor(platform, env, home)

@@ -128,6 +128,18 @@ pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
 openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
+`token` stores it in a file readable only by your account. On a container or a
+managed host, supply it through the environment instead and no file is written
+or read:
+
+```bash
+export OPENCLAW_PROTONPASS_AGENT_TOKEN='pst_...'
+```
+
+The variable wins whenever both exist. It is never passed to `pass-cli` as a
+command-line argument, because a process's arguments are readable by every
+other process on the host.
+
 Every read that token performs is recorded in `pass-cli agent monitor openclaw-gateway`.
 
 ### 2. Map ids to vault references

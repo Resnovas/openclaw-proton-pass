@@ -44,7 +44,7 @@ import {
   serviceManagerFor,
   stateHome
 } from "@resnovas/opp-config"
-import { join } from "node:path"
+import { join, win32 } from "node:path"
 
 describe("hostPlatform", () => {
   it("recognises the two platforms that differ", () => {
@@ -110,9 +110,9 @@ describe("configHome", () => {
   })
 
   it("derives the roaming profile when APPDATA is unset", () => {
-    expect(configHome("win32", {}, "C:\\Users\\jo")).toBe(
-      join("C:\\Users\\jo", "AppData", "Roaming")
-    )
+    // Windows path rules, on whatever host this suite runs on: the ambient
+    // separator would produce a path Windows cannot use.
+    expect(configHome("win32", {}, "C:\\Users\\jo")).toBe("C:\\Users\\jo\\AppData\\Roaming")
   })
 
   it("puts macOS alongside Linux rather than in the Library", () => {
@@ -135,7 +135,7 @@ describe("stateHome", () => {
   })
 
   it("derives the local profile when LOCALAPPDATA is unset", () => {
-    expect(stateHome("win32", {}, "C:\\Users\\jo")).toBe(join("C:\\Users\\jo", "AppData", "Local"))
+    expect(stateHome("win32", {}, "C:\\Users\\jo")).toBe("C:\\Users\\jo\\AppData\\Local")
   })
 
   it("uses the XDG state directory on every other host", () => {
@@ -205,13 +205,20 @@ describe("executableSearchPath", () => {
 
   it("adds the Windows install locations", () => {
     const dirs = executableSearchPath("win32", { LOCALAPPDATA: "C:\\Local" }, "C:\\Users\\jo")
-    expect(dirs).toContain(join("C:\\Local", "Programs", "pass-cli"))
-    expect(dirs).toContain(join("C:\\Local", "pass-cli"))
+    expect(dirs).toContain(win32.join("C:\\Local", "Programs", "pass-cli"))
+    expect(dirs).toContain(win32.join("C:\\Local", "pass-cli"))
   })
 
   it("derives the Windows install locations when LOCALAPPDATA is unset", () => {
     const dirs = executableSearchPath("win32", {}, "C:\\Users\\jo")
-    expect(dirs).toContain(join("C:\\Users\\jo", "AppData", "Local", "Programs", "pass-cli"))
+    expect(dirs).toContain("C:\\Users\\jo\\AppData\\Local\\Programs\\pass-cli")
+  })
+
+  it("splits a Windows PATH on the semicolon, not the colon", () => {
+    // Splitting on the POSIX separator would cut every entry in half at its
+    // drive letter, so no directory on PATH would ever be searched.
+    const dirs = executableSearchPath("win32", { PATH: "C:\\bin;D:\\tools" }, "C:\\Users\\jo")
+    expect(dirs.slice(0, 2)).toEqual(["C:\\bin", "D:\\tools"])
   })
 })
 

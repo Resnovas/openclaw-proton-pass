@@ -28,17 +28,17 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
           # nx release pushes the version commit and tag back.
           persist-credentials: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 12.4.2
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
           cache: pnpm
@@ -57,12 +57,28 @@ jobs:
       - name: Version, changelog, tag and GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Through the environment rather than interpolated into the script.
+          # A workflow input expanded by the expression engine is substituted
+          # before the shell sees it, so its contents would be read as shell
+          # syntax; passing it as a variable means it can only ever be one
+          # argument. Dispatch is restricted to people who can write to this
+          # repository, so this is defence in depth rather than a hole, but
+          # the same input reaches a command that publishes to npm.
+          SPECIFIER: ${{ inputs.specifier }}
         run: |
-          pnpm exec nx release ${{ inputs.specifier }} \
-            --yes \
-            --skip-publish \
-            ${{ inputs.first_release && '--first-release' || '' }} \
-            ${{ inputs.dry_run && '--dry-run' || '' }}
+          # Explicitly rejected rather than merely quoted, so a typo fails
+          # here instead of producing a release named after it.
+          if [ -n "$SPECIFIER" ] && ! printf '%s' "$SPECIFIER" | grep -qE \
+            '^([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?|major|minor|patch|premajor|preminor|prepatch|prerelease)$'; then
+            echo "refusing a version specifier that is neither a semver version nor a bump keyword" >&2
+            exit 1
+          fi
+          args=()
+          if [ -n "$SPECIFIER" ]; then args+=("$SPECIFIER"); fi
+          args+=(--yes --skip-publish)
+          ${{ inputs.first_release && 'args+=(--first-release)' || 'true' }}
+          ${{ inputs.dry_run && 'args+=(--dry-run)' || 'true' }}
+          pnpm exec nx release "${args[@]}"
 
       - name: Read the released version
         id: version
@@ -155,7 +171,7 @@ jobs:
       # Business plan feature. A repository without it still releases.
       - name: Record the release in Linear
         if: ${{ secrets.LINEAR_ACCESS_KEY != '' }}
-        uses: linear/linear-release-action@v0
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
@@ -168,7 +184,7 @@ jobs:
 
       - name: Complete the Linear release
         if: ${{ !inputs.dry_run && secrets.LINEAR_ACCESS_KEY != '' }}
-        uses: linear/linear-release-action@v0
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: complete

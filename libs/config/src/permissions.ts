@@ -47,7 +47,7 @@
  */
 
 import { Command, CommandExecutor, FileSystem } from "@effect/platform"
-import { Effect } from "effect"
+import { Config, Effect, Option } from "effect"
 import type { HostPlatform } from "./host.js"
 
 /**
@@ -135,14 +135,18 @@ export const restrictToOwner = (
 ): Effect.Effect<void, never, FileSystem.FileSystem | CommandExecutor.CommandExecutor> =>
   platform === "win32"
     ? Effect.gen(function* () {
-        const account = process.env["USERNAME"]?.trim()
-        if (account === undefined || account === "") {
+        const account = yield* Config.string("USERNAME").pipe(
+          Config.map((value) => value.trim()),
+          Config.option,
+          Effect.orElseSucceed(() => Option.none<string>())
+        )
+        if (Option.isNone(account) || account.value === "") {
           yield* Effect.logWarning(
             `USERNAME is unset, so the permissions on ${target} were left as inherited`
           )
           return
         }
-        yield* Command.make("icacls", ...icaclsArguments(target, account)).pipe(
+        yield* Command.make("icacls", ...icaclsArguments(target, account.value)).pipe(
           Command.exitCode,
           Effect.flatMap((code) =>
             code === 0

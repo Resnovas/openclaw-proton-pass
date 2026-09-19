@@ -84,6 +84,63 @@ describe("renderChecks", () => {
   })
 })
 
+describe("doctor and the agent token", () => {
+  const inherited = process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+
+  afterEach(() => {
+    if (inherited === undefined) delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+    else process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = inherited
+  })
+
+  const tokenCheck = async () => {
+    const checks = await run()
+    return checks.find((check) => check.label.includes("agent token"))
+  }
+
+  it("reports the variable when the token comes from the environment", async () => {
+    // Naming the file instead would send someone editing a file the session
+    // is not going to read.
+    workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}", agentToken: null })
+    rmSync(workspace.agentPat, { force: true })
+    process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = "pat_from_the_environment"
+    const token = await tokenCheck()
+    expect(token?.ok).toBe(true)
+    expect(token?.label).toContain("OPENCLAW_PROTONPASS_AGENT_TOKEN")
+  })
+
+  it("reports the variable even when a file also exists", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}" })
+    process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = "pat_from_the_environment"
+    expect((await tokenCheck())?.label).toContain("OPENCLAW_PROTONPASS_AGENT_TOKEN")
+  })
+
+  it("reports the file when the variable is not set", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}" })
+    delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+    const token = await tokenCheck()
+    expect(token?.ok).toBe(true)
+    expect(token?.label).toContain("openclaw-agent-pat")
+  })
+
+  it("offers both remedies only when there is no token at all", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}", agentToken: null })
+    rmSync(workspace.agentPat, { force: true })
+    delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+    const token = await tokenCheck()
+    expect(token?.ok).toBe(false)
+    expect(token?.detail).toContain("OPENCLAW_PROTONPASS_AGENT_TOKEN")
+    expect(token?.detail).toContain("openclaw-proton-pass token")
+  })
+
+  it("says nothing further once a token is present", async () => {
+    // A remedy printed beside a passing check is noise that trains a reader
+    // to stop reading the detail column.
+    workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}" })
+    delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+    expect((await tokenCheck())?.detail).toBeUndefined()
+  })
+})
+
 describe("doctor", () => {
   it("reports everything present in a complete workspace", async () => {
     workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}" })
@@ -94,6 +151,7 @@ describe("doctor", () => {
 
   it("reports the missing agent token with its remedy", async () => {
     workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}", agentToken: null })
+    delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
     const checks = await run()
     const token = checks.find((check) => check.label.includes("agent token"))
     expect(token?.ok).toBe(false)

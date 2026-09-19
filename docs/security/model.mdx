@@ -27,16 +27,58 @@ Two things, and neither is a credential for the services you use:
   which vault item holds it. It does not tell you the key.
 </ResponseField>
 
-<ResponseField name="openclaw-agent-pat" type="mode 0600">
+<ResponseField name="openclaw-agent-pat" type="mode 0600, optional">
   The agent token. **This is the root of the whole arrangement.** Anything that
-  can read it can read that vault.
+  can read it can read that vault. Absent when the token is supplied through
+  `OPENCLAW_PROTONPASS_AGENT_TOKEN` instead.
 </ResponseField>
 
-Both live in a directory created at mode `0700`.
+Both live in a directory created at mode `0700`, or, on Windows, with
+inherited permissions dropped and full control granted to one account,
+because `chmod` does nothing there.
+
+### Choosing between the file and the variable
+
+Neither is strictly safer; they fail differently, so pick for the host.
+
+| | A file | An environment variable |
+| --- | --- | --- |
+| Readable by other accounts | No, mode `0600` | No |
+| Readable by root or an administrator | Yes | Yes |
+| Visible in `/proc/<pid>/environ` | No | Yes, to the same user and root |
+| Ends up in a filesystem backup or image | Yes | No |
+| Ends up in a platform's stored configuration | No | Yes, wherever that platform keeps it |
+| Survives a rebuild of the machine | No | Yes, if the platform holds it |
+
+A workstation is better served by the file: it is not visible to anything
+inspecting the process, and the disk is already the thing being protected. A
+container or a managed host is better served by the variable, because the
+platform already has somewhere to keep a secret, and a token written into an
+ephemeral filesystem during provisioning has to be written again on every
+rebuild.
+
+<Warning>
+If you use the variable, check what your platform does with it. Some log the
+environment of a failed start, some show it in a web console, and some copy it
+into a build cache. That exposure is the platform's, not this project's, and
+it is the one thing the file genuinely avoids.
+</Warning>
 
 ## Design decisions that are security decisions
 
 <AccordionGroup>
+<Accordion title="The token is never a command-line argument">
+
+`pass-cli` accepts the token either as `--personal-access-token` or in
+`PROTON_PASS_PERSONAL_ACCESS_TOKEN`. This uses the variable, because a
+process's arguments are readable by every other process on the host: through
+`/proc/<pid>/cmdline`, which is world readable on Linux, and through `ps`
+anywhere. An argument would have disclosed the whole vault to every local
+account for as long as the login took. An environment block is readable only
+by the same user and by root.
+
+</Accordion>
+
 <Accordion title="The proxy cannot bind beyond loopback">
 
 `ListenAddress` is a type that cannot represent a non-loopback address.
@@ -128,6 +170,80 @@ already running with your permissions.
   that often identifies a person. One variable turns it off.
 - **A local privilege escalation defeats all of this.** So does a keylogger.
   Neither is in scope.
+- **Anything that can set this process's environment can redirect it.**
+  `PASS_CLI` names the binary that talks to the vault, and `PATH` decides
+  which one is found when it is unset. Whoever controls either can substitute
+  a program of their own and be handed the agent token. That is not a
+  weakness that can be closed from inside the process: something that can
+  rewrite your environment can already replace the binary itself. It does
+  mean the environment a service runs with is part of the trust boundary,
+  which is the argument for the generated unit, agent and task files rather
+  than an ad-hoc shell wrapper.
+- **The proxy attaches credentials for any local caller.** It performs no
+  authentication of its own. It is bound to loopback and no further, but any
+  process running as you can reach it, which is the same boundary as the
+  first warning above rather than an additional one.
+
+## Supply chain and code injection
+
+The question this answers is whether someone can get code of their own into
+the copy you run, and thereby reach the token.
+
+<AccordionGroup>
+<Accordion title="Nothing is loaded at runtime that was not in the build">
+
+There is no `eval`, no `new Function`, and no dynamic `import()` or
+`require()` anywhere in the sources. Nothing reads a plugin directory, and
+none of the configuration files can name code: the secret map holds vault
+references, the route file holds URLs and header names, and both are parsed
+into branded types that cannot represent anything else.
+
+Each published binary is a single self-contained bundle with no
+`node_modules` beside it, so there is no directory an attacker can drop a
+module into and have it resolved ahead of the real one.
+
+</Accordion>
+
+<Accordion title="Dependencies cannot run code when they are installed">
+
+`pnpm-workspace.yaml` carries an `allowBuilds` allowlist, so a package may run
+an install script only if it is named there. Four are: esbuild, nx,
+`@parcel/watcher` and `msgpackr-extract`. Everything else in the tree is
+denied by default, which is the usual route a compromised transitive
+dependency takes.
+
+A minimum release age is also enforced, so a version published minutes ago
+cannot be pulled into a build before anyone has looked at it. `pnpm install`
+reports whether the lockfile passes both.
+
+</Accordion>
+
+<Accordion title="The release pipeline is pinned and scoped">
+
+Every GitHub Action is pinned to a commit SHA rather than a tag, because a
+tag can be repointed at new code by whoever owns the action. CI declares
+`contents: read` and nothing else. The publish job is the only one that holds
+a registry token, and packages are published with npm provenance, so the
+build that produced a release is attestable.
+
+The version specifier a release is dispatched with reaches the shell as an
+environment variable and is checked against a pattern first, so it cannot be
+read as shell syntax on its way to a command that publishes.
+
+</Accordion>
+
+<Accordion title="What this does not answer">
+
+A dependency that is compromised *before* its install script runs, in the
+package's own code, still executes inside the process and can read the token.
+Bundling and allowlisting shrink the surface; they do not remove it. The
+mitigation there is the same one the whole design rests on: the token is
+scoped to one vault, it expires, and every read it performs is recorded in
+`pass-cli agent monitor`, so a compromise is bounded and visible rather than
+silent and total.
+
+</Accordion>
+</AccordionGroup>
 
 ## Reporting a vulnerability
 

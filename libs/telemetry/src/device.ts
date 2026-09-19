@@ -46,7 +46,7 @@
  */
 
 import { Command, FileSystem } from "@effect/platform"
-import { homeDirectory, hostPlatform, Paths, stateHome } from "@resnovas/opp-config"
+import { homeDirectory, hostEnvironment, hostPlatform, Paths, stateHome } from "@resnovas/opp-config"
 import { Effect } from "effect"
 import { createHash, randomUUID } from "node:crypto"
 import { arch, cpus, homedir, hostname, platform, release, totalmem } from "node:os"
@@ -181,8 +181,9 @@ export const installIdFrom = (machineIdFiles: ReadonlyArray<string>) =>
   // same per-host state location as everything else, so the identity does not
   // land somewhere different from the session it describes.
   const host = hostPlatform(platform())
+  const env = yield* hostEnvironment
   const stateDir = join(
-    stateHome(host, process.env, homeDirectory(host, process.env, homedir())),
+    stateHome(host, env, homeDirectory(host, env, homedir())),
     "openclaw-proton-pass"
   )
   const file = join(stateDir, "install-id")

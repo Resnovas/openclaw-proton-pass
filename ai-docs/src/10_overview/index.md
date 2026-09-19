@@ -43,9 +43,12 @@ violated before, with consequences recorded in the commit history.
    the proxy streams payloads through it. Every log line in every executable
    goes to stderr. A single log line on stdout corrupts what the Gateway parses.
 
-2. **A secret is `Redacted` until the boundary that needs it.** There are three
-   such boundaries: the protocol response, the child process environment, and
-   the outbound HTTP header. Anywhere else, `Redacted.value` is a bug.
+2. **A secret is `Redacted` until the boundary that needs it.** There are four
+   such boundaries: the protocol response, the child process environment, the
+   outbound HTTP header, and the environment handed to `pass-cli login`.
+   Anywhere else, `Redacted.value` is a bug. A secret never becomes a
+   command-line argument, because a process's arguments are readable by every
+   other process on the host.
 
 3. **Telemetry has no field a secret could occupy.** The event union has no
    field of type `string` - only numbers, booleans, and string literal unions.

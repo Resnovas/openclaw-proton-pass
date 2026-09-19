@@ -45,9 +45,9 @@
  */
 
 import { FileSystem } from "@effect/platform"
-import { Paths, serviceManagerFor } from "@resnovas/opp-config"
+import { agentTokenFromEnvironment, Paths, serviceManagerFor } from "@resnovas/opp-config"
 import { Telemetry } from "@resnovas/opp-telemetry"
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
 import { systemdIsRunning } from "./setup.js"
 
 /** One checked condition and whether it holds. */
@@ -100,6 +100,33 @@ export const doctor = Effect.gen(function* () {
   const present = (path: string) =>
     fs.exists(path).pipe(Effect.orElseSucceed(() => false))
 
+  /**
+   * Whether a token is available, and from where.
+   *
+   * The environment is reported when it is set even if a file also exists,
+   * because that is the one the session will use, and a report that named
+   * the file would send someone editing the wrong thing.
+   */
+  const agentTokenCheck = Effect.gen(function* () {
+    const supplied = yield* agentTokenFromEnvironment
+    if (Option.isSome(supplied)) {
+      return { label: "agent token from OPENCLAW_PROTONPASS_AGENT_TOKEN", ok: true }
+    }
+    const onDisk = yield* present(paths.agentPat)
+    return {
+      label: `agent token ${paths.agentPat}`,
+      ok: onDisk,
+      ...(onDisk
+        ? {}
+        : {
+            detail:
+              "create one with `pass-cli agent create openclaw-gateway --expiration 1y" +
+              " --vault OpenClaw`, then store it with `openclaw-proton-pass token`" +
+              " or export OPENCLAW_PROTONPASS_AGENT_TOKEN"
+          })
+    }
+  })
+
   // Reported before the checks because it decides what several of them mean:
   // which supervisor the proxy belongs to, and whether a missing file mode is
   // a real finding or a platform that does not have one.
@@ -110,12 +137,7 @@ export const doctor = Effect.gen(function* () {
   const checks: Array<Check> = [
     { label: `pass-cli at ${paths.passCli}`, ok: yield* present(paths.passCli) },
     { label: `secret map ${paths.secretMap}`, ok: yield* present(paths.secretMap) },
-    {
-      label: `agent token ${paths.agentPat}`,
-      ok: yield* present(paths.agentPat),
-      detail:
-        "create with: pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw"
-    },
+    yield* agentTokenCheck,
     { label: `proxy routes ${paths.proxyConfig}`, ok: yield* present(paths.proxyConfig) },
     { label: `session directory ${paths.sessionDir}`, ok: yield* present(paths.sessionDir) }
   ]

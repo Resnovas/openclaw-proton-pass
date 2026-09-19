@@ -17,7 +17,15 @@
       "timeoutMs": 60000,
       "passEnv": [
         "PATH",
-        "HOME"
+        "HOME",
+        "OPENCLAW_PROTONPASS_AGENT_TOKEN",
+        "XDG_CONFIG_HOME",
+        "XDG_STATE_HOME",
+        "PASS_CLI",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "PATHEXT"
       ]
     }
   }

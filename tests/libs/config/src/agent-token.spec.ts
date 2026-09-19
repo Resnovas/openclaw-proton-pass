@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
- * File: index.ts
- * Last Modified: 2026-09-18
+ * File: agent-token.spec.ts
+ * Last Modified: 2026-09-19
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,10 +34,48 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-export * from "./agent-token.js"
-export * from "./host.js"
-export * from "./logging.js"
-export * from "./paths.js"
-export * from "./permissions.js"
-export * from "./telemetry-config.js"
-export * from "./timeouts.js"
+import { describe, expect, it } from "@effect/vitest"
+import { agentTokenFromEnvironment } from "@resnovas/opp-config"
+import { ConfigProvider, Effect, Option, Redacted } from "effect"
+
+const read = (env: Record<string, string>) =>
+  Effect.runSync(
+    agentTokenFromEnvironment.pipe(
+      Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))
+    )
+  )
+
+describe("agentTokenFromEnvironment", () => {
+  it("reports nothing when the variable is unset", () => {
+    expect(Option.isNone(read({}))).toBe(true)
+  })
+
+  it("reports nothing when the variable is set to whitespace", () => {
+    // An unset variable and one exported empty mean the same thing to
+    // everyone except a string comparison. Treating the empty string as a
+    // token sends it to the vault and fails as an authentication error,
+    // which points at the token rather than at the missing export.
+    expect(Option.isNone(read({ OPENCLAW_PROTONPASS_AGENT_TOKEN: "   " }))).toBe(true)
+  })
+
+  it("trims the value, because a variable set from a file keeps its newline", () => {
+    const token = read({ OPENCLAW_PROTONPASS_AGENT_TOKEN: " pat_abc123\n" })
+    expect(Option.isSome(token) && Redacted.value(token.value)).toBe("pat_abc123")
+  })
+
+  it("hands the token back redacted", () => {
+    // So it cannot reach a log line by being interpolated into one.
+    const token = read({ OPENCLAW_PROTONPASS_AGENT_TOKEN: "pat_abc123" })
+    expect(Option.isSome(token) && String(token.value)).toBe("<redacted>")
+  })
+
+  it("never fails, whatever the configuration provider does", () => {
+    // Its caller is on the session bootstrap path, whose error channel is
+    // the closed domain union. A ConfigError there would widen that union
+    // everywhere to describe "no variable was set", which this reports as
+    // None already.
+    expect(Option.isNone(Effect.runSync(agentTokenFromEnvironment.pipe(
+      Effect.withConfigProvider(ConfigProvider.fromMap(new Map()))
+    )))).toBe(true)
+  })
+})

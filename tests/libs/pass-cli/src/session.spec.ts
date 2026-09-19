@@ -40,7 +40,7 @@ import { Paths } from "@resnovas/opp-config"
 import { Telemetry } from "@resnovas/opp-telemetry"
 import { PassSession } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Layer } from "effect"
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { makeWorkspace, type StubBehaviour, type Workspace } from "../../../helpers/workspace.js"
 
@@ -69,6 +69,61 @@ const start = (stub: StubBehaviour, options: { agentToken?: string | null } = {}
   workspace = makeWorkspace({ stub, ...options })
   return workspace
 }
+
+describe("the agent token source", () => {
+  const inherited = process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+
+  afterEach(() => {
+    if (inherited === undefined) delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+    else process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = inherited
+  })
+
+  it.effect("never puts the token on the command line", () =>
+    Effect.gen(function* () {
+      // A process's arguments are readable by every other process on the
+      // host, through /proc/<pid>/cmdline on Linux and ps anywhere. The
+      // token travels in the environment, which is readable only by the
+      // same user and root.
+      start({ infoExit: 1 }, { agentToken: "pat_from_a_file" })
+      yield* ensureWith({ infoExit: 1 })
+      expect(readFileSync(workspace!.loginArgv, "utf8")).not.toContain("pat_from_a_file")
+      expect(readFileSync(workspace!.loginTokenEnv, "utf8")).toBe("pat_from_a_file")
+    })
+  )
+
+  it.effect("logs in with the token from the environment when one is set", () =>
+    Effect.gen(function* () {
+      // A container or a managed host already has somewhere to put a secret,
+      // so writing one to a file during provisioning buys nothing.
+      start({ infoExit: 1 }, { agentToken: null })
+      rmSync(workspace!.agentPat, { force: true })
+      process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = "pat_from_the_environment"
+      const result = yield* ensureWith({ infoExit: 1 })
+      expect(Exit.isSuccess(result)).toBe(true)
+      expect(readFileSync(workspace!.loginTokenEnv, "utf8")).toBe("pat_from_the_environment")
+    })
+  )
+
+  it.effect("prefers the environment over a file that also exists", () =>
+    Effect.gen(function* () {
+      // Exporting the variable states an intent that a leftover file on the
+      // same host should not silently override.
+      start({ infoExit: 1 }, { agentToken: "pat_from_a_file" })
+      process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = "pat_from_the_environment"
+      yield* ensureWith({ infoExit: 1 })
+      expect(readFileSync(workspace!.loginTokenEnv, "utf8")).toBe("pat_from_the_environment")
+    })
+  )
+
+  it.effect("falls back to the file when the variable is not set", () =>
+    Effect.gen(function* () {
+      start({ infoExit: 1 }, { agentToken: "pat_from_a_file" })
+      delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+      yield* ensureWith({ infoExit: 1 })
+      expect(readFileSync(workspace!.loginTokenEnv, "utf8")).toBe("pat_from_a_file")
+    })
+  )
+})
 
 describe("PassSession.ensure", () => {
   it.effect("accepts a session that is already usable", () =>

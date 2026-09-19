@@ -45,7 +45,8 @@
  * @since 0.1.0
  */
 
-import { delimiter, join } from "node:path"
+import { Config, Effect, Option } from "effect"
+import { posix, win32 } from "node:path"
 
 /**
  * The host families this system distinguishes between.
@@ -83,6 +84,85 @@ export type Environment = Readonly<Record<string, string | undefined>>
  * @since 0.1.0
  */
 export type ServiceManager = "systemd" | "launchd" | "schtasks" | "none"
+
+/**
+ * Every variable host discovery reads.
+ *
+ * Named exhaustively because `Config` reads one key at a time, which is the
+ * point: the set of variables this system depends on is visible in one place
+ * rather than implied by scattered lookups, and a plugin host that filters
+ * the environment can be told exactly what to pass through.
+ *
+ * @category constants
+ * @since 0.1.0
+ *
+ * @example
+ * import { HOST_VARIABLES } from "@resnovas/opp-config"
+ *
+ * assert.strictEqual(HOST_VARIABLES.includes("XDG_CONFIG_HOME"), true)
+ * assert.strictEqual(HOST_VARIABLES.includes("LOCALAPPDATA"), true)
+ */
+export const HOST_VARIABLES = [
+  "HOME",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "XDG_CONFIG_HOME",
+  "XDG_STATE_HOME",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PATH",
+  "PATHEXT"
+] as const
+
+/**
+ * Read the variables host discovery depends on, through Effect's config layer.
+ *
+ * @remarks
+ * Never fails: a variable that is absent is absent, which every function
+ * here already handles. Going through `Config` rather than `process.env`
+ * means a test or an embedding application can supply a `ConfigProvider` and
+ * have discovery honour it, which reading the global object directly would
+ * quietly bypass.
+ *
+ * @returns an Effect yielding the environment host discovery should use
+ *
+ * @example
+ * import { hostEnvironment } from "@resnovas/opp-config"
+ * import { ConfigProvider, Effect } from "effect"
+ *
+ * const env = Effect.runSync(
+ *   hostEnvironment.pipe(
+ *     Effect.withConfigProvider(ConfigProvider.fromMap(new Map([["HOME", "/home/jo"]])))
+ *   )
+ * )
+ *
+ * assert.strictEqual(env["HOME"], "/home/jo")
+ * assert.strictEqual(env["APPDATA"], undefined)
+ */
+export const hostEnvironment: Effect.Effect<Environment> = Effect.forEach(
+  HOST_VARIABLES,
+  (name) =>
+    Config.string(name).pipe(
+      Config.option,
+      Effect.orElseSucceed(() => Option.none<string>()),
+      Effect.map((value) => [name, Option.getOrUndefined(value)] as const)
+    )
+).pipe(Effect.map((entries) => Object.fromEntries(entries)))
+
+/**
+ * The path rules of the named host, rather than of the host we are running on.
+ *
+ * Effect's `Path` service is deliberately not used here. It is bound to the
+ * running platform, so on Linux it would join a Windows path with forward
+ * slashes, and these functions exist precisely to describe a host that is not
+ * this one. `NodePath.layerWin32` wraps this same module, so nothing is
+ * bypassed by reaching for it directly; what is avoided is threading a second
+ * `Path` layer through functions that are otherwise pure and synchronous.
+ * Everything that resolves a path for the host it is actually running on goes
+ * through the `Path` service, in `Paths`.
+ */
+const rules = (platform: HostPlatform) => (platform === "win32" ? win32 : posix)
 
 /**
  * Read one variable, treating unset, empty and whitespace as the same thing.
@@ -180,14 +260,12 @@ export const homeDirectory = (
  *
  * @example
  * import { configHome } from "@resnovas/opp-config"
- * import { join } from "node:path"
  *
- * assert.strictEqual(configHome("linux", {}, "/home/jo"), join("/home/jo", ".config"))
- * assert.strictEqual(configHome("darwin", {}, "/Users/jo"), join("/Users/jo", ".config"))
- * assert.strictEqual(
- *   configHome("win32", { APPDATA: "C:\\Users\\jo\\AppData\\Roaming" }, "C:\\Users\\jo"),
- *   "C:\\Users\\jo\\AppData\\Roaming"
- * )
+ * assert.strictEqual(configHome("linux", {}, "/home/jo"), "/home/jo/.config")
+ * assert.strictEqual(configHome("darwin", {}, "/Users/jo"), "/Users/jo/.config")
+ *
+ * // Built with Windows path rules, whatever host this runs on.
+ * assert.strictEqual(configHome("win32", {}, "C:\\Users\\jo"), "C:\\Users\\jo\\AppData\\Roaming")
  */
 export const configHome = (
   platform: HostPlatform,
@@ -197,9 +275,9 @@ export const configHome = (
   const xdg = set(env, "XDG_CONFIG_HOME")
   if (xdg !== undefined) return xdg
   if (platform === "win32") {
-    return set(env, "APPDATA") ?? join(home, "AppData", "Roaming")
+    return set(env, "APPDATA") ?? rules(platform).join(home, "AppData", "Roaming")
   }
-  return join(home, ".config")
+  return rules(platform).join(home, ".config")
 }
 
 /**
@@ -217,13 +295,12 @@ export const configHome = (
  *
  * @example
  * import { stateHome } from "@resnovas/opp-config"
- * import { join } from "node:path"
  *
- * assert.strictEqual(stateHome("linux", {}, "/home/jo"), join("/home/jo", ".local", "state"))
- * assert.strictEqual(
- *   stateHome("win32", { LOCALAPPDATA: "C:\\Users\\jo\\AppData\\Local" }, "C:\\Users\\jo"),
- *   "C:\\Users\\jo\\AppData\\Local"
- * )
+ * assert.strictEqual(stateHome("linux", {}, "/home/jo"), "/home/jo/.local/state")
+ *
+ * // Local rather than roaming: a session database cannot follow a user to
+ * // another machine, because only the machine that wrote it can decrypt it.
+ * assert.strictEqual(stateHome("win32", {}, "C:\\Users\\jo"), "C:\\Users\\jo\\AppData\\Local")
  */
 export const stateHome = (
   platform: HostPlatform,
@@ -233,9 +310,9 @@ export const stateHome = (
   const xdg = set(env, "XDG_STATE_HOME")
   if (xdg !== undefined) return xdg
   if (platform === "win32") {
-    return set(env, "LOCALAPPDATA") ?? join(home, "AppData", "Local")
+    return set(env, "LOCALAPPDATA") ?? rules(platform).join(home, "AppData", "Local")
   }
-  return join(home, ".local", "state")
+  return rules(platform).join(home, ".local", "state")
 }
 
 /**
@@ -308,6 +385,7 @@ export const executableSearchPath = (
   env: Environment,
   home: string
 ): ReadonlyArray<string> => {
+  const { delimiter, join } = rules(platform)
   const fromPath = (env["PATH"] ?? "").split(delimiter).filter((entry) => entry.trim() !== "")
   if (platform === "win32") {
     const local = set(env, "LOCALAPPDATA") ?? join(home, "AppData", "Local")

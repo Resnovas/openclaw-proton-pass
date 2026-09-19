@@ -3,6 +3,45 @@ title: "host.ts"
 description: "Everything that differs between the hosts this system runs on. Each difference is decided by a pure function of the platform name and the environment, so no other module branches on `process.platform` and every branch can be tested from any machine."
 ---
 
+## constants
+
+### HOST_VARIABLES
+
+Every variable host discovery reads.
+
+Named exhaustively because `Config` reads one key at a time, which is the
+point: the set of variables this system depends on is visible in one place
+rather than implied by scattered lookups, and a plugin host that filters
+the environment can be told exactly what to pass through.
+
+**Signature**
+
+```ts
+export declare const HOST_VARIABLES: readonly [
+  "HOME",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "XDG_CONFIG_HOME",
+  "XDG_STATE_HOME",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PATH",
+  "PATHEXT"
+]
+```
+
+**Example**
+
+```ts
+import { HOST_VARIABLES } from "@resnovas/opp-config"
+
+assert.strictEqual(HOST_VARIABLES.includes("XDG_CONFIG_HOME"), true)
+assert.strictEqual(HOST_VARIABLES.includes("LOCALAPPDATA"), true)
+```
+
+Added in v0.1.0
+
 ## models
 
 ### Environment (type alias)
@@ -70,14 +109,12 @@ export declare const configHome: (platform: HostPlatform, env: Environment, home
 
 ```ts
 import { configHome } from "@resnovas/opp-config"
-import { join } from "node:path"
 
-assert.strictEqual(configHome("linux", {}, "/home/jo"), join("/home/jo", ".config"))
-assert.strictEqual(configHome("darwin", {}, "/Users/jo"), join("/Users/jo", ".config"))
-assert.strictEqual(
-  configHome("win32", { APPDATA: "C:\\Users\\jo\\AppData\\Roaming" }, "C:\\Users\\jo"),
-  "C:\\Users\\jo\\AppData\\Roaming"
-)
+assert.strictEqual(configHome("linux", {}, "/home/jo"), "/home/jo/.config")
+assert.strictEqual(configHome("darwin", {}, "/Users/jo"), "/Users/jo/.config")
+
+// Built with Windows path rules, whatever host this runs on.
+assert.strictEqual(configHome("win32", {}, "C:\\Users\\jo"), "C:\\Users\\jo\\AppData\\Roaming")
 ```
 
 ### executableNames
@@ -143,6 +180,30 @@ assert.strictEqual(homeDirectory("win32", { USERPROFILE: "C:\\Users\\jo" }, "ign
 assert.strictEqual(homeDirectory("linux", {}, "/home/jo"), "/home/jo")
 ```
 
+### hostEnvironment
+
+Read the variables host discovery depends on, through Effect's config layer.
+
+**Signature**
+
+```ts
+export declare const hostEnvironment: Effect.Effect<Readonly<Record<string, string | undefined>>, never, never>
+```
+
+**Example**
+
+```ts
+import { hostEnvironment } from "@resnovas/opp-config"
+import { ConfigProvider, Effect } from "effect"
+
+const env = Effect.runSync(
+  hostEnvironment.pipe(Effect.withConfigProvider(ConfigProvider.fromMap(new Map([["HOME", "/home/jo"]]))))
+)
+
+assert.strictEqual(env["HOME"], "/home/jo")
+assert.strictEqual(env["APPDATA"], undefined)
+```
+
 ### hostPlatform
 
 Classify a `process.platform` value into a host family.
@@ -198,11 +259,10 @@ export declare const stateHome: (platform: HostPlatform, env: Environment, home:
 
 ```ts
 import { stateHome } from "@resnovas/opp-config"
-import { join } from "node:path"
 
-assert.strictEqual(stateHome("linux", {}, "/home/jo"), join("/home/jo", ".local", "state"))
-assert.strictEqual(
-  stateHome("win32", { LOCALAPPDATA: "C:\\Users\\jo\\AppData\\Local" }, "C:\\Users\\jo"),
-  "C:\\Users\\jo\\AppData\\Local"
-)
+assert.strictEqual(stateHome("linux", {}, "/home/jo"), "/home/jo/.local/state")
+
+// Local rather than roaming: a session database cannot follow a user to
+// another machine, because only the machine that wrote it can decrypt it.
+assert.strictEqual(stateHome("win32", {}, "C:\\Users\\jo"), "C:\\Users\\jo\\AppData\\Local")
 ```

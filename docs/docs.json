@@ -103,6 +103,7 @@
             "group": "Config",
             "pages": [
               "reference/api/config/index",
+              "reference/api/config/agent-token",
               "reference/api/config/host",
               "reference/api/config/logging",
               "reference/api/config/paths",

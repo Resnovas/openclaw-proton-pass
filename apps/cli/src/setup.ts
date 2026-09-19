@@ -46,6 +46,7 @@
  */
 
 import { CommandExecutor, FileSystem, Path } from "@effect/platform"
+import { posix, win32 } from "node:path"
 import {
   Paths,
   restrictToOwner,
@@ -377,8 +378,10 @@ exec "${node}" "${entry}" "$@"
  */
 export const serviceArtefact = (context: ServiceContext): ServiceArtefact => {
   const { configDir, configHome, entry, home, manager, node, platform } = context
-  const separator = platform === "win32" ? "\\" : "/"
-  const under = (...parts: ReadonlyArray<string>) => parts.join(separator)
+  // The target host's path rules, which are not necessarily this host's: the
+  // same reason libs/config/host.ts reaches for these rather than the Path
+  // service, which is bound to the platform it is running on.
+  const under = (platform === "win32" ? win32 : posix).join
 
   if (manager === "systemd") {
     return {
