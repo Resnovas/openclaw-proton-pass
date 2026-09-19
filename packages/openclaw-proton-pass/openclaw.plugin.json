@@ -2,8 +2,18 @@
   "id": "proton-pass",
   "name": "Proton Pass",
   "description": "Resolve OpenClaw credentials from Proton Pass at request time. Secrets stay in the vault; openclaw.json records only opaque ids.",
-  "version": "0.0.0",
+  "version": "1.0.2",
   "homepage": "https://github.com/Resnovas/openclaw-proton-pass",
+  "categories": [
+    "security"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  },
+  "activation": {
+    "onStartup": false
+  },
   "secretProviderIntegrations": {
     "proton-pass": {
       "providerAlias": "protonpass",

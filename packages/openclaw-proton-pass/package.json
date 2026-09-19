@@ -40,6 +40,12 @@
     "credentials"
   ],
   "openclaw": {
+    "extensions": [
+      "./bin/index.mjs"
+    ],
+    "runtimeExtensions": [
+      "./bin/index.mjs"
+    ],
     "compat": {
       "pluginApi": ">=2026.9.4"
     },
@@ -47,6 +53,8 @@
       "openclawVersion": "2026.9.4"
     },
     "install": {
+      "npmSpec": "@resnovas/openclaw-proton-pass@1.0.2",
+      "clawhubSpec": "@resnovas/openclaw-proton-pass",
       "minHostVersion": ">=2026.9.4",
       "defaultChoice": "npm"
     }
