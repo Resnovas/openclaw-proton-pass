@@ -16,3 +16,6 @@ libs/*/.docgen/
 
 # Docs7 site link, written by `docs7 deploy`.
 docs/.docs7/
+
+.claude/worktrees
+.claude/settings.local.json
