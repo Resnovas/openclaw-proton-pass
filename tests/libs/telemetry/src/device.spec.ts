@@ -188,6 +188,36 @@ describe("deviceContext", () => {
     expect(device.passCliVersion).toBe("unknown")
   }, 30_000)
 
+  it.each([
+    ["true", true],
+    ["1", true],
+    ["false", false]
+  ])("reads CI=%s as %s", async (value, expected) => {
+    // Pinned rather than inherited: on a CI runner the ambient value decides
+    // which side of the check ever runs, so the other branch would go
+    // unexercised exactly where it matters.
+    workspace = makeWorkspace({})
+    const original = process.env["CI"]
+    process.env["CI"] = value
+    try {
+      expect((await resolveDevice()).isCi).toBe(expected)
+    } finally {
+      if (original === undefined) delete process.env["CI"]
+      else process.env["CI"] = original
+    }
+  }, 30_000)
+
+  it("reads an absent CI variable as not CI", async () => {
+    workspace = makeWorkspace({})
+    const original = process.env["CI"]
+    delete process.env["CI"]
+    try {
+      expect((await resolveDevice()).isCi).toBe(false)
+    } finally {
+      if (original !== undefined) process.env["CI"] = original
+    }
+  }, 30_000)
+
   it("reports a missing tool as absent rather than failing", async () => {
     workspace = makeWorkspace({})
     // The stub pass-cli in the workspace does not implement --version.

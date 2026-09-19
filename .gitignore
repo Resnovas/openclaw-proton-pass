@@ -8,4 +8,5 @@ coverage/
 # LICENSE copied in at pack time so npm and ClawHub carry them.
 packages/openclaw-proton-pass/bin/
 packages/openclaw-proton-pass/README.md
+packages/openclaw-proton-pass/TELEMETRY.md
 packages/openclaw-proton-pass/LICENSE
