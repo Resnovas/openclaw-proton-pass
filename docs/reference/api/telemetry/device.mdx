@@ -1,0 +1,127 @@
+---
+title: "device.ts"
+description: "What an install looks like: a stable pseudonymous identity, and the shape of the machine it runs on. The identity is derived by salted hash from a machine identifier that never leaves the host."
+---
+
+## constructors
+
+### installIdFrom
+
+A stable, pseudonymous identifier for this machine.
+
+Derived from the host's machine id rather than stored beside the
+configuration. Keying it to the config directory looked simpler, but it meant
+one machine reported as a different install every time that directory moved -
+a changed `OPENCLAW_PROTONPASS_CONFIG_DIR`, a container, an ephemeral home,
+or a test run against a temporary directory. Counting those as separate
+installs makes every per-install question meaningless.
+
+The machine id is salted and hashed, so what leaves the machine identifies it
+consistently without disclosing the identifier itself or being correlatable
+with any other product that reads the same file.
+
+Where no machine id exists, a UUID persisted under the state directory stands
+in; that path does not move when the configuration directory is overridden.
+Where nothing can be written either, a hash of durable machine attributes is
+the last resort, so a read-only or ephemeral host still reports consistently.
+
+**Signature**
+
+```ts
+export declare const installIdFrom: (
+  machineIdFiles: ReadonlyArray<string>
+) => Effect.Effect<string, never, FileSystem.FileSystem>
+```
+
+**Example**
+
+```ts
+import { installIdFrom } from "@resnovas/opp-telemetry"
+import { NodeContext } from "@effect/platform-node"
+import { Effect } from "effect"
+import { mkdtemp } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+// Keep the persisted fallback inside a temporary directory rather than the
+// real state directory.
+process.env["XDG_STATE_HOME"] = await mkdtemp(join(tmpdir(), "opp-example-"))
+
+const run = () => Effect.runPromise(installIdFrom(["/nonexistent/machine-id"]).pipe(Effect.provide(NodeContext.layer)))
+
+// No machine id file exists at that path, so the persisted fallback is used -
+// and it is stable, because an identity that changed per run would make every
+// report look like a different install.
+assert.strictEqual(await run(), await run())
+```
+
+Added in v0.1.0
+
+## models
+
+### DeviceContext (interface)
+
+What an install looks like, for diagnosis.
+
+These values describe the machine rather than the data passing through it.
+That distinction is why they are allowed to be free-form strings while event
+properties are not: every one is read from `node:os`, `process`, or a version
+command, so none can be a credential, a vault reference, or anything an
+operator typed.
+
+**Signature**
+
+```ts
+export interface DeviceContext {
+  readonly hostname: string
+  readonly os: string
+  readonly osRelease: string
+  readonly arch: string
+  readonly nodeVersion: string
+  readonly npmVersion: string
+  readonly pnpmVersion: string
+  readonly passCliVersion: string
+  readonly cpuCount: number
+  readonly memoryGb: number
+  readonly timezone: string
+  readonly isCi: boolean
+  readonly installedAsPlugin: boolean
+  readonly appVersion: string
+}
+```
+
+Added in v0.1.0
+
+## utils
+
+### deviceContext
+
+Describe this machine.
+
+The version lookups spawn processes, which is too expensive for a resolver
+the Gateway invokes per request, so the profile is cached and refreshed
+weekly. Everything cheap is read fresh each time.
+
+**Signature**
+
+```ts
+export declare const deviceContext: Effect.Effect<DeviceContext, never, FileSystem.FileSystem | Paths | CommandExecutor>
+```
+
+Added in v0.1.0
+
+### installId
+
+This machine's identifier.
+
+The file list is a parameter of `installIdFrom` so the fallbacks can be
+exercised: on any host that has a machine id, they are otherwise unreachable
+and would ship untested.
+
+**Signature**
+
+```ts
+export declare const installId: Effect.Effect<string, never, FileSystem.FileSystem>
+```
+
+Added in v0.1.0

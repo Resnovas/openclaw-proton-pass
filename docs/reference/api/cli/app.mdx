@@ -1,0 +1,51 @@
+---
+title: "app.ts"
+description: "The management CLI's command tree. `setup` and `doctor`, defined with `@effect/cli`. Each subcommand is timed and its name and outcome reported - never its arguments."
+---
+
+## entrypoints
+
+### layer
+
+Everything the CLI's subcommands need in order to run.
+
+**Signature**
+
+```ts
+export declare const layer: Layer.Layer<
+  Paths | Telemetry | SecretResolver | PassSession | NodeContext.NodeContext,
+  ConfigError,
+  never
+>
+```
+
+Added in v0.1.0
+
+### run
+
+Run the CLI.
+
+**Signature**
+
+```ts
+export declare const run: (
+  args: ReadonlyArray<string>
+) => Effect.Effect<
+  void,
+  MissingAgentTokenError | ValidationError,
+  (Paths | Telemetry | FileSystem | CommandExecutor | Path) | CliApp.Environment
+>
+```
+
+**Example**
+
+```ts
+import { run } from "@resnovas/opp-cli/app"
+import { Effect } from "effect"
+
+// `run` is the parser, not the process: it yields an Effect, so nothing has
+// happened until it is executed against the app's layer.
+assert.strictEqual(Effect.isEffect(run(["node", "openclaw-proton-pass", "--help"])), true)
+```
+
+Added in v0.1.0

@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Nothing here writes to the repository or mints a token. Stated explicitly
+# so the jobs keep the narrow scope even if the repository default widens,
+# and so a compromised dependency or action cannot reach anything with it.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # Nx needs history to work out which projects are affected.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Typecheck, licence headers, API contracts in the declaration output,
+      # 100% coverage thresholds, the execution-depth report, and both
+      # generated documentation artefacts. Regenerating the API reference
+      # compiles and runs every documentation example, so an example that has
+      # stopped being true fails here rather than misleading a reader.
+      - name: Verify
+        run: pnpm verify
+
+      - name: Build the publishable package
+        run: pnpm exec nx run openclaw-proton-pass:build
+
+      - name: Check the published file list
+        working-directory: packages/openclaw-proton-pass
+        run: npm pack --dry-run
+
+      # The integration suite is skipped without a vault, but it must still
+      # compile and collect - a broken integration test should fail CI rather
+      # than be discovered at release time.
+      - name: Collect the integration suite
+        run: pnpm exec vitest run tests/integration --passWithNoTests
+
+  # The four binaries have to install and run on every host they claim to
+  # support, and the differences between those hosts are exactly the things
+  # the Linux job cannot see: an unset HOME, an executable with an extension,
+  # chmod doing nothing, and a supervisor that is not systemd.
+  install:
+    name: Install on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            # Either is correct: a runner without an init system is the
+            # container case, which is a supported host rather than a fault.
+            manager: (systemd|none)
+          - os: macos-latest
+            manager: launchd
+          - os: windows-latest
+            manager: schtasks
+    runs-on: ${{ matrix.os }}
+    # These steps run the real binaries rather than the suite, which disables
+    # reporting in its own setup file, so it is turned off here instead. A CI
+    # host is not an install and does not belong in the product's analytics.
+    env:
+      OPENCLAW_PROTONPASS_TELEMETRY: "false"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the publishable package
+        run: pnpm exec nx run openclaw-proton-pass:build
+
+      # No vault and no pass-cli here, so this covers everything up to the
+      # point a credential would be needed: resolving a home, creating the
+      # configuration directory, and writing the service file for this host.
+      - name: Prepare the configuration directory
+        run: node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs setup
+
+      # Through a pipe, which is the portability claim `token` exists to make.
+      - name: Store an agent token from standard input
+        shell: bash
+        run: |
+          echo "pat-ci-smoke-not-a-real-token" \
+            | node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs token
+
+      - name: Check the host was detected correctly
+        shell: bash
+        run: |
+          node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs doctor 2>&1 \
+            | tee report.txt
+          grep -qE "service manager ${{ matrix.manager }}" report.txt
+          # doctor reports rather than repairs, so the agent token it just
+          # stored must be the check that passes.
+          grep -q "ok    agent token" report.txt
+
+      # The other way a token can arrive, which is what a container uses.
+      - name: Check the token can come from the environment instead
+        shell: bash
+        env:
+          OPENCLAW_PROTONPASS_AGENT_TOKEN: pat-ci-smoke-not-a-real-token
+        run: |
+          node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs doctor 2>&1 \
+            | tee from-env.txt
+          grep -q "agent token from OPENCLAW_PROTONPASS_AGENT_TOKEN" from-env.txt

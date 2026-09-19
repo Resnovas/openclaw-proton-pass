@@ -1,0 +1,153 @@
+---
+title: "Explain it simply"
+description: "The whole design in plain language, with no background assumed - what the problem is, what this does about it, and where the limits are."
+---
+
+No technical background is assumed here. If you want the precise version, every
+section links to it.
+
+## The problem
+
+Software often needs a password to talk to another piece of software. The usual
+way to give it one is to type the password into a settings file.
+
+That works, and it is also how passwords escape. A settings file gets copied
+into a backup. It gets committed to a repository. It gets pasted into a chat
+window when someone is asking for help. And the password sits there in it,
+readable, long after anyone remembers it is there.
+
+## The idea
+
+Keep the password in a password manager - where it belongs - and have the
+software fetch it at the moment it is needed.
+
+The settings file then contains a **name** instead of a password:
+
+<CodeGroup>
+```json Before
+{ "apiKey": "the-actual-secret-value" }
+```
+
+```json After
+{ "apiKey": { "$secretRef": "CONTEXT7_API_KEY" } }
+```
+</CodeGroup>
+
+`CONTEXT7_API_KEY` is not a password. It is a label. If someone reads that file,
+they learn that a password exists and what it is called, and nothing else.
+
+## The three pieces of paper
+
+Think of it as three separate notes, deliberately kept apart.
+
+<Steps>
+  <Step title="The label">
+    A name, like `CONTEXT7_API_KEY`. This is what goes in the settings file.
+    It is meaningless on its own.
+  </Step>
+  <Step title="The address">
+    Which drawer of which filing cabinet the password is in - written down in
+    exactly one file, and nowhere else. This is the `pass://` reference.
+  </Step>
+  <Step title="The password itself">
+    Never written down anywhere on the machine. It lives in the vault, and it
+    is fetched, used, and discarded.
+  </Step>
+</Steps>
+
+Keeping the label and the address apart is what makes moving a password between
+vaults a one-line edit rather than a hunt through every settings file that
+mentioned it.
+
+<Tip>
+The precise version of this, with the types that enforce it, is in
+[ids, references and values](/concepts/ids-references-values).
+</Tip>
+
+## Who is allowed to open the vault
+
+The program that needs passwords starts when the machine starts - before anyone
+has signed in. So it cannot use your login. It gets its own key to the vault
+instead: a token that is restricted to one vault, expires, and can be revoked on
+its own without touching your account.
+
+Every time that token opens the vault, the vault writes it down. You can read
+that list:
+
+```bash
+pass-cli agent monitor openclaw-gateway
+```
+
+So this does not just move the password somewhere safer. It creates a record of
+every time it was read, which a password in a settings file can never give you -
+a file does not know who opened it.
+
+<Tip>
+The precise version is in [sessions and tokens](/concepts/sessions).
+</Tip>
+
+## Why there are three programs, not one
+
+Because the software being configured accepts a password in three different
+places, and only one of them is built to ask for it.
+
+Imagine a form. One box says "we'll phone you for this" - that is the good one.
+Another box only accepts ink, so something has to write in it on the way past.
+And a third box gets sealed in an envelope and posted directly, so the only
+place to add anything is to intercept the envelope, add a line, and re-post it.
+
+That is the resolver, the launcher and the proxy: the same idea, adapted three
+times to the shape of the hole it has to fit.
+
+<Tip>
+The precise version, with a diagram, is in [how it works](/how-it-works).
+</Tip>
+
+## Why a mistake cannot leak the password into the diagnostics
+
+This tool reports how it is working, and it is switched on by default. That
+would normally be an uncomfortable combination for something that handles
+passwords.
+
+The reason it is not comes down to the shape of the report. Imagine the
+difference between giving someone a blank notepad and giving them a form that
+has already been printed:
+
+```
+How many passwords were requested?   [  3  ]
+How many were found?                 [  2  ]
+How long did it take (ms)?           [ 41  ]
+How did it go?                       [x] fine  [ ] failed
+```
+
+There is nowhere on that form to write a sentence. A password is a sentence -
+a long run of characters nobody can predict. The form has no blank lines, so a
+password has nowhere to go.
+
+This is not a filter that inspects each sentence and crosses out the bad ones.
+It is the absence of anywhere to write one. That distinction matters, because a
+filter can be wrong about a sentence it has not seen before, and a form with no
+blank line cannot be.
+
+<Tip>
+The precise version, including what happens if someone adds a blank line to the
+form, is in [telemetry](/security/telemetry). Switching it off entirely is one
+environment variable: `OPENCLAW_PROTONPASS_TELEMETRY=false`.
+</Tip>
+
+## What this does not protect you from
+
+Being honest about the limits is more useful than a longer list of benefits.
+
+- **Anything running as you, on your machine, can ask for the passwords.** The
+  vault is unlocked for that account by design. This protects a password from
+  being *copied somewhere it outlives its usefulness*; it does not protect it
+  from a program that is already running with your permissions.
+- **A program that receives a password can do what it likes with it.** Once the
+  MCP server has the value, it is out of this system's hands.
+- **The list of names is not secret.** Someone reading the settings file learns
+  that you have a Context7 key. They do not learn what it is.
+
+<Tip>
+The full version is in the [security model](/security/model).
+</Tip>

@@ -1,0 +1,46 @@
+---
+title: "audit.ts"
+description: "What this deployment can tell the vault's audit log about itself. OpenClaw tells an exec secret provider nothing about the agent, session or task behind a request: the protocol carries a version, a provider name and a list of ids, and the provider runs with a filtered environment. So an agent or task name can only reach the audit log if the operator puts it where this can read it, which is what these two variables are for."
+---
+
+## config
+
+### auditContext
+
+What an operator has said about this deployment.
+
+`OPENCLAW_PROTONPASS_AUDIT_LABEL` is free text, appended to every audit
+entry. It is the place to put whatever this host knows that the code
+cannot work out: which machine it is, which agent the Gateway is running,
+or which job a container was started for. `OPENCLAW_PROFILE` is read
+because OpenClaw sets it, so a multi-profile install distinguishes itself
+without being configured to.
+
+Whatever is set here is transmitted to Proton on every audited read and
+stored in the vault's audit log, so it is for identification and not for
+anything confidential.
+
+**Signature**
+
+```ts
+export declare const auditContext: Effect.Effect<
+  { readonly label: Option.Option<string>; readonly profile: Option.Option<string> },
+  never,
+  never
+>
+```
+
+**Example**
+
+```ts
+import { auditContext } from "@resnovas/opp-config"
+import { ConfigProvider, Effect, Option } from "effect"
+
+const read = (env: Record<string, string>) =>
+  Effect.runSync(auditContext.pipe(Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))))
+
+assert.strictEqual(Option.isNone(read({}).label), true)
+assert.deepStrictEqual(read({ OPENCLAW_PROTONPASS_AUDIT_LABEL: "upstash box" }).label, Option.some("upstash box"))
+```
+
+Added in v0.1.0

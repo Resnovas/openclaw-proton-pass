@@ -1,0 +1,37 @@
+---
+title: "logging.ts"
+description: "The logger every executable installs, and why it writes to stderr. stdout carries the protocol the Gateway parses, so a log line written there would corrupt it."
+---
+
+## layers
+
+### StderrLoggerLive
+
+Layer replacing the default stdout logger with `stderrLogger`.
+
+**Signature**
+
+```ts
+export declare const StderrLoggerLive: Layer<never, never, never>
+```
+
+Added in v0.1.0
+
+## utils
+
+### stderrLogger
+
+A logger that writes to stderr.
+
+Effect's default logger writes to stdout. For the resolver that is actively
+harmful: stdout carries the JSON protocol the Gateway parses, so a single log
+line interleaved with the response corrupts it. Every executable here logs to
+stderr so stdout stays reserved for protocol output and forwarded payloads.
+
+**Signature**
+
+```ts
+export declare const stderrLogger: Logger.Logger<unknown, void>
+```
+
+Added in v0.1.0

@@ -1,0 +1,296 @@
+---
+title: "Contributing"
+description: "The development loop, what the verify gate enforces, and how the documentation on this site is produced."
+---
+
+The full text lives in
+[CONTRIBUTING.md](https://github.com/Resnovas/openclaw-proton-pass/blob/main/CONTRIBUTING.md).
+This page covers the parts you need while working.
+
+## The loop
+
+```bash
+pnpm install
+pnpm build          # nx run-many -t build
+pnpm test           # @effect/vitest across tests/
+pnpm verify         # everything CI checks
+```
+
+`pnpm verify` is the gate:
+
+<Steps>
+  <Step title="check">
+    Typecheck every project.
+  </Step>
+  <Step title="lint:headers">
+    Every source file carries the canonical FCL-1.0-MIT header.
+  </Step>
+  <Step title="lint:prose">
+    No em or en dashes in authored text. House style is the ASCII
+    hyphen-minus.
+  </Step>
+  <Step title="lint:contracts">
+    Every exported callable's contract survives into `dist/**/*.d.ts`.
+  </Step>
+  <Step title="coverage">
+    100% of lines, statements, branches and functions, enforced as a threshold.
+  </Step>
+  <Step title="coverage:depth">
+    How many times each covered line actually ran. Line coverage says a line
+    ran; this says whether it ran under more than one path.
+  </Step>
+  <Step title="docs:check">
+    Regenerates the API reference, which compiles and **runs** every
+    `@example`, and fails if the committed pages have drifted.
+  </Step>
+  <Step title="ai-docgen:check">
+    Fails if `LLMS.md` is out of date with `ai-docs/src`.
+  </Step>
+</Steps>
+
+`pnpm verify` runs on Linux only. A second CI job installs the built bundles
+on Linux, macOS and Windows and runs `setup`, `token` and `doctor` against
+each, because the things that differ between hosts are precisely the things a
+Linux job cannot see: an unset `HOME`, an executable with an extension,
+`chmod` doing nothing, and a supervisor that is not systemd.
+
+<Warning>
+No module may branch on the operating system except `libs/config/src/host.ts`.
+Every host difference is a pure function there of the platform name and the
+environment, which is what lets each one be tested from a machine that is not
+that host. `process.platform` anywhere else, or an assumption that `HOME` is
+set or that a POSIX mode means anything, is the bug that file exists to
+prevent.
+</Warning>
+
+## Layout
+
+<Tree>
+  <Folder name="libs" defaultOpen>
+    <Folder name="domain"><File name="branded types, schemas, the error union" /></Folder>
+    <Folder name="config"><File name="paths and environment configuration" /></Folder>
+    <Folder name="pass-cli"><File name="PassSession, SecretResolver" /></Folder>
+    <Folder name="telemetry"><File name="the closed event union and its filters" /></Folder>
+  </Folder>
+  <Folder name="apps">
+    <Folder name="resolver"><File name="the exec secret provider" /></Folder>
+    <Folder name="pass-run"><File name="the stdio MCP wrapper" /></Folder>
+    <Folder name="mcp-auth-proxy"><File name="the loopback credential proxy" /></Folder>
+    <Folder name="cli"><File name="setup and doctor" /></Folder>
+  </Folder>
+  <Folder name="tests"><File name="mirrors the source tree" /></Folder>
+  <Folder name="docs"><File name="this site" /></Folder>
+</Tree>
+
+Nx infers the project graph from imports, so build order and affected commands
+follow the graph rather than the package manager.
+
+## Standards worth restating
+
+- **No `any`.** Prefer `unknown` with a type guard, or a narrow generic.
+- **No tacit calls.** `Effect.map((x) => fn(x))`, not `Effect.map(fn)`.
+- **Secrets are `Redacted`**, unwrapped only at the boundary that needs the
+  value.
+- **Services use `Effect.Service`** and compose with layers.
+- **Every exported callable carries a doc comment** saying what it does and
+  why. This is enforced: `docgen` runs with `enforceDescriptions`, so an
+  undocumented export fails the build.
+- **No existing test is ever deleted.** If code fails a test, fix the code.
+
+## Documentation
+
+Pages are MDX under `docs/`, and `docs/docs.json` holds the navigation.
+
+```bash
+pnpm docs:dev         # preview at http://localhost:3333, live reload
+pnpm docs:dev:docs7   # the same source through the Docs7 renderer, on 3334
+pnpm docs:api         # regenerate the API reference from JSDoc
+pnpm docs:check       # fail if the generated pages are out of date
+```
+
+### Two renderers, one source
+
+`docs.json` follows the format Mintlify established, and
+[Docs7](https://context7.com/docs/docs7/overview) implements it, so the same
+`docs/` folder renders through both.
+
+| | Renderer | Why |
+| --- | --- | --- |
+| Local preview | Mintlify | It implements the page context menu; Docs7 so far does not |
+| Published | Docs7 | Markdown for every page, `llms.txt`, and the Context7 integration |
+
+That split is temporary. Docs7 validates the whole contextual option set and is
+expected to implement the rest, at which point one renderer does both jobs.
+
+<Warning>
+Write for both. Docs7-only components have no Mintlify equivalent, and Mintlify
+raises `missingMdxReference` and drops the block rather than degrading. Check a
+new component through `pnpm docs:dev:docs7` as well as `pnpm docs:dev` before
+relying on it.
+</Warning>
+
+The Mintlify CLI is run through `pnpm dlx` rather than added as a dependency,
+because it pulls in puppeteer and downloads a browser on install, which is a
+cost every contributor and CI run would otherwise pay for a local preview.
+
+### The API reference is generated
+
+Everything under `/reference/api` comes from
+[`@effect/docgen`](https://github.com/Effect-TS/effect/tree/main/packages/tools/docgen),
+reading the JSDoc on each exported symbol. **Do not edit those pages** - edit
+the JSDoc in `libs/*/src` and run `pnpm docs:api`.
+
+`pnpm docs:check` regenerates and fails if anything changed, so a page cannot
+drift from the source it documents.
+
+### Examples are tests
+
+An `@example` block is compiled with the project's own compiler options and then
+**executed**, with Node's `assert` available. An example that no longer holds
+fails the build.
+
+```ts
+/**
+ * Apply an entry's decoration to a resolved value.
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { decorate, PassRef } from "@resnovas/opp-domain"
+ * import { Schema } from "effect"
+ *
+ * const ref = Schema.decodeUnknownSync(PassRef)("pass://OpenClaw/context7.com/API Key")
+ *
+ * assert.strictEqual(decorate(ref, "from-the-vault"), "from-the-vault")
+ */
+```
+
+This is what the Effect repository itself does, and it is the reason the
+examples on this site can be trusted: there is no path by which a wrong one
+survives a build.
+
+<Note>
+`@effect/doctest` - the sibling tool that runs examples from Markdown as well -
+is published only for Effect 4, and requires Effect 4 and Vitest 5 as peers.
+This workspace is on Effect 3, so `docgen` provides the equivalent guarantee for
+JSDoc examples. When the workspace moves to Effect 4, `doctest` would extend the
+same checking to the prose pages on this site.
+</Note>
+
+### Writing for agents as well as people
+
+Roughly as many readers of this site are agents as people, so the site is built
+for both. That is a set of habits, not a feature to switch on.
+
+**One source, two readers.** Write the page once. Every page is served as
+markdown at `<page>.md`, and the site publishes `llms.txt`, `llms-full.txt`,
+a search endpoint and an Agent Skills index, so an agent reads the same words
+without a second copy to maintain.
+
+**Add agent-only context sparingly**, and put it in a collapsed accordion
+titled `Notes for AI agents`. Reach for one when an agent needs something a
+person does not: usually a fact that is destructive to get wrong, or one
+nobody would infer from the prose.
+
+````mdx
+<Accordion title="Notes for AI agents">
+Deleting `~/.local/state/openclaw-protonpass` is safe. Deleting
+`openclaw-secret-map.json` is not: it is the only record of which vault item
+each id points at.
+</Accordion>
+````
+
+An accordion rather than Docs7's `Visibility` component, because this site is
+rendered by two engines. Docs7 keeps the content in each page's Markdown, which
+is what an agent reads, and Mintlify has no `Visibility` component at all: it
+raises `missingMdxReference` and drops the block, so a page using one would be
+broken there. A collapsed accordion renders natively in both and stays out of a
+reader's way.
+
+If the content helps both audiences, it is not an accordion - it is the page.
+
+**Be exact where an agent will pattern-match.** Error strings, configuration
+keys, environment variable names and command flags are quoted verbatim, and
+headings are stable so a deep link keeps working. Link to the page that owns a
+fact instead of restating it, so the two cannot disagree.
+
+**The page menu.** `contextual` in `docs.json` requests copy, view as markdown,
+the site assistant, open in ChatGPT, Claude, Perplexity or Grok, and the MCP,
+Cursor and VS Code actions.
+
+<Note>
+Docs7 validates the whole Mintlify option set, but renderer 0.1.19 implements
+only some of it, so fewer items appear than are configured. The list is the
+intended end state and costs nothing while the rest arrive. `download-spec` is
+deliberately absent for a different reason: it offers an OpenAPI document to
+download and this project publishes none.
+</Note>
+
+### Tags docgen reads
+
+| Tag | Effect |
+| --- | --- |
+| `@category` | Groups the export on its module page |
+| `@since` | The version the export appeared in |
+| `@example` | Type-checked and executed |
+| `@module` | Marks the block used as the page description |
+| `@internal`, `@ignore` | Excluded from the reference |
+
+## Releasing
+
+Run the **Release** workflow from the Actions tab. `pnpm verify` runs as
+`nx release`'s `preVersionCommand`, so a failing suite, a missing licence
+header or a broken documentation example stops the release before anything is
+tagged.
+
+Tick **dry run** to rehearse without tagging or publishing.
+
+<Steps>
+  <Step title="Version, tag and GitHub release">
+    `nx release` derives the version from conventional commits, writes
+    `CHANGELOG.md`, commits, tags `v{version}`, and opens the GitHub release.
+  </Step>
+  <Step title="Build and upload source maps">
+    The bundles are built, then `posthog-cli sourcemap process` injects a chunk
+    id into each one and uploads the maps. Injection has to happen before
+    publish: the uploaded map is keyed by that id, so an uninjected bundle
+    leaves every stack trace unresolvable.
+  </Step>
+  <Step title="Publish">
+    npm with provenance, the bundles attached to the GitHub release as a zip,
+    then ClawHub.
+  </Step>
+  <Step title="Record the release">
+    PostHog gets a release named `openclaw-proton-pass` at the package version,
+    and Linear gets one named `v{version}` with the issues referenced by the
+    commits since the previous release.
+  </Step>
+</Steps>
+
+### Release names line up on purpose
+
+Every exception reports `app_version`, baked into the bundle at build time from
+the package version. The PostHog release is created with that same version
+rather than the git SHA the CLI would otherwise infer, so an issue in error
+tracking resolves to the release that produced it.
+
+Exceptions also carry an explicit `$exception_fingerprint` set to the error
+tag. PostHog would otherwise derive one from the resolved in-app stack frames,
+and the frames it receives have had their paths reduced to basenames, so the
+same failure could group differently between builds. The tag already names the
+failure mode, which is the grouping this system wants: one issue per way of
+failing.
+
+### What needs configuring outside the repository
+
+<Warning>
+Both of these are skipped rather than failed when their secret is absent, so a
+fork releases without them. Neither can be set up from the repository.
+</Warning>
+
+- **Linear**: a release pipeline in Settings, Releases, and its access key as
+  `LINEAR_ACCESS_KEY`. A personal API key will not work. Releases are a
+  Business plan feature.
+- **PostHog source linking**: connect the GitHub integration in PostHog, so
+  stack frames link to the commit that produced them.

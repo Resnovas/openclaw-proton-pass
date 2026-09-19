@@ -1,0 +1,200 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      specifier:
+        description: Explicit version or bump (blank = derive from conventional commits)
+        required: false
+        type: string
+      dry_run:
+        description: Preview only; nothing is tagged, pushed or published
+        required: false
+        type: boolean
+        default: false
+      first_release:
+        description: Tick for the first ever release, when no previous tag exists
+        required: false
+        type: boolean
+        default: false
+
+# contents: write creates the tag and the GitHub release.
+# id-token: write mints npm provenance and the ClawHub trusted-publishing token.
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # The `secrets` context is not available in a step-level `if`, only in
+    # places like `env` and `with`. Presence is captured here, where it is
+    # allowed, and the steps below test these as ordinary strings. The value
+    # is a boolean rendered into a string, so the comparison is against
+    # 'true' rather than a bare truthiness check.
+    env:
+      HAS_CONTEXT7: ${{ secrets.CONTEXT7_API_KEY != '' }}
+      HAS_LINEAR: ${{ secrets.LINEAR_ACCESS_KEY != '' }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          # nx release pushes the version commit and tag back.
+          persist-credentials: true
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Identify the release commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Versions from conventional commits, writes CHANGELOG.md, commits, tags,
+      # pushes, and opens the GitHub release. preVersionCommand runs the full
+      # verify first, so a failing suite stops the release before it tags.
+      - name: Version, changelog, tag and GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Through the environment rather than interpolated into the script.
+          # A workflow input expanded by the expression engine is substituted
+          # before the shell sees it, so its contents would be read as shell
+          # syntax; passing it as a variable means it can only ever be one
+          # argument. Dispatch is restricted to people who can write to this
+          # repository, so this is defence in depth rather than a hole, but
+          # the same input reaches a command that publishes to npm.
+          SPECIFIER: ${{ inputs.specifier }}
+        run: |
+          # Explicitly rejected rather than merely quoted, so a typo fails
+          # here instead of producing a release named after it.
+          if [ -n "$SPECIFIER" ] && ! printf '%s' "$SPECIFIER" | grep -qE \
+            '^([0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?|major|minor|patch|premajor|preminor|prepatch|prerelease)$'; then
+            echo "refusing a version specifier that is neither a semver version nor a bump keyword" >&2
+            exit 1
+          fi
+          args=()
+          if [ -n "$SPECIFIER" ]; then args+=("$SPECIFIER"); fi
+          args+=(--yes --skip-publish)
+          ${{ inputs.first_release && 'args+=(--first-release)' || 'true' }}
+          ${{ inputs.dry_run && 'args+=(--dry-run)' || 'true' }}
+          pnpm exec nx release "${args[@]}"
+
+      - name: Read the released version
+        id: version
+        run: echo "value=$(node -p "require('./packages/openclaw-proton-pass/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build the publishable package
+        run: pnpm exec nx run openclaw-proton-pass:build
+
+      # Inject must happen before publish: it stamps a chunk id into each
+      # bundle, and the uploaded map is keyed by that id. Publishing an
+      # uninjected bundle would leave every stack trace unresolvable.
+      # `process` is inject followed by upload. The upload half creates or
+      # reuses the PostHog release, and the name and version are passed
+      # explicitly: left to infer, the CLI derives them from git and the
+      # release is recorded against a commit SHA. Every exception reports
+      # `app_version` as the package version, so the release has to be keyed
+      # the same way or the two never line up.
+      - name: Upload source maps and record the release in PostHog
+        if: ${{ !inputs.dry_run }}
+        env:
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: |
+          npx -y @posthog/cli@0.18 --host https://eu.posthog.com \
+            sourcemap process \
+            --directory packages/openclaw-proton-pass/bin \
+            --release-name openclaw-proton-pass \
+            --release-version "${{ steps.version.outputs.value }}"
+
+      # The maps are 10 MB each and useless to an installer; PostHog has them
+      # now, so they do not belong in the tarball.
+      - name: Drop source maps from the package
+        run: rm -f packages/openclaw-proton-pass/bin/*.map
+
+      - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: pnpm exec nx release publish --projects openclaw-proton-pass --access public
+
+      - name: Attach artefacts to the GitHub release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: packages/openclaw-proton-pass
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          # The bundles are the thing a non-npm user actually wants: four
+          # self-contained scripts that need only Node.
+          zip -j "$RUNNER_TEMP/openclaw-proton-pass-bin-${{ steps.version.outputs.value }}.zip" bin/*.mjs
+          gh release upload "v${{ steps.version.outputs.value }}" \
+            "$RUNNER_TEMP"/*.tgz \
+            "$RUNNER_TEMP/openclaw-proton-pass-bin-${{ steps.version.outputs.value }}.zip" \
+            --clobber
+
+      # ClawHub keeps a release out of public install surfaces until its
+      # security checks finish, so a failure here does not undo the npm release.
+      - name: Validate the plugin package
+        run: npx -y clawhub@0.23 package validate ./packages/openclaw-proton-pass
+
+      - name: Preview the ClawHub publish
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass --owner resnovas --dry-run --json
+
+      - name: Publish to ClawHub
+        if: ${{ !inputs.dry_run }}
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass --owner resnovas --json
+
+      # Only for a CLI-published Docs7 site. If the site is instead connected
+      # to this repository from the Context7 teamspace, GitHub is the source
+      # and every push to the production branch already rebuilds it; leave
+      # CONTEXT7_API_KEY unset and this step is skipped.
+      - name: Publish the documentation site
+        if: ${{ !inputs.dry_run && env.HAS_CONTEXT7 == 'true' }}
+        env:
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+        run: pnpm docs:deploy
+
+      # Last, so that a Linear release marked complete means the version is
+      # actually installable rather than merely tagged. The action scans the
+      # commits since the previous release for issue identifiers and attaches
+      # them, which is why the checkout needs full history.
+      #
+      # Skipped when LINEAR_ACCESS_KEY is absent: the key belongs to one
+      # release pipeline, created in Linear settings, and releases are a
+      # Business plan feature. A repository without it still releases.
+      - name: Record the release in Linear
+        if: ${{ env.HAS_LINEAR == 'true' }}
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: sync
+          name: v${{ steps.version.outputs.value }}
+          version: v${{ steps.version.outputs.value }}
+          links: |
+            GitHub release=https://github.com/Resnovas/openclaw-proton-pass/releases/tag/v${{ steps.version.outputs.value }}
+            npm=https://www.npmjs.com/package/@resnovas/openclaw-proton-pass/v/${{ steps.version.outputs.value }}
+          dry_run: ${{ inputs.dry_run }}
+
+      - name: Complete the Linear release
+        if: ${{ !inputs.dry_run && env.HAS_LINEAR == 'true' }}
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          name: v${{ steps.version.outputs.value }}
+          version: v${{ steps.version.outputs.value }}

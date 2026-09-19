@@ -1,0 +1,15 @@
+{
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "name": "ai-docs",
+  "projectType": "library",
+  "sourceRoot": "ai-docs/src",
+  "tags": ["type:docs", "scope:shared"],
+  "targets": {
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p ai-docs/tsconfig.json"
+      }
+    }
+  }
+}

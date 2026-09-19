@@ -1,0 +1,86 @@
+---
+title: "program.ts"
+description: "The resolver's logic, separated from the process it runs in. Kept apart from the entry point so a request can be handled in a test without spawning a process or touching stdin."
+---
+
+## utils
+
+### handle
+
+Resolve a request into the response to write on stdout.
+
+Values are unwrapped from `Redacted` only here, at the single boundary
+where the Gateway genuinely needs them.
+
+**Signature**
+
+```ts
+export declare const handle: (
+  request: ResolveRequest
+) => Effect.Effect<
+  {
+    readonly protocolVersion: 1
+    readonly values?: { readonly [x: string]: string } | undefined
+    readonly errors?: { readonly [x: string]: "NOT_FOUND" } | undefined
+    readonly error?: string | undefined
+  },
+  never,
+  SecretResolver | Telemetry | CommandExecutor
+>
+```
+
+**Example**
+
+```ts
+import { handle } from "@resnovas/opp-resolver/program"
+import { Effect } from "effect"
+
+// `handle` describes the work; it needs a resolver and telemetry before it
+// can run, which is what lets a test drive it without a vault.
+assert.strictEqual(Effect.isEffect(handle({ protocolVersion: 1, ids: [] })), true)
+```
+
+### parseRequest
+
+Parse a provider request from the Gateway.
+
+**Signature**
+
+```ts
+export declare const parseRequest: (raw: string) => Effect.Effect<ResolveRequest, ProtocolError>
+```
+
+**Example**
+
+```ts
+import { parseRequest } from "@resnovas/opp-resolver/program"
+import { Effect, Exit } from "effect"
+
+const request = await Effect.runPromise(parseRequest('{"protocolVersion":1,"ids":["CONTEXT7_API_KEY"]}'))
+
+assert.deepStrictEqual(request.ids, ["CONTEXT7_API_KEY"])
+
+// Anything malformed fails rather than resolving to a partial request.
+assert.strictEqual(Exit.isFailure(await Effect.runPromiseExit(parseRequest("{"))), true)
+```
+
+### protocolFailure
+
+Render a protocol-level failure, where no value could be produced at all.
+
+**Signature**
+
+```ts
+export declare const protocolFailure: (reason: string) => ResolveResponse
+```
+
+**Example**
+
+```ts
+import { protocolFailure } from "@resnovas/opp-resolver/program"
+
+assert.deepStrictEqual(protocolFailure("could not parse request"), {
+  protocolVersion: 1,
+  error: "could not parse request"
+})
+```

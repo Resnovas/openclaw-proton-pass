@@ -1,0 +1,156 @@
+---
+title: "protocol.ts"
+description: "The JSON contract between the OpenClaw Gateway and the resolver. One request on stdin, one response on stdout. Per-id failures travel inside the response rather than failing it, so one unknown id does not cost the Gateway every other secret it asked for."
+---
+
+## constants
+
+### PROTOCOL_VERSION
+
+The one protocol version this provider implements.
+
+**Signature**
+
+```ts
+export declare const PROTOCOL_VERSION: 1
+```
+
+Added in v0.1.0
+
+## models
+
+### ResolveFailure (type alias)
+
+The decoded form of `ResolveFailure`.
+
+**Signature**
+
+```ts
+export type ResolveFailure = typeof ResolveFailure.Type
+```
+
+Added in v0.1.0
+
+### ResolveRequest (type alias)
+
+The decoded form of `ResolveRequest`: the ids one Gateway call is
+asking for.
+
+**Signature**
+
+```ts
+export type ResolveRequest = typeof ResolveRequest.Type
+```
+
+Added in v0.1.0
+
+### ResolveResponse (type alias)
+
+The decoded form of `ResolveResponse`: what the Gateway reads back on
+stdout.
+
+**Signature**
+
+```ts
+export type ResolveResponse = typeof ResolveResponse.Type
+```
+
+Added in v0.1.0
+
+## schemas
+
+### ResolveFailure
+
+The reason a single id could not be resolved.
+
+There is exactly one reason, because the provider deliberately does not
+distinguish "absent from the map" from "the vault holds nothing there": both
+are answered identically so a caller cannot use the provider to discover
+which ids exist.
+
+**Signature**
+
+```ts
+export declare const ResolveFailure: Schema.Literal<["NOT_FOUND"]>
+```
+
+Added in v0.1.0
+
+### ResolveRequest
+
+A request from the OpenClaw Gateway on stdin.
+
+`provider` is accepted but not checked: the Gateway only ever invokes the
+command it was configured with, so rejecting a name mismatch would fail
+correct configurations that simply named the provider differently.
+
+**Signature**
+
+```ts
+export declare const ResolveRequest: Schema.Struct<{
+  protocolVersion: Schema.Literal<[1]>
+  provider: Schema.optional<typeof Schema.String>
+  ids: Schema.optionalWith<
+    Schema.Array$<Schema.brand<Schema.filter<typeof Schema.String>, "SecretId">>,
+    { default: () => never[] }
+  >
+}>
+```
+
+**Example**
+
+```ts
+import { ResolveRequest } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+const request = Schema.decodeUnknownSync(ResolveRequest)({
+  protocolVersion: 1,
+  provider: "protonpass",
+  ids: ["CONTEXT7_API_KEY"]
+})
+
+assert.deepStrictEqual(request.ids, ["CONTEXT7_API_KEY"])
+
+// A request that asks for nothing is still well formed.
+assert.deepStrictEqual(Schema.decodeUnknownSync(ResolveRequest)({ protocolVersion: 1 }).ids, [])
+```
+
+Added in v0.1.0
+
+### ResolveResponse
+
+The response written to stdout.
+
+Per-id failures travel in `errors` rather than failing the whole batch, so
+one unknown id does not deny the Gateway every other secret it asked for.
+`error` is for protocol-level failure, where no value could be produced.
+
+**Signature**
+
+```ts
+export declare const ResolveResponse: Schema.Struct<{
+  protocolVersion: Schema.Literal<[1]>
+  values: Schema.optional<Schema.Record$<typeof Schema.String, typeof Schema.String>>
+  errors: Schema.optional<Schema.Record$<typeof Schema.String, Schema.Literal<["NOT_FOUND"]>>>
+  error: Schema.optional<typeof Schema.String>
+}>
+```
+
+**Example**
+
+```ts
+import { ResolveResponse } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+// One unknown id does not deny the Gateway the others.
+const response = Schema.decodeUnknownSync(ResolveResponse)({
+  protocolVersion: 1,
+  values: { CONTEXT7_API_KEY: "from-the-vault" },
+  errors: { TYPO_IN_THE_MAP: "NOT_FOUND" }
+})
+
+assert.deepStrictEqual(Object.keys(response.values ?? {}), ["CONTEXT7_API_KEY"])
+assert.deepStrictEqual(response.errors, { TYPO_IN_THE_MAP: "NOT_FOUND" })
+```
+
+Added in v0.1.0

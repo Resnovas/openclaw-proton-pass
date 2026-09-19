@@ -1,0 +1,57 @@
+---
+title: "doctor.ts"
+description: "The read-only host report. Checks what is installed, configured and missing. It repairs nothing, so it is safe to run against a production host."
+---
+
+## utils
+
+### Check (interface)
+
+One checked condition and whether it holds.
+
+**Signature**
+
+```ts
+export interface Check {
+  readonly label: string
+  readonly ok: boolean
+  readonly detail?: string
+}
+```
+
+### doctor
+
+Report what is installed, what is configured, and what is missing.
+
+Read-only: it never creates or repairs anything, so it is safe to run against
+a production host to find out why resolution is failing.
+
+**Signature**
+
+```ts
+export declare const doctor: Effect.Effect<Check[], never, Paths | Telemetry | FileSystem.FileSystem>
+```
+
+### renderChecks
+
+Render checks as aligned terminal lines.
+
+**Signature**
+
+```ts
+export declare const renderChecks: (checks: ReadonlyArray<Check>) => ReadonlyArray<string>
+```
+
+**Example**
+
+```ts
+import { renderChecks } from "@resnovas/opp-cli/doctor"
+
+assert.deepStrictEqual(
+  renderChecks([
+    { label: "pass-cli", ok: true },
+    { label: "agent token", ok: false, detail: "create one with pass-cli agent create" }
+  ]),
+  ["  ok    pass-cli", "  MISS  agent token - create one with pass-cli agent create"]
+)
+```

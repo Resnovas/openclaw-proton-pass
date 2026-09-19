@@ -1,0 +1,30 @@
+---
+title: "app.ts"
+description: "The stdio MCP wrapper. Bootstraps a vault session, then execs the child with `pass://` environment references resolved. stdio is inherited so the launched server owns the transport directly."
+---
+
+## entrypoints
+
+### layer
+
+Everything the wrapper needs in order to run.
+
+**Signature**
+
+```ts
+export declare const layer: Layer.Layer<PassSession | Telemetry | Paths | NodeContext.NodeContext, ConfigError, never>
+```
+
+Added in v0.1.0
+
+### main
+
+Launch the child command with its `pass://` references resolved.
+
+**Signature**
+
+```ts
+export declare const main: Effect.Effect<void, PlatformError, PassSession | Telemetry | Paths | CommandExecutor>
+```
+
+Added in v0.1.0
