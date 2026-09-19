@@ -1,3 +1,13 @@
+## 1.0.4 (2026-09-19)
+
+### 🩹 Fixes
+
+- **release:** declare OpenClaw plugin entrypoints for ClawHub ([#21](https://github.com/Resnovas/openclaw-proton-pass/pull/21))
+
+### ❤️ Thank You
+
+- Jonathan S @TGTGamer
+
 ## 1.0.3 (2026-09-19)
 
 ### 🩹 Fixes
