@@ -1,3 +1,14 @@
+## 1.0.3 (2026-09-19)
+
+### 🩹 Fixes
+
+- **release:** write ClawHub token into CLAWHUB_CONFIG_PATH for CI publish ([#17](https://github.com/Resnovas/openclaw-proton-pass/pull/17))
+- **release:** restore the shebang displaced by source-map injection ([#18](https://github.com/Resnovas/openclaw-proton-pass/pull/18))
+
+### ❤️ Thank You
+
+- Jonathan S @TGTGamer
+
 ## 1.0.2 (2026-09-19)
 
 ### 🩹 Fixes
