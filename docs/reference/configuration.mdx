@@ -10,20 +10,40 @@ the four binaries cannot disagree about where the secret map lives.
 ## Files
 
 <Tree>
-  <Folder name="~/.config/proton-pass-cli" defaultOpen>
+  <Folder name="<config dir>" defaultOpen>
     <File name="openclaw-secret-map.json" />
     <File name="openclaw-agent-pat" />
     <File name="openclaw-mcp-proxy.json" />
+    <File name="openclaw-mcp-auth-proxy.xml or .sh (the service file, on some hosts)" />
   </Folder>
-  <Folder name="~/.config/systemd/user">
-    <File name="openclaw-mcp-auth-proxy.service" />
-  </Folder>
-  <Folder name="~/.local/state/openclaw-protonpass">
+  <Folder name="<state dir>/openclaw-protonpass">
     <File name="(pass-cli session state)" />
   </Folder>
 </Tree>
 
-The directory is created at mode `0700` and the two seeded files at `0600`.
+Where those two roots are depends on the host:
+
+| Host | Config dir | State dir |
+| --- | --- | --- |
+| Linux | `~/.config/proton-pass-cli` | `~/.local/state` |
+| macOS | `~/.config/proton-pass-cli` | `~/.local/state` |
+| Windows | `%APPDATA%\proton-pass-cli` | `%LOCALAPPDATA%` |
+
+`XDG_CONFIG_HOME` and `XDG_STATE_HOME` override both on every platform,
+including Windows, because setting one is an explicit instruction rather than
+a convention. macOS uses `~/.config` alongside Linux rather than
+`~/Library/Application Support`, which matches every other command-line tool
+a reader will already have configured. Windows separates the two roots on
+purpose: configuration roams between machines and the session database must
+not, because it can only be decrypted on the machine that wrote it.
+
+The directory and the files it holds are readable only by your account:
+mode `0700` and `0600` where POSIX modes apply, and an `icacls` grant that
+drops inherited permissions on Windows, where `chmod` silently does nothing.
+
+The proxy's service file lands elsewhere on hosts whose supervisor expects it
+elsewhere. See [running it as a
+service](/guides/running-as-a-service) for the full table.
 
 ### `openclaw-secret-map.json`
 
@@ -66,7 +86,7 @@ by `setup`:
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
-install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
 ### `openclaw-mcp-proxy.json`
@@ -115,12 +135,18 @@ install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<to
 
 | Variable | Default |
 | --- | --- |
-| `OPENCLAW_PROTONPASS_CONFIG_DIR` | `$XDG_CONFIG_HOME/proton-pass-cli`, else `~/.config/proton-pass-cli` |
+| `OPENCLAW_PROTONPASS_CONFIG_DIR` | `$XDG_CONFIG_HOME/proton-pass-cli`, else `~/.config/proton-pass-cli`, else `%APPDATA%\proton-pass-cli` on Windows |
 | `OPENCLAW_PROTONPASS_SECRET_MAP` | `<config dir>/openclaw-secret-map.json` |
 | `OPENCLAW_PROTONPASS_AGENT_PAT` | `<config dir>/openclaw-agent-pat` |
 | `OPENCLAW_MCP_PROXY_CONFIG` | `<config dir>/openclaw-mcp-proxy.json` |
-| `OPENCLAW_PROTONPASS_SESSION_DIR` | `$XDG_STATE_HOME/openclaw-protonpass`, else `~/.local/state/openclaw-protonpass` |
-| `PASS_CLI` | found on `PATH`, then `~/.local/bin`, `/usr/local/bin`, `/usr/bin` |
+| `OPENCLAW_PROTONPASS_SESSION_DIR` | `$XDG_STATE_HOME/openclaw-protonpass`, else `~/.local/state/openclaw-protonpass`, else `%LOCALAPPDATA%\openclaw-protonpass` on Windows |
+| `PASS_CLI` | found on `PATH`, then the Proton Pass CLI installer's own locations for this host |
+
+The home directory every default derives from is read from `HOME`, then on
+Windows `USERPROFILE` and the `HOMEDRIVE` and `HOMEPATH` pair, and finally
+from the account's own record. It is never required: failing without it would
+take every binary down at startup on a Windows host, where the variable is
+normally unset.
 
 <Note>
 A variable exported as the empty string is treated as unset. Taking it
@@ -150,20 +176,33 @@ is a common accident in service units.
 
 Registering the provider by hand, when not installed as a plugin:
 
-```bash
-openclaw config set secrets.providers.protonpass.source exec
-openclaw config set secrets.providers.protonpass.command "$(command -v openclaw-protonpass-resolver)"
-openclaw config set secrets.providers.protonpass.jsonOnly true
-openclaw config set secrets.providers.protonpass.timeoutMs 60000
-```
+<Tabs>
+  <Tab title="Linux and macOS">
+    ```bash
+    openclaw config set secrets.providers.protonpass.source exec
+    openclaw config set secrets.providers.protonpass.command "$(command -v openclaw-protonpass-resolver)"
+    openclaw config set secrets.providers.protonpass.jsonOnly true
+    openclaw config set secrets.providers.protonpass.timeoutMs 60000
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    openclaw config set secrets.providers.protonpass.source exec
+    openclaw config set secrets.providers.protonpass.command (Get-Command openclaw-protonpass-resolver).Source
+    openclaw config set secrets.providers.protonpass.jsonOnly true
+    openclaw config set secrets.providers.protonpass.timeoutMs 60000
+    ```
+  </Tab>
+</Tabs>
 
 `timeoutMs` should be at least `OPENCLAW_PROTONPASS_TIMEOUT_MS`, or the Gateway
 will give up while the resolver is still waiting on the vault.
 
 ## Verifying what was discovered
 
-`doctor` prints the resolved paths rather than the defaults, which is the
-quickest way to find out that an override is not doing what you expected:
+`doctor` prints the host it detected and the resolved paths rather than the
+defaults, which is the quickest way to find out that an override is not doing
+what you expected:
 
 ```bash
 openclaw-proton-pass doctor

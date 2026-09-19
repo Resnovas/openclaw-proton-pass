@@ -45,9 +45,10 @@
  */
 
 import { FileSystem } from "@effect/platform"
-import { Paths } from "@resnovas/opp-config"
+import { Paths, serviceManagerFor } from "@resnovas/opp-config"
 import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect } from "effect"
+import { systemdIsRunning } from "./setup.js"
 
 /** One checked condition and whether it holds. */
 export interface Check {
@@ -98,6 +99,13 @@ export const doctor = Effect.gen(function* () {
 
   const present = (path: string) =>
     fs.exists(path).pipe(Effect.orElseSucceed(() => false))
+
+  // Reported before the checks because it decides what several of them mean:
+  // which supervisor the proxy belongs to, and whether a missing file mode is
+  // a real finding or a platform that does not have one.
+  const manager = serviceManagerFor(paths.platform, yield* systemdIsRunning)
+  yield* Effect.logInfo(`host ${paths.platform}, service manager ${manager}`)
+  yield* Effect.logInfo(`config ${paths.configDir}`)
 
   const checks: Array<Check> = [
     { label: `pass-cli at ${paths.passCli}`, ok: yield* present(paths.passCli) },

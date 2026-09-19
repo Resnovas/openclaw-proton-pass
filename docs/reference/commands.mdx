@@ -10,6 +10,7 @@ The management CLI, built with `@effect/cli`.
 ```bash
 openclaw-proton-pass --help
 openclaw-proton-pass setup
+openclaw-proton-pass token
 openclaw-proton-pass doctor
 ```
 
@@ -19,23 +20,59 @@ Prepares the configuration directory. Safe to re-run.
 
 <Steps>
   <Step title="Creates the directory">
-    `~/.config/proton-pass-cli`, mode `0700`.
+    `~/.config/proton-pass-cli` on Linux and macOS,
+    `%APPDATA%\proton-pass-cli` on Windows. Restricted to your account: mode
+    `0700` where POSIX modes apply, and an `icacls` grant on Windows, where
+    `chmod` does nothing.
   </Step>
   <Step title="Seeds the configuration">
-    `openclaw-secret-map.json` and `openclaw-mcp-proxy.json`, mode `0600`, from
+    `openclaw-secret-map.json` and `openclaw-mcp-proxy.json`, owner-only, from
     worked Context7 examples. **An existing file is never overwritten** - the
     secret map is the one piece of state a re-run must not disturb.
   </Step>
-  <Step title="Writes the systemd unit">
-    `~/.config/systemd/user/openclaw-mcp-auth-proxy.service`, with this
-    install's Node binary and proxy entry point resolved. This one *is*
-    rewritten on every run.
+  <Step title="Writes the service file this host can use">
+    A systemd user unit, a launch agent, a Task Scheduler definition, or a
+    launcher script where there is no init system, with this install's Node
+    binary and proxy entry point resolved. This one *is* rewritten on every
+    run, because its contents are only valid for the install that produced
+    them. See [running it as a service](/guides/running-as-a-service).
   </Step>
   <Step title="Prints what to do next">
-    The two commands that create the agent token, which `setup` cannot do for
-    you because it requires your Proton Pass session.
+    The command that enables the service, and the two that create the agent
+    token, which `setup` cannot do for you because it requires your Proton
+    Pass session.
   </Step>
 </Steps>
+
+<ResponseField name="--service" type="auto | systemd | launchd | schtasks | none" default="auto">
+  Which supervisor to write configuration for. `auto` detects this host.
+  Naming one explicitly is for what detection cannot see: preparing an install
+  for a target that is not the machine running the command, or forcing the
+  launcher script on a systemd host where the proxy is meant to run under
+  something else.
+</ResponseField>
+
+### `token`
+
+Stores the Proton Pass agent token, read from standard input.
+
+```bash
+pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+openclaw-proton-pass token             # paste it, then Ctrl-D
+openclaw-proton-pass token < token.txt # or pipe it in
+```
+
+The token is written to `openclaw-agent-pat`, readable only by your account,
+and an existing one is replaced, because rotating a token is the reason to run
+this a second time. Input that is empty, or that holds more than one line, is
+rejected rather than stored: both mean something other than a token arrived,
+and a stored non-token fails later as an authentication error that points
+nowhere useful.
+
+This exists as a command because the shell one-liner it replaces was not
+portable. `install -m 0600 /dev/stdin` has no Windows equivalent, and the
+here-string that fed it is a bash and zsh feature that fish and POSIX sh do
+not have.
 
 ### `doctor`
 
@@ -43,6 +80,8 @@ Reports what is installed, configured and missing. **Read-only** - it never
 creates or repairs anything, so it is safe against a production host.
 
 ```
+  host linux, service manager systemd
+  config /home/you/.config/proton-pass-cli
   ok    pass-cli at /home/you/.local/bin/pass-cli
   ok    secret map /home/you/.config/proton-pass-cli/openclaw-secret-map.json
   MISS  agent token /home/you/.config/proton-pass-cli/openclaw-agent-pat - create with: pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw

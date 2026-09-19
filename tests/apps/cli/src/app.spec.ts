@@ -39,6 +39,7 @@ import { Effect, Exit } from "effect"
 import { existsSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { layer, run } from "../../../../apps/cli/src/app.js"
+import { withStdin } from "../../../helpers/process.js"
 import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
 
 let workspace: Workspace | undefined
@@ -72,15 +73,35 @@ describe("cli", () => {
 
   it("writes the systemd unit during setup", async () => {
     workspace = makeWorkspace({})
-    await invoke(["setup"])
+    await invoke(["setup", "--service", "systemd"])
     const unit = join(
-      workspace.configDir,
-      "..",
+      workspace.configHome,
       "systemd",
       "user",
       "openclaw-mcp-auth-proxy.service"
     )
     expect(existsSync(unit)).toBe(true)
+  })
+
+  it("targets another host's supervisor when told to", async () => {
+    // The option exists for what detection cannot see: preparing an install
+    // for a target that is not the machine running setup.
+    workspace = makeWorkspace({})
+    await invoke(["setup", "--service", "schtasks"])
+    expect(existsSync(join(workspace.configDir, "openclaw-mcp-auth-proxy.xml"))).toBe(true)
+  })
+
+  it("stores a piped agent token", async () => {
+    workspace = makeWorkspace({ agentToken: null })
+    const result = await withStdin("pat_abc123\n", () => invoke(["token"]))
+    expect(Exit.isSuccess(result)).toBe(true)
+    expect(existsSync(workspace.agentPat)).toBe(true)
+  })
+
+  it("fails the token command when nothing was piped in", async () => {
+    workspace = makeWorkspace({ agentToken: null })
+    const result = await withStdin("", () => invoke(["token"]))
+    expect(Exit.isFailure(result)).toBe(true)
   })
 
   it("points the bare invocation at --help", async () => {
@@ -95,7 +116,7 @@ describe("cli", () => {
     workspace = makeWorkspace({})
     writeFileSync(join(workspace.dir, "blocker"), "not a directory")
     process.env["OPENCLAW_PROTONPASS_CONFIG_DIR"] = join(workspace.dir, "blocker", "config")
-    const result = await invoke(["setup"])
+    const result = await invoke(["setup", "--service", "none"])
     expect(Exit.isFailure(result)).toBe(true)
   })
 

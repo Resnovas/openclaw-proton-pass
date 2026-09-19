@@ -34,7 +34,9 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+export * from "./host.js"
 export * from "./logging.js"
 export * from "./paths.js"
+export * from "./permissions.js"
 export * from "./telemetry-config.js"
 export * from "./timeouts.js"

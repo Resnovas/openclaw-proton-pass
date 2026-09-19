@@ -37,8 +37,10 @@
 /**
  * Every filesystem location this system reads, discovered once.
  *
- * Each path has a default and an environment override, so the three binaries
- * cannot disagree about where the secret map lives.
+ * Each path has a default and an environment override, so the four binaries
+ * cannot disagree about where the secret map lives. Every platform difference
+ * is decided in {@link host}, so nothing here branches on the operating
+ * system.
  *
  * @module
  * @since 0.1.0
@@ -46,7 +48,16 @@
 
 import { FileSystem, Path } from "@effect/platform"
 import { Config, Effect } from "effect"
-import { delimiter } from "node:path"
+import { homedir, platform as osPlatform } from "node:os"
+import {
+  configHome as configHomeFor,
+  executableNames,
+  executableSearchPath,
+  homeDirectory,
+  hostPlatform,
+  stateHome as stateHomeFor,
+  type HostPlatform
+} from "./host.js"
 
 /**
  * Read an environment variable, treating unset and empty as the same thing.
@@ -64,9 +75,13 @@ const optionalEnv = (name: string) =>
  * Every filesystem location this system reads, resolved once.
  *
  * Each has a default and an environment override, so a non-default install
- * prefix or an XDG-relocated home needs no code change. Discovery happens here
- * rather than at each call site so the three binaries cannot disagree about
+ * prefix or a relocated home needs no code change. Discovery happens here
+ * rather than at each call site so the four binaries cannot disagree about
  * where the secret map lives.
+ *
+ * The home directory is resolved rather than required. Reading `HOME` and
+ * failing without it would take every binary down at startup on Windows,
+ * where the variable is normally unset.
  *
  * @category services
  * @since 0.1.0
@@ -76,12 +91,11 @@ export class Paths extends Effect.Service<Paths>()("Paths", {
     const path = yield* Path.Path
     const fs = yield* FileSystem.FileSystem
 
-    const home = yield* Config.string("HOME")
-    const xdgConfig = yield* optionalEnv("XDG_CONFIG_HOME")
-    const xdgState = yield* optionalEnv("XDG_STATE_HOME")
-
-    const configHome = xdgConfig ?? path.join(home, ".config")
-    const stateHome = xdgState ?? path.join(home, ".local", "state")
+    const platform: HostPlatform = hostPlatform(osPlatform())
+    const env = process.env
+    const home = homeDirectory(platform, env, homedir())
+    const configHome = configHomeFor(platform, env, home)
+    const stateHome = stateHomeFor(platform, env, home)
 
     const configDirOverride = yield* optionalEnv("OPENCLAW_PROTONPASS_CONFIG_DIR")
     const configDir = configDirOverride ?? path.join(configHome, "proton-pass-cli")
@@ -95,31 +109,33 @@ export class Paths extends Effect.Service<Paths>()("Paths", {
     /**
      * Locate pass-cli.
      *
-     * PATH is searched before the installer's usual locations so an operator
-     * can override the binary without editing anything; the explicit fallbacks
-     * exist because a systemd unit often runs with a minimal PATH.
+     * Every directory on `PATH` is tried before the installer's usual
+     * locations, and on Windows every name `PATHEXT` allows is tried in each
+     * of them, because `spawn` without a shell resolves neither for us.
      */
     const discoverPassCli = Effect.gen(function* () {
       if (passCliOverride !== undefined) return passCliOverride
 
-      const pathVar = yield* Config.string("PATH").pipe(Config.withDefault(""))
-      const candidates = [
-        ...pathVar.split(delimiter).filter((entry) => entry !== ""),
-        path.join(home, ".local", "bin"),
-        "/usr/local/bin",
-        "/usr/bin"
-      ].map((dir) => path.join(dir, "pass-cli"))
-
-      for (const candidate of candidates) {
-        const usable = yield* fs
-          .access(candidate, { ok: true })
-          .pipe(Effect.as(true), Effect.orElseSucceed(() => false))
-        if (usable) return candidate
+      const names = executableNames(platform, env, "pass-cli")
+      for (const dir of executableSearchPath(platform, env, home)) {
+        for (const name of names) {
+          const candidate = path.join(dir, name)
+          const usable = yield* fs
+            .access(candidate, { ok: true })
+            .pipe(Effect.as(true), Effect.orElseSucceed(() => false))
+          if (usable) return candidate
+        }
       }
-      return "pass-cli"
+      // Nothing was found, so name the binary and let the failure come from
+      // the spawn, where the error message says which command was missing.
+      return names[0]!
     })
 
     return {
+      platform,
+      home,
+      configHome,
+      stateHome,
       configDir,
       secretMap: secretMapOverride ?? path.join(configDir, "openclaw-secret-map.json"),
       agentPat: agentPatOverride ?? path.join(configDir, "openclaw-agent-pat"),

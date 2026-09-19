@@ -157,7 +157,8 @@ being flattened into events.
 ## Who the report is from
 
 Reports are attributed to an **install id**: a random UUID generated on first
-run and stored at `~/.config/proton-pass-cli/install-id`, mode `0600`.
+run and stored under the host's state directory as
+`openclaw-proton-pass/install-id`, readable only by your account.
 
 Random rather than derived from the machine, so it identifies an install without
 encoding anything about it. Deleting the file starts a new identity. Where

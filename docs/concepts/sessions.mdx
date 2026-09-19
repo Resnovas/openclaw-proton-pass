@@ -13,7 +13,7 @@ one vault, with an expiry, revocable on its own without touching your account.
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
-install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
 The token is the one credential this system does keep on disk, at mode `0600`
@@ -95,7 +95,7 @@ with a problem worth seeing. The three words are the whole payload; see
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
-install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<new token>'
+openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
 Nothing else is required. The next resolution finds the old session

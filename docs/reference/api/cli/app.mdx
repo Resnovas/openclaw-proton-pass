@@ -30,7 +30,11 @@ Run the CLI.
 ```ts
 export declare const run: (
   args: ReadonlyArray<string>
-) => Effect.Effect<void, PlatformError | ValidationError, (Paths | Path | FileSystem | Telemetry) | CliApp.Environment>
+) => Effect.Effect<
+  void,
+  MissingAgentTokenError | ValidationError,
+  (Paths | Telemetry | FileSystem | CommandExecutor | Path) | CliApp.Environment
+>
 ```
 
 **Example**

@@ -44,6 +44,10 @@ import { join } from "node:path"
 /** A disposable configuration directory plus the environment pointing at it. */
 export interface Workspace {
   readonly dir: string
+  /** Stands in for the user's home directory, so nothing reaches the real one. */
+  readonly home: string
+  /** Stands in for `$XDG_CONFIG_HOME`, where a systemd user unit belongs. */
+  readonly configHome: string
   readonly configDir: string
   readonly secretMap: string
   readonly agentPat: string
@@ -121,6 +125,15 @@ export const makeWorkspace = (
   const configDir = join(dir, "config")
   mkdirSync(configDir, { recursive: true })
 
+  // A home of its own, because setup now writes outside its configuration
+  // directory: a systemd unit belongs under the configuration root and a
+  // launch agent under the home directory. Without these the suite would
+  // install service files into the developer's real account.
+  const home = join(dir, "home")
+  const configHome = join(dir, "config-home")
+  const stateHome = join(dir, "state-home")
+  mkdirSync(home, { recursive: true })
+
   const secretMap = join(configDir, "openclaw-secret-map.json")
   const proxyConfig = join(configDir, "openclaw-mcp-proxy.json")
   const agentPat = join(configDir, "openclaw-agent-pat")
@@ -134,6 +147,14 @@ export const makeWorkspace = (
   writeFileSync(passCli, stubScript(options.stub ?? {}, join(dir, "login-attempts")))
   chmodSync(passCli, 0o755)
 
+  const inherited = {
+    HOME: process.env["HOME"],
+    XDG_CONFIG_HOME: process.env["XDG_CONFIG_HOME"],
+    XDG_STATE_HOME: process.env["XDG_STATE_HOME"]
+  }
+  process.env["HOME"] = home
+  process.env["XDG_CONFIG_HOME"] = configHome
+  process.env["XDG_STATE_HOME"] = stateHome
   process.env["OPENCLAW_PROTONPASS_CONFIG_DIR"] = configDir
   process.env["OPENCLAW_PROTONPASS_SECRET_MAP"] = secretMap
   process.env["OPENCLAW_PROTONPASS_AGENT_PAT"] = agentPat
@@ -143,6 +164,8 @@ export const makeWorkspace = (
 
   return {
     dir,
+    home,
+    configHome,
     configDir,
     secretMap,
     agentPat,
@@ -159,6 +182,10 @@ export const makeWorkspace = (
         "PASS_CLI"
       ]) {
         delete process.env[key]
+      }
+      for (const [key, value] of Object.entries(inherited)) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
       }
       rmSync(dir, { recursive: true, force: true })
     }

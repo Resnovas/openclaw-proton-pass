@@ -9,7 +9,28 @@ which is free and open source and authenticates with an `Authorization: Bearer`
 key, so every command below can be run as written.
 
 <Steps>
-  <Step title="Install">
+  <Step title="Install the Proton Pass CLI">
+    Everything here resolves secrets by calling `pass-cli`, so install it
+    first. It runs on Linux, macOS and Windows.
+
+    <Tabs>
+      <Tab title="Linux and macOS">
+        ```bash
+        curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
+        pass-cli --version
+        ```
+      </Tab>
+      <Tab title="Windows">
+        ```powershell
+        Invoke-WebRequest -Uri https://proton.me/download/pass-cli/install.ps1 -OutFile install.ps1
+        .\install.ps1
+        pass-cli.exe --version
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Install this">
     As an OpenClaw plugin, which registers the secret provider for you:
 
     ```bash
@@ -28,16 +49,35 @@ key, so every command below can be run as written.
     openclaw-proton-pass setup
     ```
 
-    `setup` creates `~/.config/proton-pass-cli` with mode `0700`, seeds the two
-    configuration files if they are absent, and writes a systemd user unit for
-    the proxy with the paths of this install resolved. It never overwrites a
-    file that already exists.
+    `setup` creates the configuration directory so that only your account can
+    read it, seeds the two configuration files if they are absent, and writes
+    whatever this host uses to keep the proxy running. It never overwrites a
+    configuration file that already exists.
+
+    | Host | Configuration directory |
+    | --- | --- |
+    | Linux and macOS | `~/.config/proton-pass-cli` |
+    | Windows | `%APPDATA%\proton-pass-cli` |
+
+    What it writes for the proxy differs by host: a systemd user unit, a
+    launch agent, a Task Scheduler definition, or, where there is no init
+    system at all, a launcher script. `setup` prints the path and the command
+    that enables it. See [running it as a
+    service](/guides/running-as-a-service).
   </Step>
 
   <Step title="Create the agent token">
     ```bash
     pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
-    install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+    openclaw-proton-pass token
+    ```
+
+    `token` reads the token from standard input and writes it where the
+    resolver looks for it, readable only by your account. Paste it and press
+    `Ctrl-D` (`Ctrl-Z` then `Enter` in Command Prompt), or pipe it in:
+
+    ```bash
+    openclaw-proton-pass token < token.txt
     ```
 
     A dedicated agent token rather than your own session, because the Gateway

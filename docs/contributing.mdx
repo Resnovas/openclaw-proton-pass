@@ -48,6 +48,21 @@ pnpm verify         # everything CI checks
   </Step>
 </Steps>
 
+`pnpm verify` runs on Linux only. A second CI job installs the built bundles
+on Linux, macOS and Windows and runs `setup`, `token` and `doctor` against
+each, because the things that differ between hosts are precisely the things a
+Linux job cannot see: an unset `HOME`, an executable with an extension,
+`chmod` doing nothing, and a supervisor that is not systemd.
+
+<Warning>
+No module may branch on the operating system except `libs/config/src/host.ts`.
+Every host difference is a pure function there of the platform name and the
+environment, which is what lets each one be tested from a machine that is not
+that host. `process.platform` anywhere else, or an assumption that `HOME` is
+set or that a POSIX mode means anything, is the bug that file exists to
+prevent.
+</Warning>
+
 ## Layout
 
 <Tree>

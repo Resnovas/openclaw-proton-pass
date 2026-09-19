@@ -1,0 +1,86 @@
+---
+title: "permissions.ts"
+description: "Restricting a file or directory to the account that owns it. This system stores an agent token and a map of vault locations on disk, so every file it creates is locked down as it is created. How that is done differs by host, and `chmod` silently does nothing on Windows, so the difference is handled here rather than assumed away."
+---
+
+## models
+
+### PathKind (type alias)
+
+What a path holds, which decides how tightly it is locked down.
+
+**Signature**
+
+```ts
+export type PathKind = "file" | "directory"
+```
+
+Added in v0.1.0
+
+## utils
+
+### icaclsArguments
+
+The `icacls` arguments that reduce a path to one account.
+
+**Signature**
+
+```ts
+export declare const icaclsArguments: (target: string, account: string) => ReadonlyArray<string>
+```
+
+**Example**
+
+```ts
+import { icaclsArguments } from "@resnovas/opp-config"
+
+assert.deepStrictEqual(icaclsArguments("C:\\Users\\jo\\token", "jo"), [
+  "C:\\Users\\jo\\token",
+  "/inheritance:r",
+  "/grant:r",
+  "jo:F"
+])
+```
+
+### ownerOnlyMode
+
+The POSIX mode a path of this kind should carry.
+
+**Signature**
+
+```ts
+export declare const ownerOnlyMode: (kind: PathKind) => number
+```
+
+**Example**
+
+```ts
+import { ownerOnlyMode } from "@resnovas/opp-config"
+
+assert.strictEqual(ownerOnlyMode("file"), 0o600)
+assert.strictEqual(ownerOnlyMode("directory"), 0o700)
+```
+
+### restrictToOwner
+
+Restrict a path to the account that owns it.
+
+**Signature**
+
+```ts
+export declare const restrictToOwner: (
+  platform: HostPlatform,
+  target: string,
+  kind: PathKind
+) => Effect.Effect<void, never, FileSystem.FileSystem | CommandExecutor.CommandExecutor>
+```
+
+**Example**
+
+```ts
+import { restrictToOwner } from "@resnovas/opp-config"
+import { Effect } from "effect"
+
+// Nothing has happened yet: the restriction is described, not performed.
+assert.strictEqual(Effect.isEffect(restrictToOwner("linux", "/tmp/x", "file")), true)
+```

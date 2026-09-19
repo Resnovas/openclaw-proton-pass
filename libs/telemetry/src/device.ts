@@ -46,7 +46,7 @@
  */
 
 import { Command, FileSystem } from "@effect/platform"
-import { Paths } from "@resnovas/opp-config"
+import { homeDirectory, hostPlatform, Paths, stateHome } from "@resnovas/opp-config"
 import { Effect } from "effect"
 import { createHash, randomUUID } from "node:crypto"
 import { arch, cpus, homedir, hostname, platform, release, totalmem } from "node:os"
@@ -177,11 +177,14 @@ export const installIdFrom = (machineIdFiles: ReadonlyArray<string>) =>
   }
 
   // Not tied to the configuration directory: an identity that moves with the
-  // config is exactly the bug this function exists to avoid.
-  // homedir() rather than the HOME variable: it always yields a path, and it
-  // is what the OS actually considers home when the variable is absent.
-  const stateHome = process.env["XDG_STATE_HOME"] ?? join(homedir(), ".local", "state")
-  const stateDir = join(stateHome, "openclaw-proton-pass")
+  // config is exactly the bug this function exists to avoid. It follows the
+  // same per-host state location as everything else, so the identity does not
+  // land somewhere different from the session it describes.
+  const host = hostPlatform(platform())
+  const stateDir = join(
+    stateHome(host, process.env, homeDirectory(host, process.env, homedir())),
+    "openclaw-proton-pass"
+  )
   const file = join(stateDir, "install-id")
 
   const existing = yield* fs.readFileString(file).pipe(

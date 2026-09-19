@@ -29,7 +29,7 @@ with three different rules, plus a management CLI:
 | `openclaw-protonpass-resolver` | The `exec` secret provider. One JSON request on stdin, one response on stdout. |
 | `openclaw-pass-run` | Launches a stdio MCP server with `pass://` environment references resolved. |
 | `openclaw-mcp-auth-proxy` | A loopback HTTP hop that attaches a credential header to remote MCP requests. |
-| `openclaw-proton-pass` | `setup` and `doctor`. |
+| `openclaw-proton-pass` | `setup`, `token` and `doctor`. |
 
 ## Layout
 
@@ -50,7 +50,7 @@ headers and API contracts, runs the suite at 100% coverage with a depth report,
 and regenerates the API reference - which compiles and executes every
 documentation example.
 
-## Three rules that explain most of the code
+## Four rules that explain most of the code
 
 Read these before changing anything; each one is load-bearing and each has been
 violated before, with consequences recorded in the commit history.
@@ -67,6 +67,14 @@ violated before, with consequences recorded in the commit history.
    field of type `string` - only numbers, booleans, and string literal unions.
    Adding one would not be a policy violation to be reviewed; it would be a
    change to the thing that makes the guarantee true.
+
+4. **No module branches on the operating system except `libs/config/host.ts`.**
+   Every host difference is a pure function there of the platform name and the
+   environment, which is what makes each one testable from a machine that is
+   not that host. Reaching for `process.platform` anywhere else, or assuming
+   `HOME`, `chmod` or systemd, is the class of bug this file exists to
+   prevent: the four executables run on Linux, macOS, Windows and in
+   containers with no init system.
 
 ---
 

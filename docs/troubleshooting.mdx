@@ -101,7 +101,7 @@ needs your Proton Pass session:
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
-install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
 </Accordion>
@@ -229,6 +229,37 @@ A systemd **user** unit stops with your last session unless lingering is on:
 ```bash
 loginctl enable-linger "$USER"
 ```
+
+On macOS a launch agent behaves the same way and there is no equivalent
+switch: the agent runs in your GUI session. On Windows the scheduled task is
+triggered at logon for the same reason, because the agent token lives in that
+user's profile.
+
+</Accordion>
+
+<Accordion title="setup wrote a systemd unit and this host has no systemd">
+
+It did not, unless it was told to. Detection looks for `/run/systemd/system`,
+and where that is absent `setup` writes a launcher script instead and says so.
+If a unit was written anyway, `--service` was passed. Re-run it:
+
+```bash
+openclaw-proton-pass setup --service none
+```
+
+</Accordion>
+
+<Accordion title="Nothing works at all on Windows">
+
+Run `openclaw-proton-pass doctor` first: it reports the host it detected and
+every resolved path before it reports a single check, which is usually enough
+to see what went wrong.
+
+Two things to confirm. That `pass-cli.exe` is on `PATH`, or `PASS_CLI` points
+at it: the search covers every extension in `PATHEXT` in every directory on
+`PATH`, plus the installer's own locations, but not an arbitrary one. And that
+the configuration is where you think it is: it lives under `%APPDATA%`, not
+`%LOCALAPPDATA%`, while the session directory is the other way round.
 
 </Accordion>
 

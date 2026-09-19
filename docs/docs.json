@@ -103,8 +103,10 @@
             "group": "Config",
             "pages": [
               "reference/api/config/index",
+              "reference/api/config/host",
               "reference/api/config/logging",
               "reference/api/config/paths",
+              "reference/api/config/permissions",
               "reference/api/config/telemetry-config",
               "reference/api/config/timeouts"
             ]
@@ -159,7 +161,8 @@
               "reference/api/cli/index",
               "reference/api/cli/app",
               "reference/api/cli/doctor",
-              "reference/api/cli/setup"
+              "reference/api/cli/setup",
+              "reference/api/cli/token"
             ]
           }
         ]

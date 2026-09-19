@@ -29,7 +29,7 @@ a production host to find out why resolution is failing.
 **Signature**
 
 ```ts
-export declare const doctor: Effect.Effect<Check[], never, Paths | FileSystem.FileSystem | Telemetry>
+export declare const doctor: Effect.Effect<Check[], never, Paths | Telemetry | FileSystem.FileSystem>
 ```
 
 ### renderChecks

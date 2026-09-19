@@ -1,30 +1,188 @@
 ---
 title: "setup.ts"
-description: "Preparing the configuration directory. Seeds the two configuration files if they are absent and writes the systemd unit. An existing configuration file is never overwritten."
+description: "Preparing the configuration directory. Seeds the two configuration files if they are absent, locks them down, and writes whatever the host uses to keep the proxy running. An existing configuration file is never overwritten."
 ---
 
+## models
+
+### ServiceArtefact (interface)
+
+What the installer writes so the host can keep the proxy running.
+
+**Signature**
+
+```ts
+export interface ServiceArtefact {
+  /** Absolute path the file is written to. */
+  readonly path: string
+  /** The file's contents. */
+  readonly contents: string
+  /** Whether the file has to be executable to be useful. */
+  readonly executable: boolean
+  /** What the operator runs next, one command or note per line. */
+  readonly instructions: ReadonlyArray<string>
+}
+```
+
+Added in v0.1.0
+
+### ServiceContext (interface)
+
+Everything the generated service artefact depends on.
+
+**Signature**
+
+```ts
+export interface ServiceContext {
+  /** The host family, which decides the file format and its location. */
+  readonly platform: HostPlatform
+  /** The supervisor to generate for. */
+  readonly manager: ServiceManager
+  /** The home directory, where launchd expects its agents. */
+  readonly home: string
+  /** The configuration root, where systemd expects its user units. */
+  readonly configHome: string
+  /** This system's own configuration directory. */
+  readonly configDir: string
+  /** Absolute path to the Node binary that should run the proxy. */
+  readonly node: string
+  /** Absolute path to the proxy entry point. */
+  readonly entry: string
+}
+```
+
+Added in v0.1.0
+
 ## utils
+
+### launchdPlist
+
+Build the launchd user agent for the MCP auth proxy.
+
+**Signature**
+
+```ts
+export declare const launchdPlist: (node: string, entry: string, logDir: string) => string
+```
+
+**Example**
+
+```ts
+import { launchdPlist } from "@resnovas/opp-cli/setup"
+
+const plist = launchdPlist("/usr/local/bin/node", "/opt/proxy.mjs", "/Users/jo/Library/Logs")
+
+assert.strictEqual(plist.includes("<string>/opt/proxy.mjs</string>"), true)
+assert.strictEqual(plist.includes("<key>KeepAlive</key>"), true)
+```
+
+### launcherScript
+
+Build a plain launcher script for a host with no service manager.
+
+**Signature**
+
+```ts
+export declare const launcherScript: (platform: HostPlatform, node: string, entry: string) => string
+```
+
+**Example**
+
+```ts
+import { launcherScript } from "@resnovas/opp-cli/setup"
+
+assert.strictEqual(launcherScript("linux", "/usr/bin/node", "/srv/proxy.mjs").includes("exec"), true)
+assert.strictEqual(launcherScript("win32", "node.exe", "proxy.mjs").includes("@echo off"), true)
+```
+
+### scheduledTaskXml
+
+Build the Task Scheduler definition for the MCP auth proxy.
+
+**Signature**
+
+```ts
+export declare const scheduledTaskXml: (node: string, entry: string) => string
+```
+
+**Example**
+
+```ts
+import { scheduledTaskXml } from "@resnovas/opp-cli/setup"
+
+const task = scheduledTaskXml("C:\\Program Files\\nodejs\\node.exe", "C:\\proxy.mjs")
+
+assert.strictEqual(task.includes("<LogonTrigger>"), true)
+assert.strictEqual(task.includes("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"), true)
+```
+
+### serviceArtefact
+
+Decide what to write, where to write it, and what to tell the operator.
+
+**Signature**
+
+```ts
+export declare const serviceArtefact: (context: ServiceContext) => ServiceArtefact
+```
+
+**Example**
+
+```ts
+import { serviceArtefact } from "@resnovas/opp-cli/setup"
+
+const artefact = serviceArtefact({
+  platform: "linux",
+  manager: "none",
+  home: "/root",
+  configHome: "/root/.config",
+  configDir: "/root/.config/proton-pass-cli",
+  node: "/usr/bin/node",
+  entry: "/srv/proxy.mjs"
+})
+
+assert.strictEqual(artefact.executable, true)
+assert.strictEqual(artefact.path.endsWith("openclaw-mcp-auth-proxy.sh"), true)
+```
 
 ### setup
 
 Prepare the configuration directory.
 
-An existing file is never overwritten: the secret map is the one piece of
-state a re-run must not disturb, so seeding only ever fills a gap.
+**Signature**
+
+```ts
+export declare const setup: (
+  requested: ServiceManager | "auto"
+) => Effect.Effect<void, never, Paths | Telemetry | FileSystem.FileSystem | Path.Path | CommandExecutor.CommandExecutor>
+```
+
+**Example**
+
+```ts
+import { setup } from "@resnovas/opp-cli/setup"
+import { Effect } from "effect"
+
+// Nothing has been written yet: `setup` yields an Effect, so the install
+// happens only when it is run against the app's layer.
+assert.strictEqual(Effect.isEffect(setup("auto")), true)
+```
+
+### systemdIsRunning
+
+Whether this host is running systemd.
 
 **Signature**
 
 ```ts
-export declare const setup: Effect.Effect<void, PlatformError, Paths | Path.Path | FileSystem.FileSystem | Telemetry>
+export declare const systemdIsRunning: Effect.Effect<boolean, never, FileSystem.FileSystem>
 ```
+
+Added in v0.1.0
 
 ### systemdUnit
 
 Build the systemd user unit for the MCP auth proxy.
-
-The unit is generated rather than shipped because only the running installer
-knows where the proxy actually landed: a checkout can live anywhere, and a
-hardcoded path is exactly the portability bug this rewrite set out to remove.
 
 **Signature**
 
@@ -39,6 +197,6 @@ import { systemdUnit } from "@resnovas/opp-cli/setup"
 
 const unit = systemdUnit("/usr/bin/node", "/opt/openclaw-proton-pass/proxy.mjs")
 
-assert.strictEqual(unit.includes("ExecStart=/usr/bin/node /opt/openclaw-proton-pass/proxy.mjs"), true)
+assert.strictEqual(unit.includes('ExecStart="/usr/bin/node" "/opt/openclaw-proton-pass/proxy.mjs"'), true)
 assert.strictEqual(unit.includes("Restart=always"), true)
 ```

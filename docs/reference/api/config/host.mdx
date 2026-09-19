@@ -1,0 +1,208 @@
+---
+title: "host.ts"
+description: "Everything that differs between the hosts this system runs on. Each difference is decided by a pure function of the platform name and the environment, so no other module branches on `process.platform` and every branch can be tested from any machine."
+---
+
+## models
+
+### Environment (type alias)
+
+A read-only view of the process environment.
+
+Taken as an argument rather than read from `process.env` so that the
+functions here stay pure and a test can describe a host it is not running
+on.
+
+**Signature**
+
+```ts
+export type Environment = Readonly<Record<string, string | undefined>>
+```
+
+Added in v0.1.0
+
+### HostPlatform (type alias)
+
+The host families this system distinguishes between.
+
+Only three, because only three decisions ever differ: where per-user files
+belong, what an executable is called, and what supervises a long-running
+process. Every other Unix is treated as Linux, which is correct for all
+three of those decisions.
+
+**Signature**
+
+```ts
+export type HostPlatform = "linux" | "darwin" | "win32"
+```
+
+Added in v0.1.0
+
+### ServiceManager (type alias)
+
+How a long-running process is kept alive on this host.
+
+`none` is not a failure. A container has no init system to register with,
+and the supervisor outside it is the right place for the process to be
+declared, so the installer emits a launcher script instead of a unit.
+
+**Signature**
+
+```ts
+export type ServiceManager = "systemd" | "launchd" | "schtasks" | "none"
+```
+
+Added in v0.1.0
+
+## utils
+
+### configHome
+
+Locate the directory per-user configuration belongs in.
+
+**Signature**
+
+```ts
+export declare const configHome: (platform: HostPlatform, env: Environment, home: string) => string
+```
+
+**Example**
+
+```ts
+import { configHome } from "@resnovas/opp-config"
+import { join } from "node:path"
+
+assert.strictEqual(configHome("linux", {}, "/home/jo"), join("/home/jo", ".config"))
+assert.strictEqual(configHome("darwin", {}, "/Users/jo"), join("/Users/jo", ".config"))
+assert.strictEqual(
+  configHome("win32", { APPDATA: "C:\\Users\\jo\\AppData\\Roaming" }, "C:\\Users\\jo"),
+  "C:\\Users\\jo\\AppData\\Roaming"
+)
+```
+
+### executableNames
+
+Every filename a given executable might have on this host.
+
+**Signature**
+
+```ts
+export declare const executableNames: (platform: HostPlatform, env: Environment, base: string) => ReadonlyArray<string>
+```
+
+**Example**
+
+```ts
+import { executableNames } from "@resnovas/opp-config"
+
+assert.deepStrictEqual(executableNames("linux", {}, "pass-cli"), ["pass-cli"])
+assert.deepStrictEqual(executableNames("win32", { PATHEXT: ".EXE;.CMD" }, "pass-cli"), ["pass-cli.exe", "pass-cli.cmd"])
+```
+
+### executableSearchPath
+
+Every directory an executable might be installed in on this host.
+
+**Signature**
+
+```ts
+export declare const executableSearchPath: (
+  platform: HostPlatform,
+  env: Environment,
+  home: string
+) => ReadonlyArray<string>
+```
+
+**Example**
+
+```ts
+import { executableSearchPath } from "@resnovas/opp-config"
+
+const dirs = executableSearchPath("darwin", { PATH: "/usr/bin" }, "/Users/jo")
+
+assert.strictEqual(dirs[0], "/usr/bin")
+assert.strictEqual(dirs.includes("/opt/homebrew/bin"), true)
+```
+
+### homeDirectory
+
+Locate the user's home directory.
+
+**Signature**
+
+```ts
+export declare const homeDirectory: (platform: HostPlatform, env: Environment, fallback: string) => string
+```
+
+**Example**
+
+```ts
+import { homeDirectory } from "@resnovas/opp-config"
+
+assert.strictEqual(homeDirectory("win32", { USERPROFILE: "C:\\Users\\jo" }, "ignored"), "C:\\Users\\jo")
+assert.strictEqual(homeDirectory("linux", {}, "/home/jo"), "/home/jo")
+```
+
+### hostPlatform
+
+Classify a `process.platform` value into a host family.
+
+**Signature**
+
+```ts
+export declare const hostPlatform: (value: string) => HostPlatform
+```
+
+**Example**
+
+```ts
+import { hostPlatform } from "@resnovas/opp-config"
+
+assert.strictEqual(hostPlatform("win32"), "win32")
+assert.strictEqual(hostPlatform("darwin"), "darwin")
+assert.strictEqual(hostPlatform("freebsd"), "linux")
+```
+
+### serviceManagerFor
+
+Decide what should supervise the proxy on this host.
+
+**Signature**
+
+```ts
+export declare const serviceManagerFor: (platform: HostPlatform, systemdAvailable: boolean) => ServiceManager
+```
+
+**Example**
+
+```ts
+import { serviceManagerFor } from "@resnovas/opp-config"
+
+assert.strictEqual(serviceManagerFor("linux", true), "systemd")
+assert.strictEqual(serviceManagerFor("linux", false), "none")
+assert.strictEqual(serviceManagerFor("darwin", false), "launchd")
+assert.strictEqual(serviceManagerFor("win32", false), "schtasks")
+```
+
+### stateHome
+
+Locate the directory per-user state belongs in.
+
+**Signature**
+
+```ts
+export declare const stateHome: (platform: HostPlatform, env: Environment, home: string) => string
+```
+
+**Example**
+
+```ts
+import { stateHome } from "@resnovas/opp-config"
+import { join } from "node:path"
+
+assert.strictEqual(stateHome("linux", {}, "/home/jo"), join("/home/jo", ".local", "state"))
+assert.strictEqual(
+  stateHome("win32", { LOCALAPPDATA: "C:\\Users\\jo\\AppData\\Local" }, "C:\\Users\\jo"),
+  "C:\\Users\\jo\\AppData\\Local"
+)
+```

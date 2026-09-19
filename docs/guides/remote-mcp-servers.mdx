@@ -78,9 +78,10 @@ systemctl --user enable --now openclaw-mcp-auth-proxy
 openclaw mcp add context7 --url http://127.0.0.1:18890/context7 --transport streamable-http
 ```
 
-`openclaw-proton-pass setup` writes the unit with this install's paths already
-resolved. [Running it as a service](/guides/running-as-a-service) covers the
-non-systemd cases.
+That first line is the systemd form. `openclaw-proton-pass setup` writes the
+service file this host actually uses, with the install's paths already
+resolved, and prints the command that enables it. [Running it as a
+service](/guides/running-as-a-service) covers macOS, Windows and containers.
 
 ## The loopback-only rule
 

@@ -49,3 +49,67 @@ jobs:
       # than be discovered at release time.
       - name: Collect the integration suite
         run: pnpm exec vitest run tests/integration --passWithNoTests
+
+  # The four binaries have to install and run on every host they claim to
+  # support, and the differences between those hosts are exactly the things
+  # the Linux job cannot see: an unset HOME, an executable with an extension,
+  # chmod doing nothing, and a supervisor that is not systemd.
+  install:
+    name: Install on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            # Either is correct: a runner without an init system is the
+            # container case, which is a supported host rather than a fault.
+            manager: (systemd|none)
+          - os: macos-latest
+            manager: launchd
+          - os: windows-latest
+            manager: schtasks
+    runs-on: ${{ matrix.os }}
+    # These steps run the real binaries rather than the suite, which disables
+    # reporting in its own setup file, so it is turned off here instead. A CI
+    # host is not an install and does not belong in the product's analytics.
+    env:
+      OPENCLAW_PROTONPASS_TELEMETRY: "false"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the publishable package
+        run: pnpm exec nx run openclaw-proton-pass:build
+
+      # No vault and no pass-cli here, so this covers everything up to the
+      # point a credential would be needed: resolving a home, creating the
+      # configuration directory, and writing the service file for this host.
+      - name: Prepare the configuration directory
+        run: node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs setup
+
+      # Through a pipe, which is the portability claim `token` exists to make.
+      - name: Store an agent token from standard input
+        shell: bash
+        run: |
+          echo "pat-ci-smoke-not-a-real-token" \
+            | node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs token
+
+      - name: Check the host was detected correctly
+        shell: bash
+        run: |
+          node packages/openclaw-proton-pass/bin/openclaw-proton-pass.mjs doctor 2>&1 \
+            | tee report.txt
+          grep -qE "service manager ${{ matrix.manager }}" report.txt
+          # doctor reports rather than repairs, so the agent token it just
+          # stored must be the check that passes.
+          grep -q "ok    agent token" report.txt

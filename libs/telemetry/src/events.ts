@@ -72,7 +72,7 @@ export type Binary = "resolver" | "pass-run" | "mcp-auth-proxy" | "cli"
  * @category models
  * @since 0.1.0
  */
-export type CommandName = "setup" | "doctor" | "help"
+export type CommandName = "setup" | "doctor" | "token" | "help"
 
 /**
  * The tag of a domain error. Tags are compile-time constants, never content.
@@ -129,6 +129,7 @@ export type LogId =
   | "proxy.relay_interrupted"
   | "cli.config_seeded"
   | "cli.check_failed"
+  | "cli.token_stored"
 
 /**
  * Spans this system records.
@@ -149,6 +150,7 @@ export type SpanName =
   | "proxy.relay"
   | "cli.setup"
   | "cli.doctor"
+  | "cli.token"
 
 /**
  * Severity for a structured log record.
@@ -293,6 +295,7 @@ export const ALLOWED_VALUES: ReadonlySet<string> = new Set<string>([
   // CommandName
   "setup",
   "doctor",
+  "token",
   "help",
   // ErrorTag
   "SecretMapError",
@@ -323,6 +326,7 @@ export const ALLOWED_VALUES: ReadonlySet<string> = new Set<string>([
   "proxy.relay_interrupted",
   "cli.config_seeded",
   "cli.check_failed",
+  "cli.token_stored",
   // SpanName
   "resolver.handle_request",
   "resolver.load_map",
@@ -333,6 +337,7 @@ export const ALLOWED_VALUES: ReadonlySet<string> = new Set<string>([
   "proxy.relay",
   "cli.setup",
   "cli.doctor",
+  "cli.token",
   // LogLevel
   "debug",
   "info",

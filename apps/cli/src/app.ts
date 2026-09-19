@@ -45,7 +45,7 @@
  */
 
 
-import { Command as Cli } from "@effect/cli"
+import { Command as Cli, Options } from "@effect/cli"
 import { NodeContext } from "@effect/platform-node"
 import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
 import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
@@ -53,6 +53,7 @@ import { Telemetry, type CommandName } from "@resnovas/opp-telemetry"
 import { Clock, Effect, Layer } from "effect"
 import { doctor } from "./doctor.js"
 import { setup } from "./setup.js"
+import { storeToken } from "./token.js"
 
 /** Time a subcommand and report its name and outcome - never its arguments. */
 const instrumented = <A, E, R>(command: CommandName, effect: Effect.Effect<A, E, R>) =>
@@ -73,11 +74,36 @@ const instrumented = <A, E, R>(command: CommandName, effect: Effect.Effect<A, E,
 const doctorCommand = Cli.make("doctor", {}, () =>
   instrumented("doctor", doctor.pipe(Effect.asVoid))
 )
-const setupCommand = Cli.make("setup", {}, () => instrumented("setup", setup))
+
+/**
+ * Which supervisor `setup` should generate configuration for.
+ *
+ * Detection covers every host this is expected to run on, so the option
+ * exists for the cases detection cannot see: generating a unit on a build
+ * host for a target that differs from it, and forcing the launcher script on
+ * a systemd host where the proxy is meant to run under something else.
+ */
+const serviceOption = Options.choice("service", [
+  "auto",
+  "systemd",
+  "launchd",
+  "schtasks",
+  "none"
+]).pipe(
+  Options.withDefault("auto" as const),
+  Options.withDescription(
+    "which supervisor to write configuration for (default: detect this host)"
+  )
+)
+
+const setupCommand = Cli.make("setup", { service: serviceOption }, ({ service }) =>
+  instrumented("setup", setup(service))
+)
+const tokenCommand = Cli.make("token", {}, () => instrumented("token", storeToken))
 
 const root = Cli.make("openclaw-proton-pass", {}, () =>
   Effect.logInfo("run `openclaw-proton-pass --help` to see the available commands")
-).pipe(Cli.withSubcommands([doctorCommand, setupCommand]))
+).pipe(Cli.withSubcommands([doctorCommand, setupCommand, tokenCommand]))
 
 /**
  * Run the CLI.

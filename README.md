@@ -79,6 +79,9 @@ npm install -g @resnovas/openclaw-proton-pass
 openclaw-proton-pass setup
 ```
 
+Linux, macOS and Windows are all supported, as is a container with no init
+system. `setup` detects the host and writes the right thing for it.
+
 That puts four commands on `PATH` - `openclaw-proton-pass`,
 `openclaw-protonpass-resolver`, `openclaw-pass-run` and
 `openclaw-mcp-auth-proxy` - each a self-contained bundle needing only Node.
@@ -99,10 +102,15 @@ pnpm build
 node apps/cli/dist/main.js setup
 ```
 
-`setup` creates `~/.config/proton-pass-cli` with mode `0700`, seeds the two
-configuration files if they do not already exist, and writes a systemd user unit
-with absolute paths resolved for this checkout. An existing configuration file is
-never overwritten.
+`setup` creates the configuration directory readable only by your account,
+seeds the two configuration files if they do not already exist, and writes
+whatever this host uses to keep the proxy running: a systemd user unit, a
+launch agent, a Task Scheduler definition, or a launcher script where there is
+no init system. It prints the path and the command that enables it. An
+existing configuration file is never overwritten.
+
+The configuration directory is `~/.config/proton-pass-cli` on Linux and macOS,
+and `%APPDATA%\proton-pass-cli` on Windows.
 
 ```bash
 openclaw-proton-pass doctor   # what is installed, configured, and missing
@@ -117,7 +125,7 @@ session. It authenticates with a dedicated agent token scoped to one vault:
 
 ```bash
 pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
-install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+openclaw-proton-pass token   # paste the token, then Ctrl-D
 ```
 
 Every read that token performs is recorded in `pass-cli agent monitor openclaw-gateway`.

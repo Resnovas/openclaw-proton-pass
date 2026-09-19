@@ -1,6 +1,6 @@
 ---
 title: "paths.ts"
-description: "Every filesystem location this system reads, discovered once. Each path has a default and an environment override, so the three binaries cannot disagree about where the secret map lives."
+description: "Every filesystem location this system reads, discovered once. Each path has a default and an environment override, so the four binaries cannot disagree about where the secret map lives. Every platform difference is decided in {@link host}, so nothing here branches on the operating system."
 ---
 
 ## services
@@ -10,9 +10,13 @@ description: "Every filesystem location this system reads, discovered once. Each
 Every filesystem location this system reads, resolved once.
 
 Each has a default and an environment override, so a non-default install
-prefix or an XDG-relocated home needs no code change. Discovery happens here
-rather than at each call site so the three binaries cannot disagree about
+prefix or a relocated home needs no code change. Discovery happens here
+rather than at each call site so the four binaries cannot disagree about
 where the secret map lives.
+
+The home directory is resolved rather than required. Reading `HOME` and
+failing without it would take every binary down at startup on Windows,
+where the variable is normally unset.
 
 **Signature**
 

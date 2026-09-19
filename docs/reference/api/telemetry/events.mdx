@@ -58,7 +58,7 @@ Subcommands of the management CLI.
 **Signature**
 
 ```ts
-export type CommandName = "setup" | "doctor" | "help"
+export type CommandName = "setup" | "doctor" | "token" | "help"
 ```
 
 Added in v0.1.0
@@ -120,6 +120,7 @@ export type LogId =
   | "proxy.relay_interrupted"
   | "cli.config_seeded"
   | "cli.check_failed"
+  | "cli.token_stored"
 ```
 
 Added in v0.1.0
@@ -180,6 +181,7 @@ export type SpanName =
   | "proxy.relay"
   | "cli.setup"
   | "cli.doctor"
+  | "cli.token"
 ```
 
 Added in v0.1.0

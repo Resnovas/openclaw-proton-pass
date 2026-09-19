@@ -1,51 +1,47 @@
 ---
 title: "Running it as a service"
-description: "Keep the loopback proxy running across reboots, with systemd or without, and understand the environment a service gets."
+description: "Keep the loopback proxy running across reboots on Linux, macOS, Windows or in a container, and understand the environment a service gets."
 ---
 
 Only the proxy is long-lived. The resolver and `openclaw-pass-run` are started
 on demand by OpenClaw and exit when they are done.
 
-## With systemd (Linux)
+`openclaw-proton-pass setup` detects what supervises processes on this host and
+writes the matching file, with the paths of this install already resolved:
 
-`openclaw-proton-pass setup` writes the unit with the paths of this install
-already resolved:
+| Host | What is written | Where |
+| --- | --- | --- |
+| Linux with systemd | a user unit | `$XDG_CONFIG_HOME/systemd/user/openclaw-mcp-auth-proxy.service` |
+| macOS | a launch agent | `~/Library/LaunchAgents/com.resnovas.openclaw-mcp-auth-proxy.plist` |
+| Windows | a Task Scheduler definition | `%APPDATA%\proton-pass-cli\openclaw-mcp-auth-proxy.xml` |
+| A container, or any host with no init system | a launcher script | `<config dir>/openclaw-mcp-auth-proxy.sh` |
+
+Override the detection with `--service`:
+
+```bash
+openclaw-proton-pass setup --service systemd
+openclaw-proton-pass setup --service launchd
+openclaw-proton-pass setup --service schtasks
+openclaw-proton-pass setup --service none
+```
+
+<Note>
+The file is generated rather than shipped because only the running installer
+knows where the proxy actually landed: a published package puts every binary
+side by side, while a workspace checkout gives each app its own `dist`. It is
+also the one file `setup` rewrites on every run, because its contents are only
+valid for the install that produced them.
+</Note>
+
+## Linux, with systemd
 
 ```bash
 openclaw-proton-pass setup
+systemctl --user daemon-reload
 systemctl --user enable --now openclaw-mcp-auth-proxy
 systemctl --user status openclaw-mcp-auth-proxy
 journalctl --user -u openclaw-mcp-auth-proxy -f
 ```
-
-The generated unit:
-
-```ini title="~/.config/systemd/user/openclaw-mcp-auth-proxy.service"
-[Unit]
-Description=OpenClaw MCP auth proxy (Proton Pass credential injection)
-After=network-online.target
-Wants=network-online.target
-StartLimitBurst=5
-StartLimitIntervalSec=60
-
-[Service]
-ExecStart=<node> <proxy entry point>
-Restart=always
-RestartSec=5
-TimeoutStopSec=15
-Environment=HOME=%h
-NoNewPrivileges=true
-
-[Install]
-WantedBy=default.target
-```
-
-<Note>
-It is generated rather than shipped because only the running installer knows
-where the proxy actually landed: a published package puts every binary side by
-side, while a workspace checkout gives each app its own `dist`. A hardcoded path
-is exactly the portability problem this rewrite set out to remove.
-</Note>
 
 ### Surviving logout
 
@@ -57,26 +53,10 @@ loginctl enable-linger "$USER"
 
 Without it the proxy will not be running when the Gateway starts at boot.
 
-## The environment a service gets
+### Adding an override
 
-A service unit runs with a minimal environment, which is why two things are
-handled explicitly.
-
-<Accordion title="Finding pass-cli">
-`PATH` is searched first, then `~/.local/bin`, `/usr/local/bin` and `/usr/bin`.
-The explicit fallbacks exist because a unit's `PATH` often contains none of
-them. Override it outright with `PASS_CLI=/path/to/pass-cli`.
-</Accordion>
-
-<Accordion title="Finding the configuration">
-`HOME` is set by the unit, and every path derives from it or from an explicit
-override. `XDG_CONFIG_HOME` and `XDG_STATE_HOME` are honoured when set to an
-absolute path; a variable exported as the empty string is treated as unset,
-because taking it literally would point the resolver at the filesystem root.
-</Accordion>
-
-To add an override, use a drop-in rather than editing the generated unit - a
-re-run of `setup` rewrites the unit file:
+Use a drop-in rather than editing the generated unit, because a re-run of
+`setup` rewrites the unit file:
 
 ```bash
 systemctl --user edit openclaw-mcp-auth-proxy
@@ -91,19 +71,166 @@ Environment=OPENCLAW_PROTONPASS_TELEMETRY=false
 Every variable is listed in the [configuration
 reference](/reference/configuration).
 
-## Without systemd
+## macOS
 
-The proxy is an ordinary long-running process. Anything that can keep one alive
-will do - launchd, a supervisor, a container. It needs:
+```bash
+openclaw-proton-pass setup
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.resnovas.openclaw-mcp-auth-proxy.plist
+launchctl kickstart -k gui/$(id -u)/com.resnovas.openclaw-mcp-auth-proxy
+```
 
-- `HOME` set, or every path overridden explicitly
-- `pass-cli` reachable, on `PATH` or via `PASS_CLI`
-- the agent token readable at `openclaw-agent-pat`
-- a writable session directory
+The agent has no journal to fall back on, so both its output streams are
+written to a file:
+
+```bash
+tail -f ~/Library/Logs/openclaw-mcp-auth-proxy.log
+```
+
+To stop it, or to reload it after changing the plist:
+
+```bash
+launchctl bootout gui/$(id -u)/com.resnovas.openclaw-mcp-auth-proxy
+```
+
+<Note>
+`launchctl load` and `unload` still work on current macOS but are deprecated.
+`bootstrap` and `bootout` report a real error when something is wrong, where
+`load` frequently succeeds silently and leaves nothing running.
+</Note>
+
+### Adding an override
+
+The plist has no drop-in mechanism, and `setup` rewrites it. Set the variables
+in the environment the agent inherits instead:
+
+```bash
+launchctl setenv OPENCLAW_PROTONPASS_TIMEOUT_MS 30000
+```
+
+## Windows
+
+Run these in PowerShell or Command Prompt, as the user whose profile holds the
+agent token:
+
+```powershell
+openclaw-proton-pass setup
+schtasks /create /tn "com.resnovas.openclaw-mcp-auth-proxy" /xml "$env:APPDATA\proton-pass-cli\openclaw-mcp-auth-proxy.xml" /f
+schtasks /run /tn "com.resnovas.openclaw-mcp-auth-proxy"
+schtasks /query /tn "com.resnovas.openclaw-mcp-auth-proxy"
+```
+
+The task triggers at logon rather than at boot, and runs unelevated, because
+the agent token lives in that user's profile and nothing here needs
+administrator rights. Its execution time limit is explicitly removed: the
+three-day default would otherwise kill a long-lived proxy without explanation.
+
+To stop it:
+
+```powershell
+schtasks /end /tn "com.resnovas.openclaw-mcp-auth-proxy"
+```
+
+<Warning>
+`chmod` does nothing on Windows, so the `0600` and `0700` modes described
+elsewhere in this documentation are not what protects these files there.
+`setup` and `openclaw-proton-pass token` call `icacls` instead, removing
+inherited permissions and granting full control to the current account alone.
+If `icacls` cannot be run, both report a warning and continue, and the files
+keep the permissions they inherit from your profile directory.
+</Warning>
+
+## A container, or any host with no init system
+
+This is what an Upstash box, a Docker image or a plain VM without systemd
+gets. There is no init system inside the image to register a unit with, and
+the thing that should restart the proxy is whatever supervises the container,
+so `setup` writes one executable script instead:
+
+```bash
+openclaw-proton-pass setup            # detects no init system on its own
+~/.config/proton-pass-cli/openclaw-mcp-auth-proxy.sh
+```
+
+The script runs the proxy in the foreground and replaces its own shell, so
+signals from the supervisor reach Node directly and the container stops when
+it is told to. Make it the long-running command:
+
+```dockerfile
+CMD ["/root/.config/proton-pass-cli/openclaw-mcp-auth-proxy.sh"]
+```
+
+Or hand it to whatever is already supervising processes there:
+
+```bash
+supervisorctl start openclaw-mcp-auth-proxy
+pm2 start ~/.config/proton-pass-cli/openclaw-mcp-auth-proxy.sh --name mcp-auth-proxy
+```
+
+<Note>
+Detection looks for `/run/systemd/system`, which is present exactly when
+systemd is the init system. It does not look for the `systemctl` binary: a
+container built from a systemd distribution has the binary and no systemd to
+talk to, so a unit written on that evidence could never be enabled.
+</Note>
+
+## The environment a service gets
+
+A service runs with a minimal environment, which is why three things are
+handled explicitly.
+
+<Accordion title="Finding pass-cli">
+Every directory on `PATH` is searched first, so an operator can override the
+binary without editing anything. The Proton Pass CLI installer's own default
+locations are searched after it, because a unit, a launch agent and a
+scheduled task all start with a `PATH` that contains none of them:
+
+| Host | Also searched |
+| --- | --- |
+| Linux | `~/.local/bin`, `/usr/local/bin`, `/usr/bin` |
+| macOS | `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` |
+| Windows | `%LOCALAPPDATA%\Programs\pass-cli`, `%LOCALAPPDATA%\pass-cli`, `%USERPROFILE%\.local\bin` |
+
+On Windows every extension in `PATHEXT` is tried in each directory, because
+spawning a process without a shell resolves neither `PATH` nor `PATHEXT` by
+itself.
+
+Override the search outright with `PASS_CLI=/path/to/pass-cli`.
+</Accordion>
+
+<Accordion title="Finding the configuration">
+The home directory is resolved from `HOME`, then on Windows `USERPROFILE` and
+the `HOMEDRIVE` and `HOMEPATH` pair, and finally from the account's own
+record. It is never required, because failing without it would take every
+binary down at startup on a Windows host where the variable is normally unset.
+
+Every other path derives from it or from an explicit override.
+`XDG_CONFIG_HOME` and `XDG_STATE_HOME` are honoured on every platform,
+including Windows, because setting one is an explicit instruction rather than
+a convention. A variable exported as the empty string is treated as unset,
+because taking it literally would point the resolver at the filesystem root.
+</Accordion>
+
+<Accordion title="Notes for AI agents">
+Do not write a systemd unit by hand for a host that may not have systemd. Run
+`openclaw-proton-pass setup` and read what it reports, or pass `--service`
+when the target host is not the one running the command.
+
+The service file is the only file `setup` overwrites. `openclaw-secret-map.json`
+and `openclaw-mcp-proxy.json` are never overwritten, so deleting one to make
+`setup` reseed it destroys the only record of where the secrets live.
+</Accordion>
+
+## Running it without any of this
+
+The proxy is an ordinary long-running process:
 
 ```bash
 node /path/to/openclaw-mcp-auth-proxy.mjs
 ```
+
+It needs a home directory it can resolve, or every path overridden explicitly;
+`pass-cli` reachable on `PATH` or via `PASS_CLI`; the agent token readable at
+`openclaw-agent-pat`; and a writable session directory.
 
 It logs to **stderr** and binds only to loopback. If it exits at startup, the
 route file is missing, unparseable, has no routes, or names a non-loopback
@@ -116,5 +243,6 @@ openclaw-proton-pass doctor
 curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18890/nope
 ```
 
-A `404` from that second command means the proxy is up and routing; connection
-refused means it is not running.
+`doctor` reports the host it detected and the supervisor that goes with it
+before it reports the checks. A `404` from that second command means the proxy
+is up and routing; connection refused means it is not running.
