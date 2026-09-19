@@ -44,6 +44,7 @@ jobs:
     env:
       HAS_CONTEXT7: ${{ secrets.CONTEXT7_API_KEY != '' }}
       HAS_LINEAR: ${{ secrets.LINEAR_ACCESS_KEY != '' }}
+      HAS_CLAWHUB: ${{ secrets.CLAWHUB_TOKEN != '' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -254,16 +255,45 @@ jobs:
       - name: Validate the plugin package
         run: npx -y clawhub@0.23 package validate ./packages/openclaw-proton-pass
 
-      - name: Preview the ClawHub publish
+      # The CLI reads a config file, not CLAWHUB_TOKEN on its own. The official
+      # reusable workflow writes one under CLAWHUB_CONFIG_PATH; the same pattern
+      # is used here so npx invocations authenticate without clawhub login.
+      - name: Configure ClawHub authentication
+        if: env.HAS_CLAWHUB == 'true'
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["RUNNER_TEMP"]) / "clawhub-config.json"
+          path.write_text(
+              json.dumps(
+                  {
+                      "registry": "https://clawhub.ai",
+                      "token": os.environ["CLAWHUB_TOKEN"],
+                  },
+                  indent=2,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+          echo "CLAWHUB_CONFIG_PATH=$RUNNER_TEMP/clawhub-config.json" >> "$GITHUB_ENV"
+
+      - name: Preview the ClawHub publish
+        if: env.HAS_CLAWHUB == 'true'
         run: npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass --owner resnovas --dry-run --json
 
       - name: Publish to ClawHub
-        if: ${{ !inputs.dry_run }}
-        env:
-          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
-        run: npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass --owner resnovas --json
+        if: ${{ !inputs.dry_run && env.HAS_CLAWHUB == 'true' }}
+        run: |
+          npx -y clawhub@0.23 package publish ./packages/openclaw-proton-pass \
+            --owner resnovas \
+            --manual-override-reason "GitHub Actions workflow_dispatch publish via CLAWHUB_TOKEN" \
+            --json
 
       # Only for a CLI-published Docs7 site. If the site is instead connected
       # to this repository from the Context7 teamspace, GitHub is the source
