@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.nx/
+*.tsbuildinfo
+coverage/
+
+# Build output of the publishable package: the bundles, plus the README and
+# LICENSE copied in at pack time so npm and ClawHub carry them.
+packages/openclaw-proton-pass/bin/
+packages/openclaw-proton-pass/README.md
+packages/openclaw-proton-pass/TELEMETRY.md
+packages/openclaw-proton-pass/LICENSE
+
+# docgen scratch output; the published pages live in docs/reference/api.
+libs/*/.docgen/
+
+# Docs7 site link, written by `docs7 deploy`.
+docs/.docs7/
+
+.claude/worktrees
+.claude/settings.local.json

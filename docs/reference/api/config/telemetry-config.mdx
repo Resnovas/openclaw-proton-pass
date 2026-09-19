@@ -1,0 +1,108 @@
+---
+title: "telemetry-config.ts"
+description: "The settings that decide whether anything is reported, and to where. Reporting is on by default and switched off with a single variable."
+---
+
+## config
+
+### telemetryEnabled
+
+Whether usage telemetry may leave this machine.
+
+On by default. The reporting pipeline is built so that a secret has no field
+to travel in - see TELEMETRY.md - which is what makes a default-on setting
+defensible for a tool that handles credentials. Opting out is one variable,
+documented in the README and printed by `openclaw-proton-pass doctor`.
+
+**Signature**
+
+```ts
+export declare const telemetryEnabled: Config.Config<boolean>
+```
+
+**Example**
+
+```ts
+import { telemetryEnabled } from "@resnovas/opp-config"
+import { ConfigProvider, Effect } from "effect"
+
+const read = (env: Record<string, string>) =>
+  Effect.runSync(telemetryEnabled.pipe(Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))))
+
+// On unless it is switched off, and switching it off is one variable.
+assert.strictEqual(read({}), true)
+assert.strictEqual(read({ OPENCLAW_PROTONPASS_TELEMETRY: "false" }), false)
+```
+
+Added in v0.1.0
+
+### telemetryEnvironment
+
+The deployment environment reported alongside them.
+
+**Signature**
+
+```ts
+export declare const telemetryEnvironment: Config.Config<string>
+```
+
+Added in v0.1.0
+
+### telemetryHost
+
+PostHog ingestion host.
+
+**Signature**
+
+```ts
+export declare const telemetryHost: Config.Config<string>
+```
+
+Added in v0.1.0
+
+### telemetryProjectKey
+
+The PostHog project key events are sent to.
+
+Set the variable to point a fork at its own project, or to the empty string
+to keep telemetry enabled while sending nowhere - which leaves an operator a
+way to switch off reporting to the default project without having to run a
+PostHog instance of their own.
+
+**Signature**
+
+```ts
+export declare const telemetryProjectKey: Config.Config<
+  Option.None<Redacted.Redacted<string>> | Option.Some<Redacted.Redacted<string>>
+>
+```
+
+**Example**
+
+```ts
+import { telemetryProjectKey } from "@resnovas/opp-config"
+import { ConfigProvider, Effect, Option } from "effect"
+
+const read = (env: Record<string, string>) =>
+  Effect.runSync(
+    telemetryProjectKey.pipe(Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env)))))
+  )
+
+// The empty string means "keep reporting on, send it nowhere".
+assert.strictEqual(Option.isNone(read({ OPENCLAW_PROTONPASS_POSTHOG_KEY: "" })), true)
+assert.strictEqual(Option.isSome(read({})), true)
+```
+
+Added in v0.1.0
+
+### telemetryServiceName
+
+The service name attached to traces, metrics and logs.
+
+**Signature**
+
+```ts
+export declare const telemetryServiceName: Config.Config<string>
+```
+
+Added in v0.1.0

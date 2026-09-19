@@ -1,0 +1,56 @@
+---
+title: "agent-token.ts"
+description: "Where the Proton Pass agent token comes from. Two sources, because two deployments need different things. A workstation wants a file: it survives a reboot and is not visible to anything that inspects the process. A container or a managed host wants an environment variable: the platform already has a place to put a secret, and writing one to a file inside an ephemeral filesystem during provisioning is work that buys nothing."
+---
+
+## config
+
+### agentTokenFromEnvironment
+
+The agent token supplied through the environment, if one was.
+
+Read as `Redacted` from the moment it leaves the environment, so it cannot
+reach a log line by being interpolated into one.
+
+The variable is read rather than the file whenever it is set, because an
+operator who exports it is stating an intent that a leftover file on the
+same host should not override. A value that is empty or whitespace is
+treated as absent: an unset variable and one exported as the empty string
+mean the same thing to everyone except a string comparison, and an empty
+token would otherwise be sent to the vault as a login attempt that fails
+with an authentication error pointing nowhere useful.
+
+Exposed as an Effect that cannot fail rather than as a `Config`, because
+the caller is on the session bootstrap path, whose error channel is the
+project's closed domain union. Letting a `ConfigError` through would widen
+that union at every handling site to describe a condition that only means
+"no variable was set", which this already reports as `None`.
+
+**Signature**
+
+```ts
+export declare const agentTokenFromEnvironment: Effect.Effect<Option.Option<Redacted.Redacted<string>>, never, never>
+```
+
+**Example**
+
+```ts
+import { agentTokenFromEnvironment } from "@resnovas/opp-config"
+import { ConfigProvider, Effect, Option, Redacted } from "effect"
+
+const read = (env: Record<string, string>) =>
+  Effect.runSync(
+    agentTokenFromEnvironment.pipe(Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env)))))
+  )
+
+assert.strictEqual(Option.isNone(read({})), true)
+assert.strictEqual(Option.isNone(read({ OPENCLAW_PROTONPASS_AGENT_TOKEN: "  " })), true)
+
+const supplied = read({ OPENCLAW_PROTONPASS_AGENT_TOKEN: " pat_abc " })
+
+// Trimmed, because a variable set from a file or a command substitution
+// commonly carries the newline the writer left behind.
+assert.strictEqual(Option.isSome(supplied) && Redacted.value(supplied.value), "pat_abc")
+```
+
+Added in v0.1.0

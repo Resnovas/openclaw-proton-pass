@@ -1,0 +1,243 @@
+---
+title: "Configuration"
+description: "Every file this system reads and every environment variable that changes where it looks or how it behaves."
+---
+
+Every path has a default and an override, so a non-default install prefix or a
+relocated home needs no code change. Discovery happens once, in one place, so
+the four binaries cannot disagree about where the secret map lives.
+
+## Files
+
+<Tree>
+  <Folder name="<config dir>" defaultOpen>
+    <File name="openclaw-secret-map.json" />
+    <File name="openclaw-agent-pat" />
+    <File name="openclaw-mcp-proxy.json" />
+    <File name="openclaw-mcp-auth-proxy.xml or .sh (the service file, on some hosts)" />
+  </Folder>
+  <Folder name="<state dir>/openclaw-protonpass">
+    <File name="(pass-cli session state)" />
+  </Folder>
+</Tree>
+
+Where those two roots are depends on the host:
+
+| Host | Config dir | State dir |
+| --- | --- | --- |
+| Linux | `~/.config/proton-pass-cli` | `~/.local/state` |
+| macOS | `~/.config/proton-pass-cli` | `~/.local/state` |
+| Windows | `%APPDATA%\proton-pass-cli` | `%LOCALAPPDATA%` |
+
+`XDG_CONFIG_HOME` and `XDG_STATE_HOME` override both on every platform,
+including Windows, because setting one is an explicit instruction rather than
+a convention. macOS uses `~/.config` alongside Linux rather than
+`~/Library/Application Support`, which matches every other command-line tool
+a reader will already have configured. Windows separates the two roots on
+purpose: configuration roams between machines and the session database must
+not, because it can only be decrypted on the machine that wrote it.
+
+The directory and the files it holds are readable only by your account:
+mode `0700` and `0600` where POSIX modes apply, and an `icacls` grant that
+drops inherited permissions on Windows, where `chmod` silently does nothing.
+
+The proxy's service file lands elsewhere on hosts whose supervisor expects it
+elsewhere. See [running it as a
+service](/guides/running-as-a-service) for the full table.
+
+### `openclaw-secret-map.json`
+
+The only file that records a vault location.
+
+```json
+{
+  "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key",
+  "CONTEXT7_MCP_AUTHORIZATION": {
+    "ref": "pass://OpenClaw/context7.com/API Key",
+    "prefix": "Bearer ",
+    "suffix": ""
+  }
+}
+```
+
+<ResponseField name="<id>" type="string | object" required>
+  A bare `pass://` reference, or an object carrying decoration.
+</ResponseField>
+
+<Expandable title="the decorated form">
+  <ResponseField name="ref" type="string" required>
+    A `pass://` reference. Must begin `pass://`.
+  </ResponseField>
+  <ResponseField name="prefix" type="string" default='""'>
+    Prepended to the resolved value.
+  </ResponseField>
+  <ResponseField name="suffix" type="string" default='""'>
+    Appended to the resolved value.
+  </ResponseField>
+</Expandable>
+
+An id must be at least one character. See [ids, references and
+values](/concepts/ids-references-values) for why the two forms exist.
+
+### `openclaw-agent-pat`
+
+The Proton Pass agent token, as a single line, readable only by your account.
+Created by you, not by `setup`:
+
+```bash
+pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+openclaw-proton-pass token   # paste the token, then Ctrl-D
+```
+
+This file is optional. Setting `OPENCLAW_PROTONPASS_AGENT_TOKEN` supplies the
+same token through the environment and the file is then not read at all,
+which suits a container or a managed host where the platform already has
+somewhere to keep a secret. The variable wins whenever it is set, so a
+leftover file cannot silently override a deliberate export. [Which to
+use](/security/model) sets out how the two fail differently.
+
+### `openclaw-mcp-proxy.json`
+
+```json
+{
+  "listen": "127.0.0.1:18890",
+  "routes": {
+    "/context7": {
+      "upstream": "https://mcp.context7.com/mcp",
+      "header": "Authorization",
+      "secretId": "CONTEXT7_MCP_AUTHORIZATION",
+      "timeoutSeconds": 120
+    }
+  }
+}
+```
+
+<ResponseField name="listen" type="string" default="127.0.0.1:18890">
+  Host and port. Loopback only - `127.0.0.1`, `::1` or `localhost`. Anything
+  else is rejected when the file loads.
+</ResponseField>
+
+<ResponseField name="routes" type="object" required>
+  Path to route. At least one, or the proxy refuses to start.
+</ResponseField>
+
+<Expandable title="a route">
+  <ResponseField name="upstream" type="string" required>
+    The real MCP server. Must begin `http`.
+  </ResponseField>
+  <ResponseField name="secretId" type="string" required>
+    An id from the secret map.
+  </ResponseField>
+  <ResponseField name="header" type="string" default="Authorization">
+    The header the credential is attached to.
+  </ResponseField>
+  <ResponseField name="timeoutSeconds" type="number" default="120">
+    Must be positive.
+  </ResponseField>
+</Expandable>
+
+## Environment variables
+
+### Paths
+
+| Variable | Default |
+| --- | --- |
+| `OPENCLAW_PROTONPASS_CONFIG_DIR` | `$XDG_CONFIG_HOME/proton-pass-cli`, else `~/.config/proton-pass-cli`, else `%APPDATA%\proton-pass-cli` on Windows |
+| `OPENCLAW_PROTONPASS_SECRET_MAP` | `<config dir>/openclaw-secret-map.json` |
+| `OPENCLAW_PROTONPASS_AGENT_PAT` | `<config dir>/openclaw-agent-pat` |
+| `OPENCLAW_MCP_PROXY_CONFIG` | `<config dir>/openclaw-mcp-proxy.json` |
+| `OPENCLAW_PROTONPASS_SESSION_DIR` | `$XDG_STATE_HOME/openclaw-protonpass`, else `~/.local/state/openclaw-protonpass`, else `%LOCALAPPDATA%\openclaw-protonpass` on Windows |
+| `PASS_CLI` | found on `PATH`, then the Proton Pass CLI installer's own locations for this host |
+
+### Credentials
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OPENCLAW_PROTONPASS_AGENT_TOKEN` | unset | The agent token. Read instead of `openclaw-agent-pat` whenever it is set to anything but whitespace |
+
+### The vault audit log
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OPENCLAW_PROTONPASS_AUDIT_LABEL` | unset | Free text appended to every entry in `pass-cli agent monitor`. The only way an agent or task name can reach the log, since OpenClaw supplies neither |
+| `OPENCLAW_PROFILE` | set by OpenClaw | Read, not set, by this system. Appended as `profile <name>` so a multi-profile install distinguishes itself |
+
+<Warning>
+Both are transmitted to Proton on every audited read and stored in your
+vault's audit log. They are for identification, not for anything
+confidential. See [sessions and the agent token](/concepts/sessions) for what
+an entry looks like.
+</Warning>
+
+<Warning>
+Installed as an OpenClaw plugin, the resolver runs with a filtered
+environment. The manifest lists the variables that are passed through, and
+this one is among them, but a variable you add yourself will not reach the
+resolver unless you add it to `passEnv` in the plugin manifest too.
+</Warning>
+
+The home directory every default derives from is read from `HOME`, then on
+Windows `USERPROFILE` and the `HOMEDRIVE` and `HOMEPATH` pair, and finally
+from the account's own record. It is never required: failing without it would
+take every binary down at startup on a Windows host, where the variable is
+normally unset.
+
+<Note>
+A variable exported as the empty string is treated as unset. Taking it
+literally would point the resolver at the filesystem root, and an empty export
+is a common accident in service units.
+</Note>
+
+### Behaviour
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OPENCLAW_PROTONPASS_TIMEOUT_MS` | `60000` | How long any single `pass-cli` call may take before it is abandoned |
+
+### Telemetry
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OPENCLAW_PROTONPASS_TELEMETRY` | `true` | Set `false` to send nothing at all |
+| `OPENCLAW_PROTONPASS_POSTHOG_KEY` | the project's own key | Point a fork at its own project; the empty string keeps reporting on while sending nowhere |
+| `OPENCLAW_PROTONPASS_POSTHOG_HOST` | `https://eu.i.posthog.com` | Ingestion host |
+| `OPENCLAW_PROTONPASS_SERVICE_NAME` | `openclaw-proton-pass` | Service name on traces, metrics and logs |
+| `OPENCLAW_PROTONPASS_ENVIRONMENT` | `production` | Deployment environment reported alongside them |
+
+[What is reported, and why a secret cannot be →](/security/telemetry)
+
+## OpenClaw's own configuration
+
+Registering the provider by hand, when not installed as a plugin:
+
+<Tabs>
+  <Tab title="Linux and macOS">
+    ```bash
+    openclaw config set secrets.providers.protonpass.source exec
+    openclaw config set secrets.providers.protonpass.command "$(command -v openclaw-protonpass-resolver)"
+    openclaw config set secrets.providers.protonpass.jsonOnly true
+    openclaw config set secrets.providers.protonpass.timeoutMs 60000
+    ```
+  </Tab>
+  <Tab title="Windows">
+    ```powershell
+    openclaw config set secrets.providers.protonpass.source exec
+    openclaw config set secrets.providers.protonpass.command (Get-Command openclaw-protonpass-resolver).Source
+    openclaw config set secrets.providers.protonpass.jsonOnly true
+    openclaw config set secrets.providers.protonpass.timeoutMs 60000
+    ```
+  </Tab>
+</Tabs>
+
+`timeoutMs` should be at least `OPENCLAW_PROTONPASS_TIMEOUT_MS`, or the Gateway
+will give up while the resolver is still waiting on the vault.
+
+## Verifying what was discovered
+
+`doctor` prints the host it detected and the resolved paths rather than the
+defaults, which is the quickest way to find out that an override is not doing
+what you expected:
+
+```bash
+openclaw-proton-pass doctor
+```

@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "mcp-auth-proxy",
+  "projectType": "application",
+  "sourceRoot": "apps/mcp-auth-proxy/src",
+  "tags": [
+    "type:app",
+    "scope:cli"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -b apps/mcp-auth-proxy/tsconfig.json"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -b apps/mcp-auth-proxy/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run tests/apps/mcp-auth-proxy --passWithNoTests",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

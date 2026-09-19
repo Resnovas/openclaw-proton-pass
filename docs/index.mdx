@@ -1,0 +1,61 @@
+---
+title: "OpenClaw Proton Pass"
+description: "Resolve OpenClaw credentials from Proton Pass at the moment they are needed, so no API key is ever written into a configuration file."
+---
+
+OpenClaw needs credentials - an API key for a model provider, a bearer token for
+a remote MCP server. The usual way to give it one is to paste the value into
+`openclaw.json`, where it sits in plain text, gets copied into backups, and
+outlives whatever it was for.
+
+This project removes that step. Credentials stay in a [Proton Pass](https://proton.me/pass)
+vault, and are fetched at the moment they are used.
+
+<Note>
+Nothing here stores a credential. The only things written to disk are a map from
+opaque names to vault locations, and the token that authenticates to your vault.
+</Note>
+
+## What gets installed
+
+| Binary | What it is for |
+| --- | --- |
+| `openclaw-protonpass-resolver` | An OpenClaw `exec` secret provider. Answers the Gateway's JSON protocol on stdin and stdout. |
+| `openclaw-pass-run` | Launches a **stdio** MCP server with `pass://` environment references already resolved. |
+| `openclaw-mcp-auth-proxy` | A loopback HTTP hop that attaches a credential header to **remote** MCP requests. |
+| `openclaw-proton-pass` | `setup`, `token` and `doctor`. |
+
+Three of them exist because OpenClaw accepts a secret in three places and each
+place has different rules. [How it works](/how-it-works) explains which one you
+need.
+
+## Start here
+
+<Columns cols={2}>
+  <Card title="Quickstart" href="/quickstart">
+    From nothing to a resolved credential, in five steps.
+  </Card>
+  <Card title="How it works" href="/how-it-works">
+    The three paths a secret can take, and why there are three.
+  </Card>
+  <Card title="Explain it simply" href="/concepts/explain-it-simply">
+    The whole design in plain language, no background assumed.
+  </Card>
+  <Card title="Security model" href="/security/model">
+    What this refuses to do, and what it still cannot protect you from.
+  </Card>
+</Columns>
+
+## Requirements
+
+- Node.js 20 or newer
+- [`pass-cli`](https://protonpass.github.io/pass-cli), signed in at least once
+- A Proton Pass vault for these secrets - the examples throughout call it `OpenClaw`
+
+<Accordion title="Notes for AI agents">
+This project is an Nx workspace using pnpm, TypeScript and Effect v3. Libraries
+live in `libs/*` and executables in `apps/*`; tests mirror that tree under
+`tests/`. The generated API reference under `/reference/api` is produced by
+`@effect/docgen` from JSDoc and must not be edited by hand - change the JSDoc in
+`libs/*/src` and run `pnpm docs:api`.
+</Accordion>

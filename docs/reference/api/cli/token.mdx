@@ -1,0 +1,51 @@
+---
+title: "token.ts"
+description: "Storing the Proton Pass agent token. The token arrives on standard input and is written to the configured path with owner-only permissions. This exists as a command because the shell one-liner it replaces was not portable: `install -m 0600 /dev/stdin` has no Windows equivalent, and the here-string that fed it is a bash and zsh feature that fish and POSIX sh do not have."
+---
+
+## utils
+
+### parseToken
+
+Reduce piped input to the token it carries.
+
+**Signature**
+
+```ts
+export declare const parseToken: (input: string) => string | undefined
+```
+
+**Example**
+
+```ts
+import { parseToken } from "@resnovas/opp-cli/token"
+
+assert.strictEqual(parseToken("  pat_abc123\n"), "pat_abc123")
+assert.strictEqual(parseToken("\n\n"), undefined)
+assert.strictEqual(parseToken("one\ntwo"), undefined)
+```
+
+### storeToken
+
+Store the agent token piped in on standard input.
+
+**Signature**
+
+```ts
+export declare const storeToken: Effect.Effect<
+  void,
+  MissingAgentTokenError,
+  Paths | Telemetry | FileSystem.FileSystem | CommandExecutor.CommandExecutor
+>
+```
+
+**Example**
+
+```ts
+import { storeToken } from "@resnovas/opp-cli/token"
+import { Effect } from "effect"
+
+// Nothing has been read or written yet: the command is an Effect, so it
+// touches standard input only when it is run.
+assert.strictEqual(Effect.isEffect(storeToken), true)
+```

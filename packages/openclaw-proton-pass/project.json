@@ -1,0 +1,41 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "openclaw-proton-pass",
+  "projectType": "library",
+  "sourceRoot": "packages/openclaw-proton-pass",
+  "tags": [
+    "type:package",
+    "scope:dist"
+  ],
+  "implicitDependencies": [
+    "resolver",
+    "pass-run",
+    "mcp-auth-proxy",
+    "cli"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "{projectRoot}/bin"
+      ],
+      "options": {
+        "command": "node --experimental-strip-types scripts/build-plugin-package.ts",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "pack": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "command": "npm pack --pack-destination ../../dist",
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
+}

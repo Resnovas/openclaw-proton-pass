@@ -1,0 +1,199 @@
+---
+title: "Commands"
+description: "The four executables this package installs, what each one reads and writes, and how to invoke them."
+---
+
+## `openclaw-proton-pass`
+
+The management CLI, built with `@effect/cli`.
+
+```bash
+openclaw-proton-pass --help
+openclaw-proton-pass setup
+openclaw-proton-pass token
+openclaw-proton-pass doctor
+```
+
+### `setup`
+
+Prepares the configuration directory. Safe to re-run.
+
+<Steps>
+  <Step title="Creates the directory">
+    `~/.config/proton-pass-cli` on Linux and macOS,
+    `%APPDATA%\proton-pass-cli` on Windows. Restricted to your account: mode
+    `0700` where POSIX modes apply, and an `icacls` grant on Windows, where
+    `chmod` does nothing.
+  </Step>
+  <Step title="Seeds the configuration">
+    `openclaw-secret-map.json` and `openclaw-mcp-proxy.json`, owner-only, from
+    worked Context7 examples. **An existing file is never overwritten** - the
+    secret map is the one piece of state a re-run must not disturb.
+  </Step>
+  <Step title="Writes the service file this host can use">
+    A systemd user unit, a launch agent, a Task Scheduler definition, or a
+    launcher script where there is no init system, with this install's Node
+    binary and proxy entry point resolved. This one *is* rewritten on every
+    run, because its contents are only valid for the install that produced
+    them. See [running it as a service](/guides/running-as-a-service).
+  </Step>
+  <Step title="Prints what to do next">
+    The command that enables the service, and the two that create the agent
+    token, which `setup` cannot do for you because it requires your Proton
+    Pass session.
+  </Step>
+</Steps>
+
+<ResponseField name="--service" type="auto | systemd | launchd | schtasks | none" default="auto">
+  Which supervisor to write configuration for. `auto` detects this host.
+  Naming one explicitly is for what detection cannot see: preparing an install
+  for a target that is not the machine running the command, or forcing the
+  launcher script on a systemd host where the proxy is meant to run under
+  something else.
+</ResponseField>
+
+### `token`
+
+Stores the Proton Pass agent token, read from standard input.
+
+```bash
+pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+openclaw-proton-pass token             # paste it, then Ctrl-D
+openclaw-proton-pass token < token.txt # or pipe it in
+```
+
+The token is written to `openclaw-agent-pat`, readable only by your account,
+and an existing one is replaced, because rotating a token is the reason to run
+this a second time. Input that is empty, or that holds more than one line, is
+rejected rather than stored: both mean something other than a token arrived,
+and a stored non-token fails later as an authentication error that points
+nowhere useful.
+
+This exists as a command because the shell one-liner it replaces was not
+portable. `install -m 0600 /dev/stdin` has no Windows equivalent, and the
+here-string that fed it is a bash and zsh feature that fish and POSIX sh do
+not have.
+
+<Note>
+`token` is not required. Exporting `OPENCLAW_PROTONPASS_AGENT_TOKEN` supplies
+the same token through the environment and no file is written or read, which
+is usually what a container or a managed host wants. The variable takes
+precedence over the file whenever both exist.
+</Note>
+
+### `doctor`
+
+Reports what is installed, configured and missing. **Read-only** - it never
+creates or repairs anything, so it is safe against a production host.
+
+```
+  host linux, service manager systemd
+  config /home/you/.config/proton-pass-cli
+  ok    pass-cli at /home/you/.local/bin/pass-cli
+  ok    secret map /home/you/.config/proton-pass-cli/openclaw-secret-map.json
+  MISS  agent token /home/you/.config/proton-pass-cli/openclaw-agent-pat - create one with `pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw`, then store it with `openclaw-proton-pass token` or export OPENCLAW_PROTONPASS_AGENT_TOKEN
+  ok    proxy routes /home/you/.config/proton-pass-cli/openclaw-mcp-proxy.json
+  ok    session directory /home/you/.local/state/openclaw-protonpass
+```
+
+When the token comes from the environment the line names the variable
+instead, because that is the one the session will use:
+
+```
+  ok    agent token from OPENCLAW_PROTONPASS_AGENT_TOKEN
+```
+
+A remedy is printed only beside a check that failed. A failing check is
+reported and counted; the command still exits successfully,
+because "this host is not fully configured" is a report, not a crash.
+
+---
+
+## `openclaw-protonpass-resolver`
+
+The OpenClaw `exec` secret provider. Reads one JSON request on stdin, writes one
+JSON response on stdout, exits.
+
+```bash
+echo '{"protocolVersion":1,"ids":["CONTEXT7_API_KEY"]}' | openclaw-protonpass-resolver
+```
+
+Not normally invoked by hand - OpenClaw runs it. The [protocol
+reference](/reference/protocol) documents the contract.
+
+<Warning>
+**stdout is the protocol.** Every log line from every component goes to stderr,
+because a single log line on stdout would corrupt the response the Gateway is
+parsing.
+</Warning>
+
+---
+
+## `openclaw-pass-run`
+
+Launches a command with `pass://` environment references resolved.
+
+```bash
+openclaw-pass-run <command> [args...]
+openclaw-pass-run -- <command> [args...]
+```
+
+The optional `--` mirrors `pass-cli run`. Every environment variable whose value
+begins `pass://` is resolved; everything else is passed through. The child's
+stdio is this process's stdio, and its exit code becomes the exit code.
+
+```bash
+CONTEXT7_API_KEY="pass://OpenClaw/context7.com/API Key" \
+  openclaw-pass-run -- npx -y @upstash/context7-mcp
+```
+
+[Guide →](/guides/stdio-mcp-servers)
+
+---
+
+## `openclaw-mcp-auth-proxy`
+
+A loopback HTTP hop that attaches a credential header to requests bound for a
+remote MCP server. Takes no arguments; everything comes from
+`openclaw-mcp-proxy.json`.
+
+```bash
+openclaw-mcp-auth-proxy
+```
+
+Exits at startup if the route file is missing, unparseable, has no routes, or
+names a non-loopback listen address.
+
+[Guide →](/guides/remote-mcp-servers) · [Running it as a
+service →](/guides/running-as-a-service)
+
+---
+
+## Where they come from
+
+<CodeGroup>
+```bash Plugin
+openclaw plugins install clawhub:@resnovas/openclaw-proton-pass
+```
+
+```bash npm
+npm install -g @resnovas/openclaw-proton-pass
+```
+
+```bash Release archive
+# openclaw-proton-pass-bin-<version>.zip - four self-contained bundles,
+# runnable with node, no install step and no node_modules.
+```
+
+```bash Source
+git clone https://github.com/Resnovas/openclaw-proton-pass.git
+cd openclaw-proton-pass
+pnpm install && pnpm build
+node apps/cli/dist/main.js setup
+```
+</CodeGroup>
+
+Installed as a plugin, the manifest declares the secret provider through
+`secretProviderIntegrations`, so installing registers the `protonpass` provider
+and removing the plugin revokes it - rather than leaving a hardcoded `command`
+path in `openclaw.json` that outlives the thing it points at.

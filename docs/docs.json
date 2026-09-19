@@ -1,0 +1,188 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "OpenClaw Proton Pass",
+  "description": "Resolve OpenClaw credentials from Proton Pass at request time, so no API key is ever written into a configuration file.",
+  "colors": {
+    "primary": "#6D4AFF",
+    "light": "#A78BFA",
+    "dark": "#4C1D95"
+  },
+  "filterSidebar": true,
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "assistant",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "grok",
+      "mcp",
+      "add-mcp",
+      "cursor",
+      "vscode"
+    ],
+    "display": "header"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Start here",
+            "pages": [
+              "index",
+              "how-it-works",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/credential-fields",
+              "guides/stdio-mcp-servers",
+              "guides/remote-mcp-servers",
+              "guides/running-as-a-service"
+            ]
+          },
+          {
+            "group": "Understand it",
+            "pages": [
+              "concepts/explain-it-simply",
+              "concepts/ids-references-values",
+              "concepts/sessions",
+              "concepts/failure"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/commands",
+              "reference/configuration",
+              "reference/protocol"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/model",
+              "security/telemetry"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "troubleshooting",
+              "contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "reference/api/index"
+            ]
+          },
+          {
+            "group": "Domain",
+            "pages": [
+              "reference/api/domain/index",
+              "reference/api/domain/errors",
+              "reference/api/domain/protocol",
+              "reference/api/domain/route",
+              "reference/api/domain/secret"
+            ]
+          },
+          {
+            "group": "Config",
+            "pages": [
+              "reference/api/config/index",
+              "reference/api/config/agent-token",
+              "reference/api/config/audit",
+              "reference/api/config/host",
+              "reference/api/config/logging",
+              "reference/api/config/paths",
+              "reference/api/config/permissions",
+              "reference/api/config/telemetry-config",
+              "reference/api/config/timeouts"
+            ]
+          },
+          {
+            "group": "Pass CLI",
+            "pages": [
+              "reference/api/pass-cli/index",
+              "reference/api/pass-cli/reason",
+              "reference/api/pass-cli/resolver",
+              "reference/api/pass-cli/session"
+            ]
+          },
+          {
+            "group": "Telemetry",
+            "pages": [
+              "reference/api/telemetry/index",
+              "reference/api/telemetry/device",
+              "reference/api/telemetry/events",
+              "reference/api/telemetry/logs",
+              "reference/api/telemetry/payload",
+              "reference/api/telemetry/telemetry"
+            ]
+          },
+          {
+            "group": "resolver",
+            "pages": [
+              "reference/api/resolver/index",
+              "reference/api/resolver/app",
+              "reference/api/resolver/program"
+            ]
+          },
+          {
+            "group": "pass-run",
+            "pages": [
+              "reference/api/pass-run/index",
+              "reference/api/pass-run/app",
+              "reference/api/pass-run/argv"
+            ]
+          },
+          {
+            "group": "mcp-auth-proxy",
+            "pages": [
+              "reference/api/mcp-auth-proxy/index",
+              "reference/api/mcp-auth-proxy/app",
+              "reference/api/mcp-auth-proxy/routing",
+              "reference/api/mcp-auth-proxy/server"
+            ]
+          },
+          {
+            "group": "cli",
+            "pages": [
+              "reference/api/cli/index",
+              "reference/api/cli/app",
+              "reference/api/cli/doctor",
+              "reference/api/cli/setup",
+              "reference/api/cli/token"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/Resnovas/openclaw-proton-pass"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Resnovas/openclaw-proton-pass"
+    }
+  }
+}

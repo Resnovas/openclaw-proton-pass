@@ -1,0 +1,83 @@
+---
+title: "server.ts"
+description: "The running proxy: configuration, credential cache, forwarding and relay. Credentials are memoised so an MCP call does not cost a vault round trip; an upstream 401 invalidates the entry and the request is retried once."
+---
+
+## utils
+
+### loadConfig
+
+Load and validate the route configuration.
+
+Validation rejects a non-loopback listen address here, at load, rather than
+at first request: binding beyond loopback would expose an unauthenticated
+route that attaches a real credential to anything reaching it.
+
+**Signature**
+
+```ts
+export declare const loadConfig: Effect.Effect<
+  {
+    readonly listen: string & Brand<"ListenAddress">
+    readonly routes: {
+      readonly [x: string]: {
+        readonly upstream: string
+        readonly header: string
+        readonly secretId: string & Brand<"SecretId">
+        readonly timeoutSeconds: number
+      }
+    }
+  },
+  RouteConfigError,
+  Paths | FileSystem.FileSystem
+>
+```
+
+### readBody
+
+Read a request body fully; MCP payloads are small JSON documents.
+
+Exported so the failure path can be exercised directly: a client aborting
+mid-body is not something a test can stage reliably against a real socket.
+
+**Signature**
+
+```ts
+export declare const readBody: (request: IncomingMessage) => Effect.Effect<Buffer, ProxyIoError, never>
+```
+
+**Example**
+
+```ts
+import { readBody } from "@resnovas/opp-mcp-auth-proxy/server"
+import { Effect } from "effect"
+import { Readable } from "node:stream"
+import type { IncomingMessage } from "node:http"
+
+const request = Readable.from([Buffer.from('{"method":"tools/list"}')]) as IncomingMessage
+
+assert.strictEqual((await Effect.runPromise(readBody(request))).toString("utf8"), '{"method":"tools/list"}')
+```
+
+### serve
+
+The running proxy.
+
+Credentials are memoised so an MCP call does not cost a vault round trip;
+because that means a rotated credential would otherwise never be noticed, an
+upstream 401 invalidates the entry and the request is retried once.
+
+The upstream call uses the platform's `fetch` rather than Effect's HttpClient
+because this hop must forward arbitrary methods and stream an open
+`text/event-stream` back unchanged; `fetch` exposes the response body as a
+stream that can be piped through without buffering.
+
+**Signature**
+
+```ts
+export declare const serve: Effect.Effect<
+  Server<typeof IncomingMessage, typeof ServerResponse>,
+  ProxyIoError | RouteConfigError,
+  Paths | FileSystem.FileSystem | Scope | Telemetry | CommandExecutor | SecretResolver
+>
+```

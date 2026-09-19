@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "baseUrl": ".",
+    "paths": {
+      "@resnovas/opp-domain": ["./libs/domain/src/index.ts"],
+      "@resnovas/opp-config": ["./libs/config/src/index.ts"],
+      "@resnovas/opp-pass-cli": ["./libs/pass-cli/src/index.ts"],
+      "@resnovas/opp-telemetry": ["./libs/telemetry/src/index.ts"],
+      "@resnovas/opp-cli/*": ["./apps/cli/src/*"],
+      "@resnovas/opp-resolver/*": ["./apps/resolver/src/*"],
+      "@resnovas/opp-pass-run/*": ["./apps/pass-run/src/*"],
+      "@resnovas/opp-mcp-auth-proxy/*": ["./apps/mcp-auth-proxy/src/*"]
+    }
+  }
+}

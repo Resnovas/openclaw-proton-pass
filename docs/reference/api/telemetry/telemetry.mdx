@@ -1,0 +1,54 @@
+---
+title: "telemetry.ts"
+description: "The service the rest of the system reports through. One interface whether or not reporting is enabled, so no call site has to know which it is."
+---
+
+## models
+
+### TelemetryApi (interface)
+
+What the telemetry service offers, whether or not reporting is enabled.
+
+**Signature**
+
+```ts
+export interface TelemetryApi {
+  /** Report one analytics event, and its numeric fields as metrics. */
+  readonly capture: (event: TelemetryEvent) => Effect.Effect<void>
+  /** Report a failure to error tracking, by tag. */
+  readonly captureError: (tag: ErrorTag, stack?: string) => Effect.Effect<void>
+  /** Report a structured diagnostic to logs. */
+  readonly diagnostic: (logId: LogId, level: LogLevel, count?: number) => Effect.Effect<void>
+  /** Record an effect as a distributed-tracing span. */
+  readonly span: <A, E, R>(name: SpanName, effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  /** Flush anything buffered. */
+  readonly flush: Effect.Effect<void>
+  /** Whether reporting is actually on. */
+  readonly active: boolean
+}
+```
+
+Added in v0.1.0
+
+## services
+
+### Telemetry (class)
+
+Usage reporting: analytics, metrics, logs, traces and error tracking.
+
+On by default. The reporting pipeline is built so that a secret has no field
+to travel in, which is what makes that defensible for a tool handling
+credentials - see TELEMETRY.md. Opting out is one environment variable.
+
+Each signal goes to the PostHog product that displays it: analytics and
+errors as events, metrics through the SDK's metrics client, spans through its
+tracing client, and diagnostics as OTLP log records. Event properties still
+pass through `toProperties`, the single place a property is built.
+
+**Signature**
+
+```ts
+export declare class Telemetry
+```
+
+Added in v0.1.0
