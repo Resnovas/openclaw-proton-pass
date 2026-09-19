@@ -1,0 +1,14 @@
+# 1.0.0 (2026-09-19)
+
+### 🚀 Features
+
+- OpenClaw Proton Pass secret provider, MCP wrappers and installer ([#1](https://github.com/Resnovas/openclaw-proton-pass/pull/1))
+
+### 🩹 Fixes
+
+- **deps:** return vitest to 3, which is the only major its peers allow ([#5](https://github.com/Resnovas/openclaw-proton-pass/pull/5))
+- **workflows:** drop --yes from nx release step ([#11](https://github.com/Resnovas/openclaw-proton-pass/pull/11))
+
+### ❤️ Thank You
+
+- Jonathan S @TGTGamer
