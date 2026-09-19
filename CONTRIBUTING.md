@@ -75,12 +75,14 @@ publishes the plugin to ClawHub.
 
 Required repository secrets:
 
-| Secret | Used for |
-| --- | --- |
-| `NPM_TOKEN` | npm publish (automation token with publish rights to `@resnovas`) |
-| `CLAWHUB_TOKEN` | ClawHub package publish |
-| `POSTHOG_CLI_API_KEY` | Source map upload (personal API key with error-tracking write) |
-| `POSTHOG_PROJECT_ID` | Source map upload (the numeric project id) |
+| Secret | Used for | Absent means |
+| --- | --- | --- |
+| `NPM_TOKEN` | npm publish (automation token with publish rights to `@resnovas`) | the publish step fails |
+| `CLAWHUB_TOKEN` | ClawHub package publish | the publish step fails |
+| `POSTHOG_CLI_API_KEY` | Source maps and the PostHog release. A **personal** API key with `error tracking write` and `organization read` | the upload step fails |
+| `POSTHOG_PROJECT_ID` | The numeric PostHog project id | the upload step fails |
+| `CONTEXT7_API_KEY` | Deploying the documentation site from the CLI | the step is skipped, which is correct when the site is connected to this repository from the Context7 teamspace |
+| `LINEAR_ACCESS_KEY` | Recording the release in Linear. A **pipeline** access key from Settings, Releases; a personal API key will not work | the step is skipped |
 
 `GITHUB_TOKEN` is provided by Actions and needs no configuration.
 

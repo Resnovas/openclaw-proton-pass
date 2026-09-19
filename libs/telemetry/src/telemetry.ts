@@ -210,7 +210,17 @@ export class Telemetry extends Effect.Service<Telemetry>()("Telemetry", {
         Effect.sync(() => {
           // The original error never travels: its message is free text and its
           // fields may hold a path. Only the tag and a sanitised stack do.
-          client.captureException(toReportableError(tag, stack), identity, { errorTag: tag })
+          //
+          // The fingerprint is pinned to the tag rather than derived. PostHog
+          // builds one from the resolved in-app stack frames, and the frames
+          // reaching it here have had their paths reduced to basenames, so the
+          // same failure could group differently between builds. The tag
+          // already names the failure mode exactly, which is the grouping this
+          // system wants: one issue per way of failing.
+          client.captureException(toReportableError(tag, stack), identity, {
+            errorTag: tag,
+            $exception_fingerprint: tag
+          })
           client.metrics.count(`openclaw_proton_pass.error.${tag}`, 1)
         }).pipe(Effect.ignore),
       diagnostic: (logId, level, count = 1) =>

@@ -74,14 +74,23 @@ jobs:
       # Inject must happen before publish: it stamps a chunk id into each
       # bundle, and the uploaded map is keyed by that id. Publishing an
       # uninjected bundle would leave every stack trace unresolvable.
-      - name: Upload source maps to PostHog
+      # `process` is inject followed by upload. The upload half creates or
+      # reuses the PostHog release, and the name and version are passed
+      # explicitly: left to infer, the CLI derives them from git and the
+      # release is recorded against a commit SHA. Every exception reports
+      # `app_version` as the package version, so the release has to be keyed
+      # the same way or the two never line up.
+      - name: Upload source maps and record the release in PostHog
         if: ${{ !inputs.dry_run }}
         env:
           POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
           POSTHOG_CLI_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
         run: |
           npx -y @posthog/cli@0.18 --host https://eu.posthog.com \
-            sourcemap process --directory packages/openclaw-proton-pass/bin
+            sourcemap process \
+            --directory packages/openclaw-proton-pass/bin \
+            --release-name openclaw-proton-pass \
+            --release-version "${{ steps.version.outputs.value }}"
 
       # The maps are 10 MB each and useless to an installer; PostHog has them
       # now, so they do not belong in the tarball.
@@ -135,3 +144,33 @@ jobs:
         env:
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
         run: pnpm docs:deploy
+
+      # Last, so that a Linear release marked complete means the version is
+      # actually installable rather than merely tagged. The action scans the
+      # commits since the previous release for issue identifiers and attaches
+      # them, which is why the checkout needs full history.
+      #
+      # Skipped when LINEAR_ACCESS_KEY is absent: the key belongs to one
+      # release pipeline, created in Linear settings, and releases are a
+      # Business plan feature. A repository without it still releases.
+      - name: Record the release in Linear
+        if: ${{ secrets.LINEAR_ACCESS_KEY != '' }}
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: sync
+          name: v${{ steps.version.outputs.value }}
+          version: v${{ steps.version.outputs.value }}
+          links: |
+            GitHub release=https://github.com/Resnovas/openclaw-proton-pass/releases/tag/v${{ steps.version.outputs.value }}
+            npm=https://www.npmjs.com/package/@resnovas/openclaw-proton-pass/v/${{ steps.version.outputs.value }}
+          dry_run: ${{ inputs.dry_run }}
+
+      - name: Complete the Linear release
+        if: ${{ !inputs.dry_run && secrets.LINEAR_ACCESS_KEY != '' }}
+        uses: linear/linear-release-action@v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          name: v${{ steps.version.outputs.value }}
+          version: v${{ steps.version.outputs.value }}

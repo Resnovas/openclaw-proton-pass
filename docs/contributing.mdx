@@ -25,6 +25,13 @@ pnpm verify         # everything CI checks
   <Step title="lint:headers">
     Every source file carries the canonical FCL-1.0-MIT header.
   </Step>
+  <Step title="lint:prose">
+    No em or en dashes in authored text. House style is the ASCII
+    hyphen-minus.
+  </Step>
+  <Step title="lint:contracts">
+    Every exported callable's contract survives into `dist/**/*.d.ts`.
+  </Step>
   <Step title="coverage">
     100% of lines, statements, branches and functions, enforced as a threshold.
   </Step>
@@ -32,8 +39,12 @@ pnpm verify         # everything CI checks
     How many times each covered line actually ran. Line coverage says a line
     ran; this says whether it ran under more than one path.
   </Step>
-  <Step title="docs:api">
-    Regenerates the API reference, which compiles and **runs** every `@example`.
+  <Step title="docs:check">
+    Regenerates the API reference, which compiles and **runs** every
+    `@example`, and fails if the committed pages have drifted.
+  </Step>
+  <Step title="ai-docgen:check">
+    Fails if `LLMS.md` is out of date with `ai-docs/src`.
   </Step>
 </Steps>
 
@@ -213,8 +224,58 @@ download and this project publishes none.
 
 ## Releasing
 
-Run the **Release** workflow from the Actions tab. `pnpm verify` runs before
-anything is tagged, so a failing suite, a missing licence header or a broken
-documentation example stops the release rather than shipping.
+Run the **Release** workflow from the Actions tab. `pnpm verify` runs as
+`nx release`'s `preVersionCommand`, so a failing suite, a missing licence
+header or a broken documentation example stops the release before anything is
+tagged.
 
 Tick **dry run** to rehearse without tagging or publishing.
+
+<Steps>
+  <Step title="Version, tag and GitHub release">
+    `nx release` derives the version from conventional commits, writes
+    `CHANGELOG.md`, commits, tags `v{version}`, and opens the GitHub release.
+  </Step>
+  <Step title="Build and upload source maps">
+    The bundles are built, then `posthog-cli sourcemap process` injects a chunk
+    id into each one and uploads the maps. Injection has to happen before
+    publish: the uploaded map is keyed by that id, so an uninjected bundle
+    leaves every stack trace unresolvable.
+  </Step>
+  <Step title="Publish">
+    npm with provenance, the bundles attached to the GitHub release as a zip,
+    then ClawHub.
+  </Step>
+  <Step title="Record the release">
+    PostHog gets a release named `openclaw-proton-pass` at the package version,
+    and Linear gets one named `v{version}` with the issues referenced by the
+    commits since the previous release.
+  </Step>
+</Steps>
+
+### Release names line up on purpose
+
+Every exception reports `app_version`, baked into the bundle at build time from
+the package version. The PostHog release is created with that same version
+rather than the git SHA the CLI would otherwise infer, so an issue in error
+tracking resolves to the release that produced it.
+
+Exceptions also carry an explicit `$exception_fingerprint` set to the error
+tag. PostHog would otherwise derive one from the resolved in-app stack frames,
+and the frames it receives have had their paths reduced to basenames, so the
+same failure could group differently between builds. The tag already names the
+failure mode, which is the grouping this system wants: one issue per way of
+failing.
+
+### What needs configuring outside the repository
+
+<Warning>
+Both of these are skipped rather than failed when their secret is absent, so a
+fork releases without them. Neither can be set up from the repository.
+</Warning>
+
+- **Linear**: a release pipeline in Settings, Releases, and its access key as
+  `LINEAR_ACCESS_KEY`. A personal API key will not work. Releases are a
+  Business plan feature.
+- **PostHog source linking**: connect the GitHub integration in PostHog, so
+  stack frames link to the commit that produced them.
