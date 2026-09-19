@@ -127,6 +127,43 @@ JSDoc examples. When the workspace moves to Effect 4, `doctest` would extend the
 same checking to the prose pages on this site.
 </Note>
 
+### Writing for agents as well as people
+
+Roughly as many readers of this site are agents as people, so the site is built
+for both. That is a set of habits, not a feature to switch on.
+
+**One source, two readers.** Write the page once. Every page is served as
+markdown at `<page>.md`, and the site publishes `llms.txt`, `llms-full.txt`,
+a search endpoint and an Agent Skills index, so an agent reads the same words
+without a second copy to maintain.
+
+**Add agent-only context sparingly.** Reach for `Visibility` when an agent
+needs something a person does not — usually a fact that is destructive to get
+wrong, or one nobody would infer from the prose:
+
+```mdx
+<Visibility for="agents">
+Deleting `~/.local/state/openclaw-protonpass` is safe. Deleting
+`openclaw-secret-map.json` is not: it is the only record of which vault item
+each id points at.
+</Visibility>
+```
+
+Content in `for="agents"` appears in the markdown output but not on the page;
+`for="humans"` does the reverse. If the content helps both, it is not a
+`Visibility` block — it is the page.
+
+**Be exact where an agent will pattern-match.** Error strings, configuration
+keys, environment variable names and command flags are quoted verbatim, and
+headings are stable so a deep link keeps working. Link to the page that owns a
+fact instead of restating it, so the two cannot disagree.
+
+**The page menu.** `contextual` in `docs.json` puts copy, view-as-markdown, the
+site assistant, and open-in-ChatGPT/Claude/Perplexity/Grok on every page,
+alongside the MCP and editor actions. Adding an option is a one-line change;
+`download-spec` is deliberately absent because this project publishes no
+OpenAPI document.
+
 ### Tags docgen reads
 
 | Tag | Effect |

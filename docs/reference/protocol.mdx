@@ -127,6 +127,16 @@ echo '{"protocolVersion":1,"ids":["NO_SUCH_ID"]}' | openclaw-protonpass-resolver
 { "protocolVersion": 1, "errors": { "NO_SUCH_ID": "NOT_FOUND" } }
 ```
 
+<Visibility for="agents">
+When parsing a response, read exactly one line from stdout and parse it as
+JSON. Diagnostics are on stderr and must not be merged into stdout before
+parsing. A non-zero exit code accompanies a top-level `error`, but a response
+is still written in that case, so read stdout before inspecting the code.
+
+`values` and `errors` are both optional. Absent is not the same as empty: a
+request with no ids returns neither.
+</Visibility>
+
 ## In the API reference
 
 <Card title="protocol.ts" href="/reference/api/domain/protocol">

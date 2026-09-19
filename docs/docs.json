@@ -9,6 +9,22 @@
     "dark": "#4C1D95"
   },
   "filterSidebar": true,
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "assistant",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "grok",
+      "mcp",
+      "add-mcp",
+      "cursor",
+      "vscode"
+    ],
+    "display": "header"
+  },
   "navigation": {
     "tabs": [
       {

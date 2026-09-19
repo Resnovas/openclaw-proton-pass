@@ -12,6 +12,24 @@ openclaw-proton-pass doctor
 It prints the paths it actually resolved, which is usually enough — an override
 that is not doing what you expected shows up immediately.
 
+<Visibility for="agents">
+Match on these exact strings when diagnosing from output:
+
+- `Already authenticated` — from `pass-cli login --pat`, means a session file
+  exists. Run `pass-cli logout` in the same `PROTON_PASS_SESSION_DIR` first.
+- `SessionError`, `MissingAgentTokenError`, `SecretMapError`,
+  `ResolutionError`, `ProtocolError`, `RouteConfigError`, `ProxyIoError` — the
+  seven tags. Each is defined on the failure page.
+- `no route for /<path>` — from the proxy, HTTP 404.
+- `no routes configured; nothing to serve` — the route file parsed but is empty.
+
+Deleting `~/.local/state/openclaw-protonpass` is safe and is the supported
+repair for an undecryptable session. Deleting
+`~/.config/proton-pass-cli/openclaw-secret-map.json` is **not** safe: it is the
+only record of which vault item each id points at, and it is not recoverable
+from the vault.
+</Visibility>
+
 ## Resolution fails
 
 <AccordionGroup>
