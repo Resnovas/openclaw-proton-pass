@@ -27,6 +27,14 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The `secrets` context is not available in a step-level `if`, only in
+    # places like `env` and `with`. Presence is captured here, where it is
+    # allowed, and the steps below test these as ordinary strings. The value
+    # is a boolean rendered into a string, so the comparison is against
+    # 'true' rather than a bare truthiness check.
+    env:
+      HAS_CONTEXT7: ${{ secrets.CONTEXT7_API_KEY != '' }}
+      HAS_LINEAR: ${{ secrets.LINEAR_ACCESS_KEY != '' }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -156,7 +164,7 @@ jobs:
       # and every push to the production branch already rebuilds it; leave
       # CONTEXT7_API_KEY unset and this step is skipped.
       - name: Publish the documentation site
-        if: ${{ !inputs.dry_run && secrets.CONTEXT7_API_KEY != '' }}
+        if: ${{ !inputs.dry_run && env.HAS_CONTEXT7 == 'true' }}
         env:
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
         run: pnpm docs:deploy
@@ -170,7 +178,7 @@ jobs:
       # release pipeline, created in Linear settings, and releases are a
       # Business plan feature. A repository without it still releases.
       - name: Record the release in Linear
-        if: ${{ secrets.LINEAR_ACCESS_KEY != '' }}
+        if: ${{ env.HAS_LINEAR == 'true' }}
         uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
@@ -183,7 +191,7 @@ jobs:
           dry_run: ${{ inputs.dry_run }}
 
       - name: Complete the Linear release
-        if: ${{ !inputs.dry_run && secrets.LINEAR_ACCESS_KEY != '' }}
+        if: ${{ !inputs.dry_run && env.HAS_LINEAR == 'true' }}
         uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
