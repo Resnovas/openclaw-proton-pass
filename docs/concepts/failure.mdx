@@ -1,0 +1,109 @@
+---
+title: "What happens when it fails"
+description: "The closed error union, why one unknown id does not fail a batch, and what each component does when it cannot do its job."
+---
+
+Failure behaviour is part of the interface. A secret provider that fails
+unclearly is worse than one that fails often.
+
+## Partial failure is not failure
+
+The Gateway asks for several ids at once. One of them being unknown must not
+deny it the rest.
+
+So per-id failures travel *inside* a successful response:
+
+```json
+{
+  "protocolVersion": 1,
+  "values": { "CONTEXT7_API_KEY": "..." },
+  "errors": { "TYPO_IN_THE_MAP": "NOT_FOUND" }
+}
+```
+
+The top-level `error` field is different. It means no value could be produced at
+all — the map was unreadable, or no session could be established.
+
+<Note>
+There is exactly one per-id failure reason, `NOT_FOUND`. "Absent from the map"
+and "the vault holds nothing there" are answered identically, so the provider
+cannot be used to enumerate which ids exist.
+</Note>
+
+## The error union
+
+Every failure this system can produce is one of seven tagged errors:
+
+| Error | Raised when | Carries |
+| --- | --- | --- |
+| `SecretMapError` | The map cannot be read or does not parse | The path, so you are told which file |
+| `MissingAgentTokenError` | No agent token at the configured path | The path |
+| `SessionError` | No session could be established, even after a rebuild | A reason |
+| `ResolutionError` | `pass-cli` exited non-zero while resolving | A reason |
+| `ProtocolError` | The request on stdin is not a well-formed request | A reason |
+| `RouteConfigError` | The proxy's route file cannot be read or does not parse | The path |
+| `ProxyIoError` | The proxy cannot read a body or bind its listener | A reason |
+
+The union is exhaustive, so a caller can match without a default branch and
+adding a member is a compiler-enforced change at every handling site.
+
+<Accordion title="Why ProxyIoError is tagged rather than a bare Error">
+`Data.TaggedError` extends `Error`. A single untagged member in the union
+therefore widens the whole union to `Error`, and every `catchTag` in the
+codebase stops narrowing. Tagging it is not tidiness; it is what keeps the other
+six usable.
+</Accordion>
+
+See [`errors.ts`](/reference/api/domain/errors) for the definitions.
+
+## Per-component behaviour
+
+<Tabs>
+  <Tab title="Resolver">
+    Writes a response and exits. Logging goes to **stderr**, never stdout,
+    because stdout carries the protocol JSON the Gateway parses and a single
+    interleaved log line would corrupt it.
+
+    A vault call that hangs is abandoned after
+    `OPENCLAW_PROTONPASS_TIMEOUT_MS` (60s by default), because a hung call must
+    not pin the Gateway open indefinitely.
+  </Tab>
+  <Tab title="pass-run">
+    Fails before launching the child if a reference cannot be resolved, rather
+    than starting an MCP server that will fail confusingly on its first call.
+
+    Otherwise it is transparent: the child's exit code becomes its exit code.
+  </Tab>
+  <Tab title="Proxy">
+    An unknown path is a 404. An unresolvable secret is a 502 with no detail,
+    because the client is not entitled to know why.
+
+    A `401` from the upstream triggers exactly one credential refresh and
+    retry — the case where the vault entry was rotated while the proxy was
+    running.
+
+    A relay that fails **after** the upstream's headers have gone downstream
+    drops the connection. Once those headers are sent there is no way to turn
+    the reply into an error document, and the earlier code tried anyway, which
+    left the client waiting for a body that would never arrive. Dropping the
+    connection is the only honest signal left at that point.
+  </Tab>
+  <Tab title="doctor">
+    Never fails. It reports, and repairs nothing, so it is safe on a live host.
+  </Tab>
+</Tabs>
+
+## When the vault itself is unreachable
+
+There is no fallback. If the vault cannot be reached, resolution fails and
+OpenClaw is told it failed.
+
+That is deliberate. A disk cache would mean credentials living on disk after
+all, which is the thing this project exists to avoid, and a stale credential
+fails later and less clearly than an honest refusal now.
+
+The one exception is in memory and bounded: the proxy memoises resolved
+credentials for 30 minutes, up to 64 entries, so a single MCP conversation does
+not cost a vault round trip per message. It is never written down, it dies with
+the process, and a `401` from the upstream invalidates the entry immediately —
+which is what stops a rotated credential going unnoticed for half an hour.

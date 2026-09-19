@@ -1,0 +1,133 @@
+---
+title: "Quickstart"
+description: "From nothing to a credential resolved out of a Proton Pass vault, in five steps."
+---
+
+This walks through the first path — a credential field resolved by the
+provider. The examples use [Context7](https://github.com/upstash/context7),
+which is free and open source and authenticates with an `Authorization: Bearer`
+key, so every command below can be run as written.
+
+<Steps>
+  <Step title="Install">
+    As an OpenClaw plugin, which registers the secret provider for you:
+
+    ```bash
+    openclaw plugins install clawhub:@resnovas/openclaw-proton-pass
+    ```
+
+    Or as standalone commands:
+
+    ```bash
+    npm install -g @resnovas/openclaw-proton-pass
+    ```
+
+    Either way, prepare the configuration directory:
+
+    ```bash
+    openclaw-proton-pass setup
+    ```
+
+    `setup` creates `~/.config/proton-pass-cli` with mode `0700`, seeds the two
+    configuration files if they are absent, and writes a systemd user unit for
+    the proxy with the paths of this install resolved. It never overwrites a
+    file that already exists.
+  </Step>
+
+  <Step title="Create the agent token">
+    ```bash
+    pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+    install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+    ```
+
+    A dedicated agent token rather than your own session, because the Gateway
+    starts at boot. Every read it performs is recorded:
+
+    ```bash
+    pass-cli agent monitor openclaw-gateway
+    ```
+  </Step>
+
+  <Step title="Map an id to a vault location">
+    Edit `~/.config/proton-pass-cli/openclaw-secret-map.json`:
+
+    ```json
+    {
+      "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key",
+      "CONTEXT7_MCP_AUTHORIZATION": {
+        "ref": "pass://OpenClaw/context7.com/API Key",
+        "prefix": "Bearer "
+      }
+    }
+    ```
+
+    This is the only file that records where anything lives. Moving an item
+    between vaults is an edit here, not a configuration migration.
+
+    The second form exists because one vault entry has to serve both a bare
+    credential field and an HTTP header that needs a scheme in front of the
+    token — see [ids, references and values](/concepts/ids-references-values).
+  </Step>
+
+  <Step title="Register the provider">
+    Installed as a plugin, this is already done: the manifest declares the
+    provider and OpenClaw materialises it at startup.
+
+    Configure it by hand only when running the binaries standalone:
+
+    ```bash
+    openclaw config set secrets.providers.protonpass.source exec
+    openclaw config set secrets.providers.protonpass.command "$(command -v openclaw-protonpass-resolver)"
+    openclaw config set secrets.providers.protonpass.jsonOnly true
+    openclaw config set secrets.providers.protonpass.timeoutMs 60000
+    ```
+
+    Restart the Gateway afterwards.
+  </Step>
+
+  <Step title="Check it">
+    ```bash
+    openclaw-proton-pass doctor
+    ```
+
+    Read-only — it reports what is installed, configured and missing, and
+    repairs nothing, so it is safe to run on a live host.
+
+    To exercise the protocol directly:
+
+    ```bash
+    echo '{"protocolVersion":1,"ids":["CONTEXT7_API_KEY"]}' \
+      | openclaw-protonpass-resolver
+    ```
+
+    <Warning>
+    That prints the resolved value to your terminal, and therefore into your
+    shell history if the shell records output. Use it to confirm the path
+    works, then rotate the item if the terminal is not private.
+    </Warning>
+  </Step>
+</Steps>
+
+## Then point a field at it
+
+```bash
+openclaw config set models.providers.openai.apiKey \
+  --ref-provider protonpass --ref-source exec --ref-id CONTEXT7_API_KEY
+```
+
+## Next
+
+<Columns cols={2}>
+  <Card title="Local MCP servers" href="/guides/stdio-mcp-servers">
+    For a server OpenClaw launches itself.
+  </Card>
+  <Card title="Remote MCP servers" href="/guides/remote-mcp-servers">
+    For a server behind a bearer token.
+  </Card>
+  <Card title="Configuration reference" href="/reference/configuration">
+    Every file and every environment variable.
+  </Card>
+  <Card title="Troubleshooting" href="/troubleshooting">
+    When `doctor` is happy and resolution still fails.
+  </Card>
+</Columns>

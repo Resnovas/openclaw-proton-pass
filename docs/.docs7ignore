@@ -1,0 +1,5 @@
+# Docs7 uploads the whole documentation folder, and does not read .gitignore.
+# Nothing generated or private should reach a published site.
+.docs7/
+.docgen/
+node_modules/

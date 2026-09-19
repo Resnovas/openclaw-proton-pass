@@ -1,0 +1,275 @@
+---
+title: "Troubleshooting"
+description: "What each failure means and the shortest way to the cause, starting from the symptom you can actually see."
+---
+
+Start here:
+
+```bash
+openclaw-proton-pass doctor
+```
+
+It prints the paths it actually resolved, which is usually enough — an override
+that is not doing what you expected shows up immediately.
+
+## Resolution fails
+
+<AccordionGroup>
+
+<Accordion title='"NOT_FOUND" for an id you are sure exists'>
+
+The id is absent from the map, or its reference resolves to nothing. They are
+reported identically on purpose.
+
+```bash
+# Is the id in the map, spelled exactly the same way?
+grep -o '"[^"]*"' ~/.config/proton-pass-cli/openclaw-secret-map.json | head
+
+# Does the reference resolve at all, outside this tool?
+pass-cli read "pass://OpenClaw/context7.com/API Key"
+```
+
+If `pass-cli read` works and the resolver does not, the two are using different
+sessions — see the next item.
+
+</Accordion>
+
+<Accordion title='A top-level "error" instead of per-id errors'>
+
+Nothing could be produced at all. Either the map is unreadable, or no session
+could be established.
+
+```bash
+openclaw-proton-pass doctor
+ls -l ~/.config/proton-pass-cli/
+python3 -m json.tool < ~/.config/proton-pass-cli/openclaw-secret-map.json
+```
+
+A common cause is invalid JSON after a hand edit — a trailing comma will do it.
+
+</Accordion>
+
+<Accordion title="SessionError, even though pass-cli works in your terminal">
+
+Your terminal and this provider use **different session directories**, on
+purpose: sharing one would mean the Gateway and your shell logging each other
+out.
+
+So your terminal being signed in proves nothing about the provider's session.
+What matters is the agent token:
+
+```bash
+ls -l ~/.config/proton-pass-cli/openclaw-agent-pat
+pass-cli agent monitor openclaw-gateway
+```
+
+If the token was rotated, write the new one to that path. The next resolution
+rebuilds the session directory by itself.
+
+To force a rebuild:
+
+```bash
+rm -rf ~/.local/state/openclaw-protonpass
+```
+
+That directory belongs solely to this provider, so deleting it is safe.
+
+</Accordion>
+
+<Accordion title="MissingAgentTokenError">
+
+There is no token at the configured path. `setup` cannot create it, because it
+needs your Proton Pass session:
+
+```bash
+pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+```
+
+</Accordion>
+
+<Accordion title="Everything times out">
+
+A vault call is abandoned after `OPENCLAW_PROTONPASS_TIMEOUT_MS` (60s by
+default). A cold agent session on a contended host can genuinely take seconds.
+
+```bash
+time pass-cli info
+```
+
+If that is slow, raise the timeout — and raise OpenClaw's
+`secrets.providers.protonpass.timeoutMs` to match, or the Gateway gives up
+first and you see its timeout rather than this one's error.
+
+</Accordion>
+
+</AccordionGroup>
+
+## The Gateway never calls the provider
+
+<AccordionGroup>
+
+<Accordion title="Check the provider is registered">
+
+Installed as a plugin, the manifest declares it and OpenClaw materialises it at
+startup. Standalone, it has to be configured:
+
+```bash
+openclaw config get secrets.providers.protonpass
+```
+
+Then restart the Gateway. A provider added while it is running is not picked up.
+
+</Accordion>
+
+<Accordion title="Check the field actually holds a reference">
+
+If the credential itself is visible in `openclaw.json`, the `--ref-*` flags did
+not take effect and OpenClaw is using the literal value.
+
+</Accordion>
+
+<Accordion title="Check the command path still exists">
+
+```bash
+command -v openclaw-protonpass-resolver
+```
+
+A configured `command` path pointing at a removed install is exactly the failure
+the plugin manifest avoids.
+
+</Accordion>
+
+</AccordionGroup>
+
+## The proxy
+
+<AccordionGroup>
+
+<Accordion title="It will not start">
+
+Four reasons, all reported at startup on stderr: the route file is missing,
+it is not valid JSON, it has no routes, or `listen` is not a loopback address.
+
+```bash
+journalctl --user -u openclaw-mcp-auth-proxy -n 50
+python3 -m json.tool < ~/.config/proton-pass-cli/openclaw-mcp-proxy.json
+```
+
+The loopback rule is deliberate and not configurable — see the [security
+model](/security/model).
+
+</Accordion>
+
+<Accordion title="404 from the proxy">
+
+No route matches that path. A trailing slash is accepted either way, so the
+mismatch is elsewhere: compare the URL you gave OpenClaw with the keys in
+`routes`.
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18890/context7
+```
+
+A `404` for a path you did not configure means the proxy is up and routing
+correctly.
+
+</Accordion>
+
+<Accordion title="502 from the proxy">
+
+Either the secret could not be resolved, or the upstream was unreachable. The
+response carries no detail on purpose; the log does:
+
+```bash
+journalctl --user -u openclaw-mcp-auth-proxy -f
+```
+
+</Accordion>
+
+<Accordion title="401 from the upstream, repeatedly">
+
+The proxy already retries once with a freshly resolved credential, so a second
+`401` means the credential is wrong rather than stale. Check that the map entry
+carries the decoration the upstream expects — most bearer APIs need
+`"prefix": "Bearer "`, with the trailing space.
+
+</Accordion>
+
+<Accordion title="Streaming responses hang or truncate">
+
+`Content-Length` is deliberately dropped on the way back, because an
+`text/event-stream` body has no known length; framing becomes read-until-close.
+If a client in between re-adds it, that will break streaming.
+
+</Accordion>
+
+<Accordion title="It stops working after you log out">
+
+A systemd **user** unit stops with your last session unless lingering is on:
+
+```bash
+loginctl enable-linger "$USER"
+```
+
+</Accordion>
+
+</AccordionGroup>
+
+## Local MCP servers
+
+<AccordionGroup>
+
+<Accordion title="The server gets the pass:// URI instead of the value">
+
+The wrapper is not in the chain. `command` must be `openclaw-pass-run`, with
+the real command in `args`.
+
+Test it directly:
+
+```bash
+CONTEXT7_API_KEY="pass://OpenClaw/context7.com/API Key" \
+  openclaw-pass-run -- printenv CONTEXT7_API_KEY
+```
+
+</Accordion>
+
+<Accordion title="The wrapper exits before the server starts">
+
+A reference could not be resolved. That is intentional — starting a server that
+will fail confusingly on its first call is worse. The stderr output names the
+failure.
+
+</Accordion>
+
+</AccordionGroup>
+
+## Under a service manager
+
+Two things go wrong in a minimal service environment:
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `pass-cli` not found | The unit's `PATH` has none of the usual directories | `PASS_CLI=/absolute/path/to/pass-cli` |
+| Reads the wrong configuration | `HOME` unset or different | `Environment=HOME=%h`, as the generated unit does |
+
+A variable exported as the **empty string** is treated as unset throughout, so
+`XDG_CONFIG_HOME=` will not silently point anything at `/`.
+
+## Still stuck
+
+```bash
+openclaw-proton-pass doctor
+node --version
+pass-cli --version
+```
+
+Open an issue at
+[Resnovas/openclaw-proton-pass](https://github.com/Resnovas/openclaw-proton-pass/issues)
+with that output.
+
+<Warning>
+Do not paste a resolved value, an `openclaw-secret-map.json`, or an agent token
+into an issue. The `doctor` output is safe to share; it prints paths and
+outcomes, never contents.
+</Warning>

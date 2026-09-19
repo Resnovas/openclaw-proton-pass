@@ -1,0 +1,120 @@
+---
+title: "Running it as a service"
+description: "Keep the loopback proxy running across reboots, with systemd or without, and understand the environment a service gets."
+---
+
+Only the proxy is long-lived. The resolver and `openclaw-pass-run` are started
+on demand by OpenClaw and exit when they are done.
+
+## With systemd (Linux)
+
+`openclaw-proton-pass setup` writes the unit with the paths of this install
+already resolved:
+
+```bash
+openclaw-proton-pass setup
+systemctl --user enable --now openclaw-mcp-auth-proxy
+systemctl --user status openclaw-mcp-auth-proxy
+journalctl --user -u openclaw-mcp-auth-proxy -f
+```
+
+The generated unit:
+
+```ini title="~/.config/systemd/user/openclaw-mcp-auth-proxy.service"
+[Unit]
+Description=OpenClaw MCP auth proxy (Proton Pass credential injection)
+After=network-online.target
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Service]
+ExecStart=<node> <proxy entry point>
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+Environment=HOME=%h
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
+```
+
+<Note>
+It is generated rather than shipped because only the running installer knows
+where the proxy actually landed: a published package puts every binary side by
+side, while a workspace checkout gives each app its own `dist`. A hardcoded path
+is exactly the portability problem this rewrite set out to remove.
+</Note>
+
+### Surviving logout
+
+A user unit stops when your last session ends unless lingering is enabled:
+
+```bash
+loginctl enable-linger "$USER"
+```
+
+Without it the proxy will not be running when the Gateway starts at boot.
+
+## The environment a service gets
+
+A service unit runs with a minimal environment, which is why two things are
+handled explicitly.
+
+<Accordion title="Finding pass-cli">
+`PATH` is searched first, then `~/.local/bin`, `/usr/local/bin` and `/usr/bin`.
+The explicit fallbacks exist because a unit's `PATH` often contains none of
+them. Override it outright with `PASS_CLI=/path/to/pass-cli`.
+</Accordion>
+
+<Accordion title="Finding the configuration">
+`HOME` is set by the unit, and every path derives from it or from an explicit
+override. `XDG_CONFIG_HOME` and `XDG_STATE_HOME` are honoured when set to an
+absolute path; a variable exported as the empty string is treated as unset,
+because taking it literally would point the resolver at the filesystem root.
+</Accordion>
+
+To add an override, use a drop-in rather than editing the generated unit — a
+re-run of `setup` rewrites the unit file:
+
+```bash
+systemctl --user edit openclaw-mcp-auth-proxy
+```
+
+```ini
+[Service]
+Environment=OPENCLAW_PROTONPASS_TIMEOUT_MS=30000
+Environment=OPENCLAW_PROTONPASS_TELEMETRY=false
+```
+
+Every variable is listed in the [configuration
+reference](/reference/configuration).
+
+## Without systemd
+
+The proxy is an ordinary long-running process. Anything that can keep one alive
+will do — launchd, a supervisor, a container. It needs:
+
+- `HOME` set, or every path overridden explicitly
+- `pass-cli` reachable, on `PATH` or via `PASS_CLI`
+- the agent token readable at `openclaw-agent-pat`
+- a writable session directory
+
+```bash
+node /path/to/openclaw-mcp-auth-proxy.mjs
+```
+
+It logs to **stderr** and binds only to loopback. If it exits at startup, the
+route file is missing, unparseable, has no routes, or names a non-loopback
+listen address.
+
+## Checking on it
+
+```bash
+openclaw-proton-pass doctor
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18890/nope
+```
+
+A `404` from that second command means the proxy is up and routing; connection
+refused means it is not running.

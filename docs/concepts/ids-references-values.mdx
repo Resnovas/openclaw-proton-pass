@@ -1,0 +1,103 @@
+---
+title: "Ids, references and values"
+description: "Three kinds of string that look alike and must never be confused, and the branded types that stop them being."
+---
+
+Three different things pass through this system as strings. Mixing them up is
+the failure this design is built to prevent, so each one is a distinct type.
+
+| | Example | Where it is written | What it reveals |
+| --- | --- | --- | --- |
+| **Id** | `CONTEXT7_API_KEY` | `openclaw.json`, the secret map | That a secret exists, and what it is called |
+| **Reference** | `pass://OpenClaw/context7.com/API Key` | The secret map, and nowhere else | Which vault and item hold it |
+| **Value** | the credential itself | Nowhere on disk | Everything |
+
+## Ids are not paths
+
+An id is an opaque label. It is deliberately *not* a vault path, so that
+`openclaw.json` — the file most likely to be shared, backed up or pasted into an
+issue — records only that a secret is needed, never where it lives.
+
+The map is the single place the two are joined. Moving an item between vaults is
+one edit there.
+
+```json title="openclaw-secret-map.json"
+{
+  "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key"
+}
+```
+
+## References are branded
+
+A `PassRef` is validated at the boundary and carries a brand in the type system,
+so a plain string cannot be passed where a reference is expected:
+
+```ts
+import { PassRef } from "@resnovas/opp-domain"
+import { Schema } from "effect"
+
+const ref = Schema.decodeUnknownSync(PassRef)("pass://OpenClaw/context7.com/API Key")
+```
+
+The brand is what makes it impossible to accidentally pass a *resolved value*
+into a position expecting a reference — which is how a credential would end up
+written back into the map.
+
+That example is not illustrative: the same assertions run as part of the build.
+See [`secret.ts`](/reference/api/domain/secret).
+
+## Values are redacted
+
+A resolved value is wrapped in Effect's `Redacted` from the moment it leaves
+`pass-cli`. A `Redacted<string>` prints as `<redacted>` — in a log line, in an
+error message, in a stack trace, in `console.log`. Getting the real string out
+requires calling `Redacted.value` explicitly.
+
+There are exactly three places that call it:
+
+- the protocol response the resolver writes to stdout
+- the environment of the child process `pass-run` launches
+- the outbound header the proxy attaches
+
+Everywhere else, an accidental log line prints nothing.
+
+## Decoration: one vault entry, two consumers
+
+A model provider's `apiKey` field wants the token on its own. An HTTP
+`Authorization` header wants `Bearer ` in front of it.
+
+The tempting fix is two vault entries. That is worse than it looks: they have to
+be rotated together, and eventually they will not be.
+
+So the map can carry the decoration instead:
+
+```json
+{
+  "CONTEXT7_API_KEY": "pass://OpenClaw/context7.com/API Key",
+  "CONTEXT7_MCP_AUTHORIZATION": {
+    "ref": "pass://OpenClaw/context7.com/API Key",
+    "prefix": "Bearer "
+  }
+}
+```
+
+Two ids, one vault entry, one thing to rotate. `prefix` and `suffix` both
+default to empty, so a bare string and a decorated object are the same shape
+once normalised — callers never branch on which form the operator happened to
+write.
+
+<Note>
+Decoration is applied at resolution, inside the redacted boundary. The prefix
+never exists as a separate string alongside the value.
+</Note>
+
+## In the API reference
+
+<Columns cols={2}>
+  <Card title="secret.ts" href="/reference/api/domain/secret">
+    `SecretId`, `PassRef`, `SecretMap`, `normaliseEntry`, `decorate`.
+  </Card>
+  <Card title="route.ts" href="/reference/api/domain/route">
+    `Route`, `ListenAddress`, `ProxyConfig`.
+  </Card>
+</Columns>

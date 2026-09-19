@@ -1,0 +1,134 @@
+---
+title: "Security model"
+description: "What this project protects a credential from, what it deliberately refuses to do, and what it cannot help with."
+---
+
+## What it protects against
+
+The thing this exists to prevent is a credential **outliving its usefulness in a
+place nobody is looking at**: a settings file copied into a backup, committed to
+a repository, or pasted into an issue.
+
+| | Credential in `openclaw.json` | Credential in a vault, resolved here |
+| --- | --- | --- |
+| In backups | Yes, in plain text | No |
+| In a repository if committed | Yes | Only a name |
+| Readable by any process running as you | Yes, from the file, forever | Yes, but only by asking the vault |
+| Read is recorded | No | Yes, `pass-cli agent monitor` |
+| Rotation | Edit every file that has it | Edit the vault item |
+| Revocation | Change the credential everywhere | Revoke one agent token |
+
+## What is on disk
+
+Two things, and neither is a credential for the services you use:
+
+<ResponseField name="openclaw-secret-map.json" type="mode 0600">
+  Names and vault locations. Reading it tells you that a Context7 key exists and
+  which vault item holds it. It does not tell you the key.
+</ResponseField>
+
+<ResponseField name="openclaw-agent-pat" type="mode 0600">
+  The agent token. **This is the root of the whole arrangement.** Anything that
+  can read it can read that vault.
+</ResponseField>
+
+Both live in a directory created at mode `0700`.
+
+## Design decisions that are security decisions
+
+<AccordionGroup>
+<Accordion title="The proxy cannot bind beyond loopback">
+
+`ListenAddress` is a type that cannot represent a non-loopback address.
+Anything other than `127.0.0.1`, `::1` or `localhost` is rejected when the
+configuration loads — not at the first request.
+
+The proxy performs no authentication of its own; it attaches a real credential
+to whatever reaches it. Bound to `0.0.0.0` it would be an open
+credential-lending service. Putting the rule in the type means a
+misconfiguration cannot run at all, rather than running until someone notices.
+
+To reach it from elsewhere, forward a port over SSH. The rule stays enforced and
+access is authenticated by SSH rather than by nothing.
+
+</Accordion>
+
+<Accordion title="Resolved values are redacted by type">
+
+A value is wrapped in Effect's `Redacted` from the moment it leaves `pass-cli`.
+A `Redacted<string>` prints as `<redacted>` in logs, errors, stack traces and
+`console.log`. Exactly three places unwrap it: the protocol response, the
+child's environment, the outbound header.
+
+An accidental log line elsewhere prints nothing.
+
+</Accordion>
+
+<Accordion title="Every executable logs to stderr">
+
+stdout carries the resolver's protocol JSON and the proxy's forwarded payloads.
+A log line on stdout would corrupt what the Gateway parses — and could, in
+principle, interleave a diagnostic into a credential response. Tests spawn the
+built binaries and assert stdout parses as JSON.
+
+</Accordion>
+
+<Accordion title="There is one failure reason, not two">
+
+`NOT_FOUND` covers both "absent from the map" and "the vault holds nothing
+there". Distinguishing them would let a caller use the provider to enumerate
+which ids exist.
+
+</Accordion>
+
+<Accordion title="The proxy returns no detail on failure">
+
+An unresolvable secret is a `502` with no explanation. The client asked for a
+proxied call, not for the state of your vault.
+
+</Accordion>
+
+<Accordion title="Nothing is cached to disk">
+
+There is no credential cache on disk and no fallback to a stale value. The
+proxy memoises in memory for 30 minutes so a conversation does not cost a vault
+round trip per message; that dies with the process and is invalidated by a
+`401`.
+
+</Accordion>
+
+<Accordion title="Telemetry has no field a secret could occupy">
+
+Not a filter — an absence. See [telemetry](/security/telemetry).
+
+</Accordion>
+</AccordionGroup>
+
+## What it does not protect against
+
+Being clear about this is more useful than a longer list of guarantees.
+
+<Warning>
+**Any process running as your user can ask for these secrets.** The vault is
+unlocked for that account by design — that is the point of an agent token. This
+narrows *where a credential is written down*; it does not sandbox what is
+already running with your permissions.
+</Warning>
+
+- **A compromised agent token is a compromised vault.** It is scoped to one
+  vault and it expires, which bounds the damage, but within that vault it is
+  full read access. Give it its own vault, set an expiry, and revoke it if the
+  machine is lost.
+- **The consuming program can do what it likes with the value.** Once the MCP
+  server or the model provider client has the credential, this system has no
+  further say.
+- **The map is not secret.** It reveals which services you hold credentials for
+  and which vault items they live in.
+- **`hostname` is reported by telemetry when it is on.** On a personal machine
+  that often identifies a person. One variable turns it off.
+- **A local privilege escalation defeats all of this.** So does a keylogger.
+  Neither is in scope.
+
+## Reporting a vulnerability
+
+Email `hello@resnovas.com` rather than opening a public issue.

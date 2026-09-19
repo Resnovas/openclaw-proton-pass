@@ -1,0 +1,109 @@
+---
+title: "Sessions and agent tokens"
+description: "Why the Gateway authenticates with its own agent token, why it keeps its own session directory, and what happens when that session can no longer be decrypted."
+---
+
+## Why not your own session
+
+The OpenClaw Gateway starts at boot. There is no terminal, nobody has signed
+in, and there is no user session for it to borrow.
+
+So it authenticates with a **Proton Pass agent token**: a credential scoped to
+one vault, with an expiry, revocable on its own without touching your account.
+
+```bash
+pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<token>'
+```
+
+The token is the one credential this system does keep on disk, at mode `0600`
+in a directory at `0700`. It is the root of the whole arrangement: anything that
+can read it can read that vault.
+
+## Every read is recorded
+
+Agent tokens refuse audited reads unless a reason is given, so this provider
+always supplies one:
+
+```
+PROTON_PASS_AGENT_REASON="OpenClaw Gateway secret resolution"
+```
+
+Which means every resolution this system performs is attributable:
+
+```bash
+pass-cli agent monitor openclaw-gateway
+```
+
+That log is a genuine gain over a credential in a settings file. A file cannot
+tell you who read it.
+
+## Why a separate session directory
+
+`pass-cli` keeps one session per directory. If this provider used the default,
+the Gateway and your own terminal would take turns logging each other out.
+
+So it sets its own:
+
+```
+PROTON_PASS_SESSION_DIR=~/.local/state/openclaw-protonpass
+```
+
+That directory belongs solely to this provider, which is what makes the repair
+below safe.
+
+## The three-step bootstrap
+
+<Steps>
+  <Step title="Reuse">
+    Probe the existing session with `pass-cli info`. If it works, use it.
+
+    The probe reads the **exit code**, not the output. `Command.string` resolves
+    with whatever a process wrote to stdout even when it exited non-zero, so a
+    probe built on output would report every broken session as healthy and the
+    login path below would never run.
+  </Step>
+  <Step title="Log in">
+    Log out, then log in with the agent token.
+
+    The logout is not optional: `pass-cli login --pat` refuses with "Already
+    authenticated" whenever a session file exists — including a stale one that
+    `info` can no longer read.
+  </Step>
+  <Step title="Rebuild">
+    Delete the session directory and log in again.
+
+    `pass-cli` keeps an encrypted database in the session directory whose key
+    derives from the token. `logout` leaves that database behind, so once the
+    token is rotated it can no longer be decrypted and every login fails with an
+    opaque sqlcipher error. The directory belongs only to this provider, so
+    rebuilding it is the correct repair rather than a workaround.
+  </Step>
+</Steps>
+
+If all three fail, resolution fails with a `SessionError`. It does not retry
+indefinitely and it does not fall back to anything.
+
+<Note>
+Which of the three paths was taken is reported as telemetry — `reused`,
+`logged-in` or `rebuilt` — because a host that rebuilds on every call is a host
+with a problem worth seeing. The three words are the whole payload; see
+[telemetry](/security/telemetry).
+</Note>
+
+## Rotating the token
+
+```bash
+pass-cli agent create openclaw-gateway --expiration 1y --vault OpenClaw
+install -m 0600 /dev/stdin ~/.config/proton-pass-cli/openclaw-agent-pat <<< '<new token>'
+```
+
+Nothing else is required. The next resolution finds the old session
+undecryptable, rebuilds the directory, and logs in with the new token. That
+path exists precisely because it was hit for real, not because it was imagined.
+
+## In the API reference
+
+<Card title="session.ts" href="/reference/api/pass-cli/session">
+  `PassSession` — the service implementing the bootstrap above.
+</Card>
