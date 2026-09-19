@@ -1,6 +1,6 @@
 {
   "name": "@resnovas/openclaw-proton-pass",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Resolve OpenClaw credentials from Proton Pass at request time, so no API key is written into openclaw.json",
   "license": "LicenseRef-FCL-1.0-MIT",
   "author": "Jonathan Stevens T/A Resnovas <hello@resnovas.com>",

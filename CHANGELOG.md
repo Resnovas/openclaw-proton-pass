@@ -1,3 +1,13 @@
+## 1.0.2 (2026-09-19)
+
+### 🩹 Fixes
+
+- **release:** configure GitHub Packages registry with setup-node scope mapping ([#16](https://github.com/Resnovas/openclaw-proton-pass/pull/16))
+
+### ❤️ Thank You
+
+- Jonathan S @TGTGamer
+
 ## 1.0.1 (2026-09-19)
 
 ### 🩹 Fixes
