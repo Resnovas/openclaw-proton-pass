@@ -127,7 +127,10 @@ export const handle = (request: ResolveRequest) =>
     // The tag is the only part of a domain error that may be reported: the
     // fields carry paths and the message is free text.
     let failureTag: ErrorTag = "Unknown"
-    const outcomes = yield* resolver.resolve(request.ids).pipe(
+    // The Gateway sends a version, a provider name and a list of ids, and
+    // nothing about the agent, session or task behind the request, so the
+    // ids are the whole of what can be recorded against this read.
+    const outcomes = yield* resolver.resolve(request.ids, { binary: "resolver" }).pipe(
       Effect.catchAll((cause) =>
         Effect.gen(function* () {
           failureTag = cause._tag

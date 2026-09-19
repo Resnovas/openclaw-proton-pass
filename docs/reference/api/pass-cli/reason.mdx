@@ -1,0 +1,99 @@
+---
+title: "reason.ts"
+description: "The sentence Proton records against every audited vault read. An agent token refuses an audited read unless a reason is supplied, and that reason is the only thing `pass-cli agent monitor` shows about why a credential was taken. A constant string satisfies the requirement and wastes it: every entry looks the same, so the log can prove that a read happened and nothing about which one it was. This builds a sentence from what the calling binary actually knows."
+---
+
+## constants
+
+### MAX_REASON_LENGTH
+
+The longest reason Proton Pass accepts.
+
+**Signature**
+
+```ts
+export declare const MAX_REASON_LENGTH: 300
+```
+
+Added in v0.1.0
+
+## models
+
+### AccessPurpose (interface)
+
+Why a binary is reaching for a credential.
+
+**Signature**
+
+```ts
+export interface AccessPurpose {
+  /** Which of the four executables is asking. */
+  readonly binary: Binary
+  /**
+   * What the credential is being used for, in the caller's own terms: the
+   * proxy route it is about to be attached to, or the command that is about
+   * to be launched with it. Omitted by a caller that has nothing to add,
+   * which is the Gateway asking the resolver for a batch of ids.
+   */
+  readonly target?: string | undefined
+}
+```
+
+Added in v0.1.0
+
+### AuditContext (interface)
+
+What this deployment can say about itself.
+
+Both fields are absent unless an operator sets them. OpenClaw tells an
+exec secret provider nothing about the agent, session or task behind a
+request: the protocol carries a version, a provider name and a list of
+ids, and the provider runs with a filtered environment. So the only way
+an agent or task name can reach the audit log is if the operator puts it
+somewhere this can read.
+
+**Signature**
+
+```ts
+export interface AuditContext {
+  /** Free text from `OPENCLAW_PROTONPASS_AUDIT_LABEL`. */
+  readonly label?: string | undefined
+  /** The OpenClaw profile, from `OPENCLAW_PROFILE`, when the host sets it. */
+  readonly profile?: string | undefined
+}
+```
+
+Added in v0.1.0
+
+## utils
+
+### auditReason
+
+Compose the reason recorded against one audited vault read.
+
+**Signature**
+
+```ts
+export declare const auditReason: (
+  purpose: AccessPurpose,
+  names: ReadonlyArray<string>,
+  context: AuditContext
+) => string
+```
+
+**Example**
+
+```ts
+import { auditReason } from "@resnovas/opp-pass-cli"
+
+assert.strictEqual(
+  auditReason({ binary: "mcp-auth-proxy", target: "route /context7" }, ["CONTEXT7_MCP_AUTHORIZATION"], {}),
+  "OpenClaw mcp-auth-proxy reading CONTEXT7_MCP_AUTHORIZATION for route /context7"
+)
+
+// A batch from the Gateway, which knows no more than the ids.
+assert.strictEqual(
+  auditReason({ binary: "resolver" }, ["OPENAI_API_KEY", "DISCORD_BOT_TOKEN"], {}),
+  "OpenClaw resolver reading OPENAI_API_KEY, DISCORD_BOT_TOKEN"
+)
+```

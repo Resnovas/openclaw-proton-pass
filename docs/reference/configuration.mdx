@@ -155,6 +155,20 @@ use](/security/model) sets out how the two fail differently.
 | --- | --- | --- |
 | `OPENCLAW_PROTONPASS_AGENT_TOKEN` | unset | The agent token. Read instead of `openclaw-agent-pat` whenever it is set to anything but whitespace |
 
+### The vault audit log
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `OPENCLAW_PROTONPASS_AUDIT_LABEL` | unset | Free text appended to every entry in `pass-cli agent monitor`. The only way an agent or task name can reach the log, since OpenClaw supplies neither |
+| `OPENCLAW_PROFILE` | set by OpenClaw | Read, not set, by this system. Appended as `profile <name>` so a multi-profile install distinguishes itself |
+
+<Warning>
+Both are transmitted to Proton on every audited read and stored in your
+vault's audit log. They are for identification, not for anything
+confidential. See [sessions and the agent token](/concepts/sessions) for what
+an entry looks like.
+</Warning>
+
 <Warning>
 Installed as an OpenClaw plugin, the resolver runs with a filtered
 environment. The manifest lists the variables that are passed through, and

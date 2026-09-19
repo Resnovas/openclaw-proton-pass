@@ -45,7 +45,7 @@
  */
 
 import { Command, FileSystem } from "@effect/platform"
-import { commandTimeoutMillis, Paths } from "@resnovas/opp-config"
+import { auditContext, commandTimeoutMillis, Paths } from "@resnovas/opp-config"
 import {
   decorate,
   normaliseEntry,
@@ -56,7 +56,8 @@ import {
   type SecretId
 } from "@resnovas/opp-domain"
 import { Telemetry } from "@resnovas/opp-telemetry"
-import { Effect, Redacted, Schema, Stream } from "effect"
+import { Effect, Option, Redacted, Schema, Stream } from "effect"
+import { auditReason, type AccessPurpose } from "./reason.js"
 import { PassSession } from "./session.js"
 
 /**
@@ -118,7 +119,7 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
      * the point is to emit the values; that output is consumed here and never
      * reaches a terminal or a log.
      */
-    const resolveRefs = (refs: ReadonlyArray<PassRef>) =>
+    const resolveRefs = (refs: ReadonlyArray<PassRef>, reason: string) =>
       Effect.gen(function* () {
         const names = refs.map((_, index) => `OPENCLAW_SECRET_${index}`)
         const env = Object.fromEntries(names.map((name, index) => [name, refs[index]!]))
@@ -138,7 +139,17 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
               "bash",
               "-c",
               script
-            ).pipe(Command.env({ ...session.baseEnv, ...env }), Command.start)
+            ).pipe(
+              Command.env({
+                ...session.baseEnv,
+                // The audited read, so this is the entry that appears in
+                // `pass-cli agent monitor` and the only place its purpose is
+                // ever recorded.
+                PROTON_PASS_AGENT_REASON: reason,
+                ...env
+              }),
+              Command.start
+            )
 
             const text = yield* process.stdout.pipe(Stream.decodeText(), Stream.mkString)
             const code = yield* process.exitCode
@@ -170,9 +181,11 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
      * not deny the Gateway every other secret it asked for.
      *
      * @param ids - the ids the Gateway asked for
+     * @param purpose - which binary is asking and what for, recorded against
+     * the read in the vault's audit log
      * @returns one outcome per requested id, in request order
      */
-    const resolve = (ids: ReadonlyArray<SecretId>) =>
+    const resolve = (ids: ReadonlyArray<SecretId>, purpose: AccessPurpose) =>
       Effect.gen(function* () {
         const outcomes = new Map<SecretId, Resolved>()
         if (ids.length === 0) return outcomes
@@ -189,8 +202,13 @@ export class SecretResolver extends Effect.Service<SecretResolver>()("SecretReso
 
         yield* session.ensure
         const entries = known.map((id) => map[id]!)
+        const context = yield* auditContext
         const values = yield* resolveRefs(
-          entries.map((entry) => normaliseEntry(entry).ref)
+          entries.map((entry) => normaliseEntry(entry).ref),
+          auditReason(purpose, known, {
+            label: Option.getOrUndefined(context.label),
+            profile: Option.getOrUndefined(context.profile)
+          })
         )
 
         let notFoundFromEmpty = 0

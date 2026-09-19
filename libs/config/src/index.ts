@@ -35,6 +35,7 @@
  */
 
 export * from "./agent-token.js"
+export * from "./audit.js"
 export * from "./host.js"
 export * from "./logging.js"
 export * from "./paths.js"

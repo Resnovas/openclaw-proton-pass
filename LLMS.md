@@ -245,10 +245,14 @@ export const example = Effect.gen(function* () {
   // One call resolves the whole batch. Resolution costs a `pass-cli`
   // invocation, so asking for several ids at once is meaningfully cheaper
   // than a call each.
-  const outcomes = yield* resolver.resolve([
-    decodeId("CONTEXT7_API_KEY"),
-    decodeId("NOT_IN_THE_MAP")
-  ])
+  // The second argument is not optional. It becomes the reason recorded
+  // against this read in the vault's audit log, and a read with no reason is
+  // refused by an agent token, so there is no call that does not have to say
+  // what it is for.
+  const outcomes = yield* resolver.resolve(
+    [decodeId("CONTEXT7_API_KEY"), decodeId("NOT_IN_THE_MAP")],
+    { binary: "resolver" }
+  )
 
   for (const [id, outcome] of outcomes) {
     if (outcome._tag === "NotFound") {
@@ -551,7 +555,9 @@ export const example = Effect.gen(function* () {
   // produce, so handling one it cannot produce is a type error rather than
   // dead code nobody notices. `loadMap` fails only with `SecretMapError`;
   // adding the other three tags to it would not compile.
-  return yield* resolver.resolve([decodeId("CONTEXT7_API_KEY")]).pipe(
+  return yield* resolver
+    .resolve([decodeId("CONTEXT7_API_KEY")], { binary: "resolver" })
+    .pipe(
     // Each tag names the file to look at, because the error carries the path
     // rather than leaving an operator to guess between three of them.
     Effect.catchTag("SecretMapError", (cause) =>

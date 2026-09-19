@@ -180,11 +180,24 @@ export const serve = Effect.gen(function* () {
   const telemetry = yield* Telemetry
   const { host, port } = splitAddress(config.listen)
 
+  // Which route each secret belongs to, for the audit entry. Every id the
+  // cache is ever asked for came from a route's `secretId`, which is the
+  // only thing `cache.get` is called with, so this is total in practice.
+  const routeOf: Record<string, string> = Object.fromEntries(
+    Object.entries(config.routes).map(([path, route]) => [route.secretId, path])
+  )
+
   const cache = yield* Cache.make({
     capacity: 64,
     timeToLive: Duration.minutes(30),
     lookup: (id: SecretId) =>
-      resolver.resolve([id]).pipe(
+      resolver.resolve([id], {
+        binary: "mcp-auth-proxy",
+        // Named from the route that asked for it, so the audit entry says
+        // which MCP server the credential was attached to rather than only
+        // that the proxy wanted one.
+        target: `route ${routeOf[id]!}`
+      }).pipe(
         Effect.flatMap((outcomes) => {
           const outcome = outcomes.get(id)
           return outcome === undefined || outcome._tag === "NotFound"

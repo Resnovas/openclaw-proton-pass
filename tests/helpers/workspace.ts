@@ -58,6 +58,8 @@ export interface Workspace {
   readonly loginArgv: string
   /** What the stub pass-cli saw in `PROTON_PASS_PERSONAL_ACCESS_TOKEN`. */
   readonly loginTokenEnv: string
+  /** The audit reason the stub pass-cli saw on the read itself. */
+  readonly runReason: string
   readonly dispose: () => void
 }
 
@@ -104,6 +106,7 @@ case "$1" in
     exit ${behaviour.loginExitAfterRebuild ?? behaviour.loginExit ?? 0}
     ;;
   run)
+    printf '%s' "\${PROTON_PASS_AGENT_REASON:-}" > "$state.reason"
     sleep ${behaviour.runDelaySeconds ?? 0}
     if [ "${behaviour.runExit ?? 0}" != "0" ]; then
       echo "stub failure" 1>&2
@@ -183,6 +186,7 @@ export const makeWorkspace = (
     passCli,
     loginArgv: join(dir, "login-attempts.argv"),
     loginTokenEnv: join(dir, "login-attempts.env"),
+    runReason: join(dir, "login-attempts.reason"),
     dispose: () => {
       for (const key of [
         "OPENCLAW_PROTONPASS_CONFIG_DIR",

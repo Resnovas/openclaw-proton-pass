@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: 10_handle-failures.ts
+ * File: audit.ts
  * Last Modified: 2026-09-19
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,46 +34,68 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+/**
+ * What this deployment can tell the vault's audit log about itself.
+ *
+ * OpenClaw tells an exec secret provider nothing about the agent, session or
+ * task behind a request: the protocol carries a version, a provider name and
+ * a list of ids, and the provider runs with a filtered environment. So an
+ * agent or task name can only reach the audit log if the operator puts it
+ * where this can read it, which is what these two variables are for.
+ *
+ * @module
+ * @since 0.1.0
+ */
+
+import { Config, Effect, Option } from "effect"
+
+/** Read one optional variable, treating whitespace as absence. */
+const optional = (name: string) =>
+  Config.string(name).pipe(
+    Config.map((value) => value.trim()),
+    Config.option,
+    Config.map(Option.filter((value) => value !== "")),
+    Effect.orElseSucceed(() => Option.none<string>())
+  )
 
 /**
- * @title Handling failure
+ * What an operator has said about this deployment.
  *
- * Every failure is a tagged member of one exhaustive union, so a handler can
- * match without a default branch and adding a member is a compiler-enforced
- * change at every handling site.
+ * `OPENCLAW_PROTONPASS_AUDIT_LABEL` is free text, appended to every audit
+ * entry. It is the place to put whatever this host knows that the code
+ * cannot work out: which machine it is, which agent the Gateway is running,
+ * or which job a container was started for. `OPENCLAW_PROFILE` is read
+ * because OpenClaw sets it, so a multi-profile install distinguishes itself
+ * without being configured to.
+ *
+ * Whatever is set here is transmitted to Proton on every audited read and
+ * stored in the vault's audit log, so it is for identification and not for
+ * anything confidential.
+ *
+ * @category config
+ * @since 0.1.0
+ *
+ * @example
+ * import { auditContext } from "@resnovas/opp-config"
+ * import { ConfigProvider, Effect, Option } from "effect"
+ *
+ * const read = (env: Record<string, string>) =>
+ *   Effect.runSync(
+ *     auditContext.pipe(
+ *       Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))
+ *     )
+ *   )
+ *
+ * assert.strictEqual(Option.isNone(read({}).label), true)
+ * assert.deepStrictEqual(
+ *   read({ OPENCLAW_PROTONPASS_AUDIT_LABEL: "upstash box" }).label,
+ *   Option.some("upstash box")
+ * )
  */
-import { SecretId } from "@resnovas/opp-domain"
-import { SecretResolver, type Resolved } from "@resnovas/opp-pass-cli"
-import { Effect, Schema } from "effect"
-
-const decodeId = Schema.decodeUnknownSync(SecretId)
-
-/** Nothing resolved, because the vault could not be asked. */
-const nothing = new Map<SecretId, Resolved>()
-
-export const example = Effect.gen(function* () {
-  const resolver = yield* SecretResolver
-
-  // The compiler knows exactly which of the seven failures `resolve` can
-  // produce, so handling one it cannot produce is a type error rather than
-  // dead code nobody notices. `loadMap` fails only with `SecretMapError`;
-  // adding the other three tags to it would not compile.
-  return yield* resolver
-    .resolve([decodeId("CONTEXT7_API_KEY")], { binary: "resolver" })
-    .pipe(
-    // Each tag names the file to look at, because the error carries the path
-    // rather than leaving an operator to guess between three of them.
-    Effect.catchTag("SecretMapError", (cause) =>
-      Effect.logError(`${cause.path}: ${cause.reason}`).pipe(Effect.as(nothing))
-    ),
-    Effect.catchTag("MissingAgentTokenError", (cause) =>
-      Effect.logError(`no agent token at ${cause.path}`).pipe(Effect.as(nothing))
-    ),
-    Effect.catchTag("SessionError", (cause) =>
-      Effect.logError(`no vault session: ${cause.reason}`).pipe(Effect.as(nothing))
-    ),
-    Effect.catchTag("ResolutionError", (cause) =>
-      Effect.logError(`the vault call failed: ${cause.reason}`).pipe(Effect.as(nothing))
-    )
-  )
-}).pipe(Effect.provide(SecretResolver.Default))
+export const auditContext: Effect.Effect<{
+  readonly label: Option.Option<string>
+  readonly profile: Option.Option<string>
+}> = Effect.all({
+  label: optional("OPENCLAW_PROTONPASS_AUDIT_LABEL"),
+  profile: optional("OPENCLAW_PROFILE")
+})

@@ -25,7 +25,9 @@
         "USERPROFILE",
         "APPDATA",
         "LOCALAPPDATA",
-        "PATHEXT"
+        "PATHEXT",
+        "OPENCLAW_PROTONPASS_AUDIT_LABEL",
+        "OPENCLAW_PROFILE"
       ]
     }
   }

@@ -14,7 +14,7 @@ a repository, or pasted into an issue.
 | In backups | Yes, in plain text | No |
 | In a repository if committed | Yes | Only a name |
 | Readable by any process running as you | Yes, from the file, forever | Yes, but only by asking the vault |
-| Read is recorded | No | Yes, `pass-cli agent monitor` |
+| Read is recorded | No | Yes, `pass-cli agent monitor`, naming what was read and what for |
 | Rotation | Edit every file that has it | Edit the vault item |
 | Revocation | Change the credential everywhere | Revoke one agent token |
 
@@ -166,6 +166,12 @@ already running with your permissions.
   further say.
 - **The map is not secret.** It reveals which services you hold credentials for
   and which vault items they live in.
+- **The audit reason is sent to Proton.** Every audited read carries a
+  sentence naming the binary, the secret map ids and, where the caller knows
+  it, the route or command the credential is for, plus anything set in
+  `OPENCLAW_PROTONPASS_AUDIT_LABEL`. That is the point of the log, but it
+  means those names leave the machine. No resolved value and no `pass://`
+  reference is included.
 - **`hostname` is reported by telemetry when it is on.** On a personal machine
   that often identifies a person. One variable turns it off.
 - **A local privilege escalation defeats all of this.** So does a keylogger.

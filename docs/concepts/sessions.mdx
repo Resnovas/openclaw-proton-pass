@@ -27,23 +27,68 @@ It is never passed to `pass-cli` as a command-line argument, because a
 process's arguments are readable by every other process on the host. It
 travels in `PROTON_PASS_PERSONAL_ACCESS_TOKEN` instead.
 
-## Every read is recorded
+## Every read is recorded, and says what it was for
 
-Agent tokens refuse audited reads unless a reason is given, so this provider
-always supplies one:
+Agent tokens refuse audited reads unless a reason is given, and that reason is
+the only thing the audit log shows about *why* a credential was taken. A
+constant string would satisfy the requirement and waste it: every entry would
+look the same, so the log could prove that a read happened and nothing about
+which one. So the reason is built from what the calling binary actually knows:
 
 ```
-PROTON_PASS_AGENT_REASON="OpenClaw Gateway secret resolution"
+OpenClaw resolver reading OPENAI_API_KEY, DISCORD_BOT_TOKEN
+OpenClaw mcp-auth-proxy reading CONTEXT7_MCP_AUTHORIZATION for route /context7
+OpenClaw pass-run reading CONTEXT7_API_KEY for command context7-mcp
 ```
 
-Which means every resolution this system performs is attributable:
+Read them back with:
 
 ```bash
 pass-cli agent monitor openclaw-gateway
 ```
 
+Only names travel. The ids are the keys of the secret map, which [the security
+model](/security/model) already treats as non-secret, and the target is a
+route path or a command name out of your own configuration. The resolved value
+and the `pass://` reference it came from are both deliberately absent: Proton
+knows which item it served without being told.
+
+### Saying which agent or task asked
+
+<Warning>
+OpenClaw tells a secret provider nothing about the agent, session or task
+behind a request. The exec protocol carries a protocol version, a provider
+name and a list of ids, and the provider runs with a filtered environment.
+There is no agent name to record, so this system does not invent one.
+</Warning>
+
+What it can do is carry something you supply. `OPENCLAW_PROTONPASS_AUDIT_LABEL`
+is free text appended to every entry, and is the place for whatever this host
+knows that the code cannot work out:
+
+```bash
+export OPENCLAW_PROTONPASS_AUDIT_LABEL='upstash box, nightly summariser'
+```
+
+```
+OpenClaw resolver reading OPENAI_API_KEY (upstash box, nightly summariser)
+```
+
+`OPENCLAW_PROFILE` is also read, without being configured, because OpenClaw
+sets it. A multi-profile install then distinguishes itself on its own:
+
+```
+OpenClaw resolver reading OPENAI_API_KEY (profile work)
+```
+
+Both are transmitted to Proton on every audited read and stored in the vault's
+audit log, so they are for identification and not for anything confidential.
+Entries are capped at 300 characters, which is Proton's limit; a longer one is
+truncated so the binary and the first ids survive rather than the read being
+refused.
+
 That log is a genuine gain over a credential in a settings file. A file cannot
-tell you who read it.
+tell you who read it, let alone what for.
 
 ## Why a separate session directory
 

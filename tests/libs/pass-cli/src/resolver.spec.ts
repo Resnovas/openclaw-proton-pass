@@ -41,6 +41,7 @@ import { Telemetry } from "@resnovas/opp-telemetry"
 import type { SecretId } from "@resnovas/opp-domain"
 import { SecretResolver } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Layer, Redacted } from "effect"
+import { readFileSync } from "node:fs"
 import { makeWorkspace, type StubBehaviour, type Workspace } from "../../../helpers/workspace.js"
 
 let workspace: Workspace | undefined
@@ -63,7 +64,7 @@ const id = (name: string) => name as SecretId
 const resolving = (ids: ReadonlyArray<SecretId>) =>
   Effect.gen(function* () {
     const resolver = yield* SecretResolver
-    return yield* resolver.resolve(ids)
+    return yield* resolver.resolve(ids, { binary: "resolver" })
   }).pipe(Effect.provide(layer), Effect.exit)
 
 const loading = Effect.gen(function* () {
@@ -107,6 +108,52 @@ describe("SecretResolver.loadMap", () => {
       setup('{"A":"definitely-not-a-pass-reference"}')
       const result = yield* loading
       expect(JSON.stringify(result)).toContain("SecretMapError")
+    })
+  )
+})
+
+describe("the reason recorded against a read", () => {
+  const inherited = process.env["OPENCLAW_PROTONPASS_AUDIT_LABEL"]
+
+  afterEach(() => {
+    if (inherited === undefined) delete process.env["OPENCLAW_PROTONPASS_AUDIT_LABEL"]
+    else process.env["OPENCLAW_PROTONPASS_AUDIT_LABEL"] = inherited
+  })
+
+  it.effect("reaches pass-cli naming the ids being read", () =>
+    Effect.gen(function* () {
+      // Without this the audit log records that a credential was taken and
+      // nothing about which one, which is most of its value gone.
+      setup('{"OPENAI_API_KEY":"pass://V/openai/key"}')
+      delete process.env["OPENCLAW_PROTONPASS_AUDIT_LABEL"]
+      yield* resolving([id("OPENAI_API_KEY")])
+      expect(readFileSync(workspace!.runReason, "utf8")).toBe(
+        "OpenClaw resolver reading OPENAI_API_KEY"
+      )
+    })
+  )
+
+  it.effect("carries the operator's label through to the vault", () =>
+    Effect.gen(function* () {
+      // The only route by which an agent or task name can reach the audit
+      // log, because OpenClaw tells an exec provider nothing about either.
+      setup('{"OPENAI_API_KEY":"pass://V/openai/key"}')
+      process.env["OPENCLAW_PROTONPASS_AUDIT_LABEL"] = "nightly summariser"
+      yield* resolving([id("OPENAI_API_KEY")])
+      expect(readFileSync(workspace!.runReason, "utf8")).toBe(
+        "OpenClaw resolver reading OPENAI_API_KEY (nightly summariser)"
+      )
+    })
+  )
+
+  it.effect("names only ids that are in the map", () =>
+    Effect.gen(function* () {
+      // An id the map does not hold never reaches the vault, so recording it
+      // as read would be a false entry in an audit log.
+      setup('{"OPENAI_API_KEY":"pass://V/openai/key"}')
+      delete process.env["OPENCLAW_PROTONPASS_AUDIT_LABEL"]
+      yield* resolving([id("OPENAI_API_KEY"), id("NOT_IN_THE_MAP")])
+      expect(readFileSync(workspace!.runReason, "utf8")).not.toContain("NOT_IN_THE_MAP")
     })
   )
 })

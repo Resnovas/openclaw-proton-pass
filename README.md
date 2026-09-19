@@ -140,7 +140,10 @@ The variable wins whenever both exist. It is never passed to `pass-cli` as a
 command-line argument, because a process's arguments are readable by every
 other process on the host.
 
-Every read that token performs is recorded in `pass-cli agent monitor openclaw-gateway`.
+Every read that token performs is recorded in `pass-cli agent monitor openclaw-gateway`,
+naming the ids that were read and, where the caller knows it, the route or command they were
+for. Set `OPENCLAW_PROTONPASS_AUDIT_LABEL` to add anything else this host knows, such as which
+agent or job it is running.
 
 ### 2. Map ids to vault references
 

@@ -75,7 +75,10 @@ export class PassSession extends Effect.Service<PassSession>()("PassSession", {
       // Agent tokens refuse audited reads unless a reason is given, so every
       // read this provider performs stays attributable in `pass-cli agent
       // monitor`.
-      PROTON_PASS_AGENT_REASON: "OpenClaw Gateway secret resolution"
+      // A default for the session commands, which read no vault item. Every
+      // audited read overrides it with a sentence naming what it is reading;
+      // see auditReason.
+      PROTON_PASS_AGENT_REASON: "OpenClaw establishing a Proton Pass session"
     } as const
 
     /**

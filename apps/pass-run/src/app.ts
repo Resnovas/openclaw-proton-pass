@@ -48,10 +48,10 @@
 
 import { Command } from "@effect/platform"
 import { NodeContext } from "@effect/platform-node"
-import { Paths, StderrLoggerLive } from "@resnovas/opp-config"
-import { PassSession } from "@resnovas/opp-pass-cli"
+import { auditContext, Paths, StderrLoggerLive } from "@resnovas/opp-config"
+import { auditReason, PassSession } from "@resnovas/opp-pass-cli"
 import { Telemetry } from "@resnovas/opp-telemetry"
-import { Clock, Effect, Layer } from "effect"
+import { Clock, Effect, Layer, Option } from "effect"
 import { parseArgv } from "./argv.js"
 
 /** Exit codes, following sysexits so a supervisor can tell the cases apart. */
@@ -107,10 +107,27 @@ export const main = Effect.gen(function* () {
   // stdio is inherited so the launched MCP server owns the transport directly:
   // OpenClaw manages a stdio server by its pid and its streams, and an extra
   // process in between would break both signal delivery and the protocol.
+  // `pass-cli run` resolves every environment variable whose value is a
+  // pass:// reference, so the variable names are what this process is about
+  // to have read on its behalf. Naming them is the difference between an
+  // audit entry that says a secret was taken and one that says which.
+  const referenced = Object.entries(process.env)
+    .filter(([, value]) => value !== undefined && value.startsWith("pass://"))
+    .map(([name]) => name)
+    .sort()
+  const context = yield* auditContext
+
   const exitCode = yield* Command.make(paths.passCli, "run", "--", ...argv).pipe(
     Command.env({
       ...session.baseEnv,
-      PROTON_PASS_AGENT_REASON: `MCP server launch: ${command}`
+      PROTON_PASS_AGENT_REASON: auditReason(
+        { binary: "pass-run", target: `command ${command}` },
+        referenced,
+        {
+          label: Option.getOrUndefined(context.label),
+          profile: Option.getOrUndefined(context.profile)
+        }
+      )
     }),
     Command.stdin("inherit"),
     Command.stdout("inherit"),

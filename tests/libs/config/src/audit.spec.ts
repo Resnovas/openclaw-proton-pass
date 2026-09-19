@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: 10_handle-failures.ts
+ * File: audit.spec.ts
  * Last Modified: 2026-09-19
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -34,46 +34,49 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
+import { describe, expect, it } from "@effect/vitest"
+import { auditContext } from "@resnovas/opp-config"
+import { ConfigProvider, Effect, Option } from "effect"
 
-/**
- * @title Handling failure
- *
- * Every failure is a tagged member of one exhaustive union, so a handler can
- * match without a default branch and adding a member is a compiler-enforced
- * change at every handling site.
- */
-import { SecretId } from "@resnovas/opp-domain"
-import { SecretResolver, type Resolved } from "@resnovas/opp-pass-cli"
-import { Effect, Schema } from "effect"
-
-const decodeId = Schema.decodeUnknownSync(SecretId)
-
-/** Nothing resolved, because the vault could not be asked. */
-const nothing = new Map<SecretId, Resolved>()
-
-export const example = Effect.gen(function* () {
-  const resolver = yield* SecretResolver
-
-  // The compiler knows exactly which of the seven failures `resolve` can
-  // produce, so handling one it cannot produce is a type error rather than
-  // dead code nobody notices. `loadMap` fails only with `SecretMapError`;
-  // adding the other three tags to it would not compile.
-  return yield* resolver
-    .resolve([decodeId("CONTEXT7_API_KEY")], { binary: "resolver" })
-    .pipe(
-    // Each tag names the file to look at, because the error carries the path
-    // rather than leaving an operator to guess between three of them.
-    Effect.catchTag("SecretMapError", (cause) =>
-      Effect.logError(`${cause.path}: ${cause.reason}`).pipe(Effect.as(nothing))
-    ),
-    Effect.catchTag("MissingAgentTokenError", (cause) =>
-      Effect.logError(`no agent token at ${cause.path}`).pipe(Effect.as(nothing))
-    ),
-    Effect.catchTag("SessionError", (cause) =>
-      Effect.logError(`no vault session: ${cause.reason}`).pipe(Effect.as(nothing))
-    ),
-    Effect.catchTag("ResolutionError", (cause) =>
-      Effect.logError(`the vault call failed: ${cause.reason}`).pipe(Effect.as(nothing))
+const read = (env: Record<string, string>) =>
+  Effect.runSync(
+    auditContext.pipe(
+      Effect.withConfigProvider(ConfigProvider.fromMap(new Map(Object.entries(env))))
     )
   )
-}).pipe(Effect.provide(SecretResolver.Default))
+
+describe("auditContext", () => {
+  it("reports nothing when neither variable is set", () => {
+    const context = read({})
+    expect(Option.isNone(context.label)).toBe(true)
+    expect(Option.isNone(context.profile)).toBe(true)
+  })
+
+  it("reads the operator's label", () => {
+    expect(read({ OPENCLAW_PROTONPASS_AUDIT_LABEL: "upstash box" }).label).toEqual(
+      Option.some("upstash box")
+    )
+  })
+
+  it("reads the OpenClaw profile without being configured to", () => {
+    // OpenClaw sets it, so a multi-profile install distinguishes itself in
+    // the audit log with no extra setup.
+    expect(read({ OPENCLAW_PROFILE: "work" }).profile).toEqual(Option.some("work"))
+  })
+
+  it("trims what it reads", () => {
+    expect(read({ OPENCLAW_PROTONPASS_AUDIT_LABEL: "  box  " }).label).toEqual(
+      Option.some("box")
+    )
+  })
+
+  it("treats a variable exported empty as unset", () => {
+    expect(Option.isNone(read({ OPENCLAW_PROTONPASS_AUDIT_LABEL: "   " }).label)).toBe(true)
+  })
+
+  it("never fails, so a bad provider cannot stop a resolution", () => {
+    // Its caller is on the resolution path. A ConfigError there would turn a
+    // missing optional label into a failed credential lookup.
+    expect(Option.isNone(read({}).profile)).toBe(true)
+  })
+})
