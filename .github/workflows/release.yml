@@ -92,7 +92,7 @@ jobs:
           fi
           args=()
           if [ -n "$SPECIFIER" ]; then args+=("$SPECIFIER"); fi
-          args+=(--yes --skip-publish)
+          args+=(--skip-publish)
           ${{ inputs.first_release && 'args+=(--first-release)' || 'true' }}
           ${{ inputs.dry_run && 'args+=(--dry-run)' || 'true' }}
           pnpm exec nx release "${args[@]}"
