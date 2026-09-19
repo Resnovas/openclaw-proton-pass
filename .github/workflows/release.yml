@@ -131,6 +131,9 @@ jobs:
       - name: Drop source maps from the package
         run: rm -f packages/openclaw-proton-pass/bin/*.map
 
+      - name: Validate the plugin package
+        run: npx -y clawhub@0.23 package validate ./packages/openclaw-proton-pass
+
       # Node 22 ships npm 10, which can do neither of the things this job
       # needs: trusted publishing wants 11.5.1 or later and staged publishing
       # wants 11.15.0 or later.
@@ -249,11 +252,6 @@ jobs:
             "$RUNNER_TEMP"/*.tgz \
             "$RUNNER_TEMP/openclaw-proton-pass-bin-${{ steps.version.outputs.value }}.zip" \
             --clobber
-
-      # ClawHub keeps a release out of public install surfaces until its
-      # security checks finish, so a failure here does not undo the npm release.
-      - name: Validate the plugin package
-        run: npx -y clawhub@0.23 package validate ./packages/openclaw-proton-pass
 
       # The CLI reads a config file, not CLAWHUB_TOKEN on its own. The official
       # reusable workflow writes one under CLAWHUB_CONFIG_PATH; the same pattern

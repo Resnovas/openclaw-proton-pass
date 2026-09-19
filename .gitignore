@@ -11,6 +11,9 @@ packages/openclaw-proton-pass/README.md
 packages/openclaw-proton-pass/TELEMETRY.md
 packages/openclaw-proton-pass/LICENSE
 
+# ClawHub plugin inspector output from `clawhub package validate`.
+packages/openclaw-proton-pass/reports/
+
 # docgen scratch output; the published pages live in docs/reference/api.
 libs/*/.docgen/
 

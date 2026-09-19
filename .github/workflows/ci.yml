@@ -50,6 +50,9 @@ jobs:
         working-directory: packages/openclaw-proton-pass
         run: npm pack --dry-run
 
+      - name: Validate the plugin package for ClawHub
+        run: npx -y clawhub@0.23 package validate ./packages/openclaw-proton-pass
+
       # The integration suite is skipped without a vault, but it must still
       # compile and collect - a broken integration test should fail CI rather
       # than be discovered at release time.
