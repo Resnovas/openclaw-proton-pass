@@ -36,7 +36,8 @@
 
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { Telemetry } from "@resnovas/opp-telemetry"
-import { Effect } from "effect"
+import { NodeContext } from "@effect/platform-node"
+import { Effect, Layer } from "effect"
 import { createServer, type Server } from "node:http"
 import { AddressInfo } from "node:net"
 
@@ -59,13 +60,15 @@ const startCollector = async (): Promise<{ url: string; received: Array<unknown>
 }
 
 afterEach(async () => {
-  for (const key of [
-    "OPENCLAW_PROTONPASS_TELEMETRY",
-    "OPENCLAW_PROTONPASS_POSTHOG_KEY",
-    "OPENCLAW_PROTONPASS_POSTHOG_HOST"
-  ]) {
-    delete process.env[key]
-  }
+  delete process.env["OPENCLAW_PROTONPASS_POSTHOG_KEY"]
+  // Both are restored rather than deleted: deleting either would let the
+  // shipped defaults take over for the rest of the file, and later tests would
+  // report to the real project instead of a local collector.
+  process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = "http://127.0.0.1:1"
+  // Restored rather than deleted: deleting it would let the shipped default
+  // take over for the rest of the file, and later tests would report to the
+  // real project instead of a local collector.
+  process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "false"
   if (server !== undefined) {
     await new Promise<void>((resolve) => server!.close(() => resolve()))
     server = undefined
@@ -76,15 +79,28 @@ const use = <A>(body: (telemetry: Telemetry) => Effect.Effect<A>) =>
   Effect.gen(function* () {
     const telemetry = yield* Telemetry
     return yield* body(telemetry)
-  }).pipe(Effect.provide(Telemetry.Default), Effect.runPromise)
+  }).pipe(
+    Effect.provide(Layer.provideMerge(Telemetry.Default, NodeContext.layer)),
+    Effect.runPromise
+  )
 
 describe("Telemetry when disabled", () => {
-  it("is inert by default", async () => {
-    const active = await use((telemetry) => Effect.succeed(telemetry.active))
-    expect(active).toBe(false)
+  it("is active by default, and inert once switched off", async () => {
+    // The shipped default is on; the suite's setup file turns it off so tests
+    // never report to the real project. Observing the default therefore has to
+    // point at a local collector first, or this test would be the one leak.
+    const collector = await startCollector()
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = collector.url
+    delete process.env["OPENCLAW_PROTONPASS_TELEMETRY"]
+    const onByDefault = await use((telemetry) => Effect.succeed(telemetry.active))
+    process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "false"
+    const offWhenAsked = await use((telemetry) => Effect.succeed(telemetry.active))
+    expect(onByDefault).toBe(true)
+    expect(offWhenAsked).toBe(false)
   })
 
   it("accepts a capture without sending anything", async () => {
+    process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "false"
     const result = await use((telemetry) =>
       telemetry.capture({ name: "noop", properties: { count: 1 } }).pipe(Effect.as("done"))
     )
@@ -113,15 +129,18 @@ describe("Telemetry when disabled", () => {
   })
 
   it("stays inert when a key is present but reporting is off", async () => {
+    process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "false"
     process.env["OPENCLAW_PROTONPASS_POSTHOG_KEY"] = "phc_test"
     const active = await use((telemetry) => Effect.succeed(telemetry.active))
     expect(active).toBe(false)
   })
 
-  it("carries a default project so opting in needs no further setup", async () => {
-    // Enabling alone is enough: the build ships a write-only ingestion key.
+  it("carries a default project so reporting needs no further setup", async () => {
+    // The build ships a write-only ingestion key, so an install reports
+    // without anyone configuring a project first.
+    const collector = await startCollector()
     process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "true"
-    process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = "http://127.0.0.1:1"
+    process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = collector.url
     const active = await use((telemetry) => Effect.succeed(telemetry.active))
     expect(active).toBe(true)
   })

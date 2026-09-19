@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
- * Last Modified: 2026-09-18
+ * File: setup.ts
+ * Last Modified: 2026-09-19
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,66 +34,17 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
-
-const root = dirname(fileURLToPath(import.meta.url))
-
 /**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
+ * Global test setup.
  *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
+ * Telemetry ships on by default, so without this every test in the suite would
+ * report to the real project: slow, noisy, and polluting production analytics
+ * with data from a test run. Tests that exercise reporting opt back in
+ * explicitly and point at a local collector.
  */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
-  }
-}
+process.env["OPENCLAW_PROTONPASS_TELEMETRY"] = "false"
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
-
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    // Telemetry ships on; the suite must not report to the real project.
-    setupFiles: ["tests/helpers/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
-})
+// Backstop. If a test enables reporting and forgets to point it somewhere, it
+// hits a closed port rather than the production project. Tests that assert on
+// what was sent override this with their own collector.
+process.env["OPENCLAW_PROTONPASS_POSTHOG_HOST"] = "http://127.0.0.1:1"
