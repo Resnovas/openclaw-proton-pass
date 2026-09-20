@@ -41,6 +41,7 @@ import { Telemetry } from "@resnovas/opp-telemetry"
 import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Fiber, Layer } from "effect"
 import { EventEmitter } from "node:events"
+import { gzipSync } from "node:zlib"
 import type { IncomingMessage } from "node:http"
 import { createServer } from "node:http"
 import { loadConfig, readBody, serve } from "../../../../apps/mcp-auth-proxy/src/server.js"
@@ -364,6 +365,38 @@ describe("serve", () => {
     const response = await fetch(`http://127.0.0.1:${port}/example`, { method: "DELETE" })
     expect(await response.text()).toBe("deleted")
     expect(upstream.requests[0]?.method).toBe("DELETE")
+  })
+
+  it("relays a gzip upstream body without content-encoding", async () => {
+    const payload = JSON.stringify({ jsonrpc: "2.0", id: 1, result: { ok: true } })
+    upstream = await startUpstream((_request, response) => {
+      const compressed = gzipSync(Buffer.from(payload, "utf8"))
+      response.writeHead(200, {
+        "Content-Type": "application/json",
+        "Content-Encoding": "gzip",
+        "Content-Length": String(compressed.byteLength)
+      })
+      response.end(compressed)
+    })
+    const port = freePort()
+    workspace = makeWorkspace({
+      secretMap: '{"S":"pass://V/i/f"}',
+      proxyConfig: configure(port, upstream.url),
+      stub: { values: ["tok"] }
+    })
+    await startProxy(port)
+
+    const response = await fetch(`http://127.0.0.1:${port}/example`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept-Encoding": "gzip"
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" })
+    })
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-encoding")).toBeNull()
+    expect(await response.json()).toEqual({ jsonrpc: "2.0", id: 1, result: { ok: true } })
   })
 })
 
