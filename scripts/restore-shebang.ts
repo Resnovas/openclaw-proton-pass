@@ -12,6 +12,9 @@
  * final bundle for stack traces to resolve, so the fix is to repair the first
  * line afterwards rather than to skip injection.
  *
+ * Files that never had a shebang (for example the OpenClaw plugin entry
+ * index.mjs) are skipped: they are not executables and do not need repair.
+ *
  * Usage:
  *   node --experimental-strip-types scripts/restore-shebang.ts <dir>   # apply
  *   node --experimental-strip-types scripts/restore-shebang.ts <dir> --check
@@ -40,11 +43,10 @@ for (const entry of readdirSync(dir)) {
 
   if (source.startsWith(SHEBANG)) continue
 
-  if (!source.includes(SHEBANG)) {
-    console.error(`${entry}: no shebang found at all`)
-    broken += 1
-    continue
-  }
+  // Plugin entries such as index.mjs are bundled into bin/ for packaging but
+  // are loaded by the host, not executed directly, so esbuild never adds a
+  // shebang. Only repair files that had one displaced by source-map injection.
+  if (!source.includes(SHEBANG)) continue
 
   if (check) {
     console.error(`${entry}: shebang is not on the first line`)
