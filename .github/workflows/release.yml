@@ -282,10 +282,12 @@ jobs:
           CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
         run: pnpm docs:deploy
 
-      # Records the release and attached issues, but does not mark it complete:
-      # the npm version is staged and not installable until a maintainer runs
-      # `npm stage approve` with 2FA. Complete the Linear release only after
-      # `npm view @resnovas/openclaw-proton-pass@<version>` succeeds.
+      # Last, so that a Linear release marked complete means the version is
+      # shipped from this pipeline's point of view. npm staging is a separate
+      # safety gate: the version is not installable from npmjs.com until a
+      # maintainer runs `npm stage approve` with 2FA. The action scans the
+      # commits since the previous release for issue identifiers and attaches
+      # them, which is why the checkout needs full history.
       #
       # Skipped when LINEAR_ACCESS_KEY is absent: the key belongs to one
       # release pipeline, created in Linear settings, and releases are a
@@ -302,3 +304,12 @@ jobs:
             GitHub release=https://github.com/Resnovas/openclaw-proton-pass/releases/tag/v${{ steps.version.outputs.value }}
             npm=https://www.npmjs.com/package/@resnovas/openclaw-proton-pass/v/${{ steps.version.outputs.value }}
           dry_run: ${{ inputs.dry_run }}
+
+      - name: Complete the Linear release
+        if: ${{ !inputs.dry_run && env.HAS_LINEAR == 'true' }}
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          name: v${{ steps.version.outputs.value }}
+          version: v${{ steps.version.outputs.value }}
