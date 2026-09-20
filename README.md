@@ -341,14 +341,15 @@ OPP_INTEGRATION_SECRET_ID=SOME_ID pnpm exec vitest run tests/integration
 ```
 
 Releases are cut by the **Release** workflow, which versions from conventional
-commits with `nx release`, writes the changelog, tags, publishes to npm with
-provenance and to GitHub Packages, attaches the bundles to the GitHub release,
-publishes the plugin to ClawHub, and records the release in PostHog and Linear.
+commits with `nx release`, writes the changelog, tags, stages on npm with
+provenance and publishes to GitHub Packages, attaches the bundles to the GitHub
+release, publishes the plugin to ClawHub, and records the release in PostHog and
+Linear. A maintainer approves the staged npm version with 2FA before it is
+installable.
 
-npm publishing prefers [trusted
-publishing](https://docs.npmjs.com/trusted-publishers) over a stored token, and
-the workflow can submit a version for review with `npm stage publish` instead
-of releasing it outright.
+npmjs.com publishing uses [trusted
+publishing](https://docs.npmjs.com/trusted-publishers) with `npm stage publish`
+only.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards.
 
