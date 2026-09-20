@@ -17,11 +17,6 @@ on:
         required: false
         type: boolean
         default: false
-      stage:
-        description: Submit to npm for review instead of publishing; a maintainer approves it with 2FA
-        required: false
-        type: boolean
-        default: false
 
 # contents: write creates the tag and the GitHub release.
 # id-token: write mints the OIDC token npm trusted publishing exchanges for a
@@ -145,10 +140,27 @@ jobs:
       # Node 22 ships npm 10, which can do neither of the things this job
       # needs: trusted publishing wants 11.5.1 or later and staged publishing
       # wants 11.15.0 or later.
-      - name: Install an npm that can publish without a long-lived token
-        run: npm install --global npm@11
+      - name: Install an npm that can stage without a long-lived token
+        run: |
+          npm install --global npm@11
+          required='11.15.0'
+          actual="$(npm --version)"
+          node -e "
+            const req = '$required'.split('.').map(Number);
+            const act = '$actual'.split('.').map(Number);
+            for (let i = 0; i < 3; i++) {
+              const a = act[i] || 0;
+              const r = req[i] || 0;
+              if (a > r) process.exit(0);
+              if (a < r) {
+                console.error('npm ' + '$actual' + ' is older than $required, which staged publishing requires');
+                process.exit(1);
+              }
+            }
+            process.exit(0);
+          "
 
-      # Published with npm rather than `nx release publish`, because nx
+      # Staged with npm rather than `nx release publish`, because nx
       # delegates to the detected package manager, which is pnpm here, and
       # pnpm does not implement npm's OIDC trusted publishing
       # (pnpm/pnpm#9812). Going through it rules out the only publishing
@@ -164,22 +176,21 @@ jobs:
       # Versioning, the changelog, the tag and the GitHub release are still
       # nx's, above.
       #
-      # npm tries OIDC first and falls back to the token, so this step works
-      # before a trusted publisher is configured and needs no edit after.
-      # NODE_AUTH_TOKEN is read out of the environment by the .npmrc
-      # setup-node wrote, so the token never reaches a command line.
-      - name: Publish to npm
+      # OIDC trusted publishing is the only credential path here. A stage-only
+      # publisher must not have a bypass token in the job environment.
+      - name: Stage on npm
         if: ${{ !inputs.dry_run }}
         working-directory: packages/openclaw-proton-pass
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
           VERSION: ${{ steps.version.outputs.value }}
         # `nx release publish` treated a version already on the registry as
         # success rather than an error, which is what made re-running a
-        # release safe when a later step was the one that failed. `npm
+        # release safe when a later step was the one that failed. `npm stage
         # publish` exits EPUBLISHCONFLICT instead, so that behaviour is
-        # reproduced here rather than quietly lost.
+        # reproduced here rather than quietly lost. `npm view` only sees the
+        # live registry, so a version already in the staging area is checked
+        # separately.
         #
         # `publishConfig.access` in package.json already says public, so no
         # --access flag is passed: it would have to be valid for both
@@ -187,12 +198,17 @@ jobs:
         run: |
           if npm view "@resnovas/openclaw-proton-pass@$VERSION" version >/dev/null 2>&1; then
             echo "v$VERSION is already on npm; leaving it alone"
+          elif npm stage list '@resnovas/openclaw-proton-pass' --json 2>/dev/null | node -e "
+            const items = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+            process.exit(items.some((item) => item.version === process.argv[1]) ? 0 : 1);
+          " "$VERSION"; then
+            echo "v$VERSION is already staged; leaving it alone"
           else
-            npm ${{ inputs.stage && 'stage publish' || 'publish' }}
+            npm stage publish
           fi
 
       - name: Say that the release is waiting for approval
-        if: ${{ !inputs.dry_run && inputs.stage }}
+        if: ${{ !inputs.dry_run }}
         run: |
           echo "### Staged, not published" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -312,7 +328,9 @@ jobs:
         run: pnpm docs:deploy
 
       # Last, so that a Linear release marked complete means the version is
-      # actually installable rather than merely tagged. The action scans the
+      # shipped from this pipeline's point of view. npm staging is a separate
+      # safety gate: the version is not installable from npmjs.com until a
+      # maintainer runs `npm stage approve` with 2FA. The action scans the
       # commits since the previous release for issue identifiers and attaches
       # them, which is why the checkout needs full history.
       #

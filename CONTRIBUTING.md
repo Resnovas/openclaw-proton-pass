@@ -69,17 +69,17 @@ The workflow runs `pnpm verify` before it tags anything, so a failing suite or a
 missing licence header stops the release rather than shipping.
 
 In order it: versions the package and writes `CHANGELOG.md`, commits and tags,
-opens the GitHub release, uploads source maps to PostHog, publishes
-`@resnovas/openclaw-proton-pass` to npm with provenance and to this
+opens the GitHub release, uploads source maps to PostHog, stages
+`@resnovas/openclaw-proton-pass` on npm with provenance and publishes to this
 repository's GitHub Packages registry, attaches the bundled binaries to the
 release, validates and publishes the plugin to ClawHub, and records the release
-in PostHog and Linear.
+in PostHog and Linear. A maintainer approves the staged npm version with 2FA
+before it is installable.
 
 Repository secrets:
 
 | Secret | Used for | Absent means |
 | --- | --- | --- |
-| `NPM_TOKEN` | npm publish, until a trusted publisher is configured. A **granular** access token with publish rights to the package; classic tokens were revoked in December 2025 | the publish fails, unless a trusted publisher is configured, in which case it is not needed at all |
 | `CLAWHUB_TOKEN` | ClawHub package publish | the publish step fails |
 | `POSTHOG_CLI_API_KEY` | Source maps and the PostHog release. A **personal** API key with `error tracking write` and `organization read` | the upload step fails |
 | `POSTHOG_PROJECT_ID` | The numeric PostHog project id | the upload step fails |
@@ -89,12 +89,11 @@ Repository secrets:
 `GITHUB_TOKEN` is provided by Actions and needs no configuration. It is what
 publishes to GitHub Packages, so no personal access token is involved there.
 
-Prefer [trusted publishing](https://docs.npmjs.com/trusted-publishers) over
-`NPM_TOKEN`. It cannot be configured until the package exists on npm, so the
-first release uses a token and the token is deleted afterwards. The full
-sequence is on the [contributing
+npmjs.com publishing uses [trusted
+publishing](https://docs.npmjs.com/trusted-publishers) with `npm stage publish`
+only. The trusted publisher must allow stage publish and disallow direct
+publish. The full sequence is on the [contributing
 page](https://github.com/Resnovas/openclaw-proton-pass/blob/main/docs/contributing.mdx).
 
 Tick **dry run** to rehearse the whole sequence without tagging, publishing or
-pushing anything. Tick **stage** to submit the version to npm for review
-instead of releasing it; a maintainer then approves it with 2FA.
+pushing anything.
