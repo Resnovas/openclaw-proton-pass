@@ -257,6 +257,36 @@ importers:
         specifier: ^3.22.2
         version: 3.22.2
 
+  apps/connect:
+    dependencies:
+      '@effect/platform':
+        specifier: ^0.97.2
+        version: 0.97.2(effect@3.22.2)
+      '@effect/platform-node':
+        specifier: ^0.108.2
+        version: 0.108.2(@effect/cluster@0.60.2(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/sql@0.52.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/workflow@0.19.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/sql@0.52.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(effect@3.22.2)
+      '@resnovas/opp-config':
+        specifier: workspace:*
+        version: link:../../libs/config
+      '@resnovas/opp-domain':
+        specifier: workspace:*
+        version: link:../../libs/domain
+      '@resnovas/opp-onepassword-compat':
+        specifier: workspace:*
+        version: link:../../libs/onepassword-compat
+      '@resnovas/opp-onepassword-contract':
+        specifier: workspace:*
+        version: link:../../libs/onepassword-contract
+      '@resnovas/opp-pass-cli':
+        specifier: workspace:*
+        version: link:../../libs/pass-cli
+      '@resnovas/opp-telemetry':
+        specifier: workspace:*
+        version: link:../../libs/telemetry
+      effect:
+        specifier: ^3.22.2
+        version: 3.22.2
+
   apps/mcp-auth-proxy:
     dependencies:
       '@effect/platform':
@@ -271,6 +301,36 @@ importers:
       '@resnovas/opp-domain':
         specifier: workspace:*
         version: link:../../libs/domain
+      '@resnovas/opp-pass-cli':
+        specifier: workspace:*
+        version: link:../../libs/pass-cli
+      '@resnovas/opp-telemetry':
+        specifier: workspace:*
+        version: link:../../libs/telemetry
+      effect:
+        specifier: ^3.22.2
+        version: 3.22.2
+
+  apps/op:
+    dependencies:
+      '@effect/cli':
+        specifier: ^0.77.2
+        version: 0.77.2(@effect/platform@0.97.2(effect@3.22.2))(@effect/printer-ansi@0.51.0(@effect/typeclass@0.41.0(effect@3.22.2))(effect@3.22.2))(@effect/printer@0.51.0(@effect/typeclass@0.41.0(effect@3.22.2))(effect@3.22.2))(effect@3.22.2)
+      '@effect/platform':
+        specifier: ^0.97.2
+        version: 0.97.2(effect@3.22.2)
+      '@effect/platform-node':
+        specifier: ^0.108.2
+        version: 0.108.2(@effect/cluster@0.60.2(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/sql@0.52.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/workflow@0.19.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/sql@0.52.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(effect@3.22.2)
+      '@resnovas/opp-config':
+        specifier: workspace:*
+        version: link:../../libs/config
+      '@resnovas/opp-onepassword-compat':
+        specifier: workspace:*
+        version: link:../../libs/onepassword-compat
+      '@resnovas/opp-onepassword-contract':
+        specifier: workspace:*
+        version: link:../../libs/onepassword-contract
       '@resnovas/opp-pass-cli':
         specifier: workspace:*
         version: link:../../libs/pass-cli
