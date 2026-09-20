@@ -178,7 +178,7 @@ export class OnePasswordCompat extends Effect.Service<OnePasswordCompat>()("OneP
           Effect.mapError((cause) => {
             if (cause._tag === "ConnectNotFound") return cause
             return new VaultError({
-              reason: cause._tag === "CliExit" ? cause.stderr : String(cause),
+              reason: cause.stderr,
               vaultId
             })
           })
@@ -203,7 +203,7 @@ export class OnePasswordCompat extends Effect.Service<OnePasswordCompat>()("OneP
           Effect.mapError((cause) => {
             if (cause._tag === "ConnectNotFound") return cause
             return new ItemError({
-              reason: cause._tag === "CliExit" ? cause.stderr : String(cause)
+              reason: cause.stderr
             })
           })
         )
@@ -238,7 +238,7 @@ export class OnePasswordCompat extends Effect.Service<OnePasswordCompat>()("OneP
           Effect.mapError((cause) => {
             if (cause._tag === "ConnectNotFound") return cause
             return new ItemError({
-              reason: cause._tag === "CliExit" ? cause.stderr : String(cause),
+              reason: cause.stderr,
               itemId
             })
           })

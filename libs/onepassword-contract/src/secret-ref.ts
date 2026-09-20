@@ -228,7 +228,7 @@ export const parseOpSecretRef = (
     const pathPart = queryIndex === -1 ? rest : rest.slice(0, queryIndex)
     const queryPart = queryIndex === -1 ? "" : rest.slice(queryIndex + 1)
 
-    const rawSegments = pathPart.split("/").filter((segment) => segment.length > 0)
+    const rawSegments = pathPart.split("/")
     if (rawSegments.length !== 3 && rawSegments.length !== 4) {
       return yield* Effect.fail(
         new OpSecretRefParseError({
@@ -253,7 +253,11 @@ export const parseOpSecretRef = (
     )
     const sshFormat = yield* parseSshFormat(uri, params.get("ssh-format"))
 
-    const [vault, item, third, fourth] = segments
+    const vault = segments[0]!
+    const item = segments[1]!
+    const third = segments[2]!
+    const fourth = segments[3]
+
     const parsed =
       fourth === undefined
         ? {
@@ -268,17 +272,57 @@ export const parseOpSecretRef = (
             field: fourth
           }
 
-    return yield* Schema.decodeUnknown(OpSecretRef)({
+    return yield* decodeParsedOpSecretRef(uri, {
       ...parsed,
       ...(attribute === undefined ? {} : { attribute }),
       ...(sshFormat === undefined ? {} : { sshFormat })
-    }).pipe(
-      Effect.mapError(
-        (error) =>
-          new OpSecretRefParseError({
-            uri,
-            reason: error.message
-          })
-      )
-    )
+    })
   })
+
+/**
+ * Validate parsed reference components against {@link OpSecretRef}.
+ *
+ * @remarks
+ * Separated from {@link parseOpSecretRef} so schema failures can be exercised
+ * without constructing a URI that would fail earlier in path parsing.
+ *
+ * @param uri - original URI for error reporting
+ * @param parsed - decoded path and query components
+ * @returns the branded reference
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { decodeParsedOpSecretRef } from "@resnovas/opp-onepassword-contract"
+ * import { Effect } from "effect"
+ *
+ * const ref = Effect.runSync(
+ *   decodeParsedOpSecretRef("op://Private/db/password", {
+ *     vault: "Private",
+ *     item: "db",
+ *     field: "password"
+ *   })
+ * )
+ * assert.strictEqual(ref.field, "password")
+ */
+export const decodeParsedOpSecretRef = (
+  uri: string,
+  parsed: {
+    readonly vault: string
+    readonly item: string
+    readonly field: string
+    readonly section?: string
+    readonly attribute?: OpFieldAttribute
+    readonly sshFormat?: OpSshFormat
+  }
+): Effect.Effect<OpSecretRef, OpSecretRefParseError> =>
+  Schema.decodeUnknown(OpSecretRef)(parsed).pipe(
+    Effect.mapError(
+      (error) =>
+        new OpSecretRefParseError({
+          uri,
+          reason: error.message
+        })
+    )
+  )

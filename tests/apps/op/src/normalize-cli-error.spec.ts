@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: connect-errors.spec.ts
+ * File: normalize-cli-error.spec.ts
  * Last Modified: 2026-09-20
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -35,86 +35,32 @@
  */
 
 import { describe, expect, it } from "@effect/vitest"
-import {
-  AuthError,
-  ConnectBadRequest,
-  ConnectForbidden,
-  ConnectNotFound,
-  ConnectUnauthorized,
-  ConnectUnsupported,
-  encodeConnectError,
-  ItemError,
-  VaultError,
-  type ConnectEncodableError
-} from "@resnovas/opp-onepassword-compat"
+import { normalizeCliError } from "@resnovas/opp-op"
+import { ItemError } from "@resnovas/opp-onepassword-compat"
 
-describe("encodeConnectError", () => {
-  it("maps unauthorized errors to HTTP 401", () => {
-    expect(
-      encodeConnectError(new ConnectUnauthorized({ message: "Invalid or missing token" }))
-    ).toEqual({ status: 401, message: "Invalid or missing token" })
-    expect(encodeConnectError(new AuthError({ reason: "token expired" }))).toEqual({
-      status: 401,
-      message: "token expired"
-    })
+describe("normalizeCliError", () => {
+  it("maps unknown failures to ItemError", () => {
+    const error = normalizeCliError(new Error("unexpected failure"))
+    expect(error).toBeInstanceOf(ItemError)
+    expect(error.reason).toContain("unexpected failure")
   })
 
-  it("maps forbidden errors to HTTP 403", () => {
-    expect(
-      encodeConnectError(new ConnectForbidden({ message: "Vault not in scope", vaultId: "v1" }))
-    ).toEqual({ status: 403, message: "Vault not in scope" })
+  it("maps parse failures that only expose a message field", () => {
+    const error = normalizeCliError({ _tag: "OpSecretRefParseError", message: "bad reference" })
+    expect(error.reason).toBe("bad reference")
   })
 
-  it("maps not-found errors to HTTP 404", () => {
-    expect(
-      encodeConnectError(
-        new ConnectNotFound({ message: "Item not found: x", resource: "item", id: "x" })
-      )
-    ).toEqual({ status: 404, message: "Item not found: x" })
+  it("prefers explicit parse reasons over messages", () => {
+    const error = normalizeCliError({
+      _tag: "OpSecretRefParseError",
+      reason: "expected op://vault/item/field",
+      message: "bad reference"
+    })
+    expect(error.reason).toBe("expected op://vault/item/field")
   })
 
-  it("maps bad requests and unsupported operations to HTTP 400", () => {
-    expect(encodeConnectError(new ConnectBadRequest({ message: "malformed body" }))).toEqual({
-      status: 400,
-      message: "malformed body"
-    })
-    expect(
-      encodeConnectError(
-        new ConnectUnsupported({
-          operation: "getFiles",
-          feature: "documents",
-          limitation: "Proton Pass has no file attachments"
-        })
-      )
-    ).toEqual({
-      status: 400,
-      message:
-        "Unsupported by Proton Pass: getFiles (documents) - Proton Pass has no file attachments"
-    })
-  })
-
-  it("rejects unknown error tags at runtime", () => {
-    expect(
-      encodeConnectError({ _tag: "Unexpected" } as unknown as ConnectEncodableError)
-    ).toEqual({ _tag: "Unexpected" })
-  })
-
-  it("maps vault and item errors to HTTP 404 with identifiers", () => {
-    expect(encodeConnectError(new VaultError({ reason: "list failed" }))).toEqual({
-      status: 404,
-      message: "list failed"
-    })
-    expect(encodeConnectError(new VaultError({ reason: "missing", vaultId: "share-1" }))).toEqual({
-      status: 404,
-      message: "Vault not found: share-1"
-    })
-    expect(encodeConnectError(new ItemError({ reason: "missing field", field: "password" }))).toEqual({
-      status: 404,
-      message: "missing field"
-    })
-    expect(encodeConnectError(new ItemError({ reason: "missing", itemId: "item-1" }))).toEqual({
-      status: 404,
-      message: "Item not found: item-1"
-    })
+  it("falls back when a parse failure exposes neither reason nor message", () => {
+    const error = normalizeCliError({ _tag: "OpSecretRefParseError" })
+    expect(error.reason).toBe("invalid secret reference")
   })
 })

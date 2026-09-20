@@ -1,6 +1,6 @@
 /*
  * Project: openclaw-proton-pass
- * File: connect-errors.spec.ts
+ * File: cli.spec.ts
  * Last Modified: 2026-09-20
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
@@ -35,86 +35,22 @@
  */
 
 import { describe, expect, it } from "@effect/vitest"
-import {
-  AuthError,
-  ConnectBadRequest,
-  ConnectForbidden,
-  ConnectNotFound,
-  ConnectUnauthorized,
-  ConnectUnsupported,
-  encodeConnectError,
-  ItemError,
-  VaultError,
-  type ConnectEncodableError
-} from "@resnovas/opp-onepassword-compat"
+import { cliErrorTag, CliExitError, CliParseError } from "@resnovas/opp-onepassword-contract"
 
-describe("encodeConnectError", () => {
-  it("maps unauthorized errors to HTTP 401", () => {
+describe("cliErrorTag", () => {
+  it("returns CliParseError for parse failures", () => {
     expect(
-      encodeConnectError(new ConnectUnauthorized({ message: "Invalid or missing token" }))
-    ).toEqual({ status: 401, message: "Invalid or missing token" })
-    expect(encodeConnectError(new AuthError({ reason: "token expired" }))).toEqual({
-      status: 401,
-      message: "token expired"
-    })
+      cliErrorTag(new CliParseError({ format: "json", reason: "unexpected token" }))
+    ).toBe("CliParseError")
   })
 
-  it("maps forbidden errors to HTTP 403", () => {
-    expect(
-      encodeConnectError(new ConnectForbidden({ message: "Vault not in scope", vaultId: "v1" }))
-    ).toEqual({ status: 403, message: "Vault not in scope" })
-  })
-
-  it("maps not-found errors to HTTP 404", () => {
-    expect(
-      encodeConnectError(
-        new ConnectNotFound({ message: "Item not found: x", resource: "item", id: "x" })
-      )
-    ).toEqual({ status: 404, message: "Item not found: x" })
-  })
-
-  it("maps bad requests and unsupported operations to HTTP 400", () => {
-    expect(encodeConnectError(new ConnectBadRequest({ message: "malformed body" }))).toEqual({
-      status: 400,
-      message: "malformed body"
-    })
-    expect(
-      encodeConnectError(
-        new ConnectUnsupported({
-          operation: "getFiles",
-          feature: "documents",
-          limitation: "Proton Pass has no file attachments"
-        })
-      )
-    ).toEqual({
-      status: 400,
-      message:
-        "Unsupported by Proton Pass: getFiles (documents) - Proton Pass has no file attachments"
-    })
+  it("returns CliExitError for non-zero exits", () => {
+    expect(cliErrorTag(new CliExitError({ exitCode: 2, stderr: "boom" }))).toBe("CliExitError")
   })
 
   it("rejects unknown error tags at runtime", () => {
     expect(
-      encodeConnectError({ _tag: "Unexpected" } as unknown as ConnectEncodableError)
+      cliErrorTag({ _tag: "Unexpected" } as unknown as import("@resnovas/opp-onepassword-contract").CliError)
     ).toEqual({ _tag: "Unexpected" })
-  })
-
-  it("maps vault and item errors to HTTP 404 with identifiers", () => {
-    expect(encodeConnectError(new VaultError({ reason: "list failed" }))).toEqual({
-      status: 404,
-      message: "list failed"
-    })
-    expect(encodeConnectError(new VaultError({ reason: "missing", vaultId: "share-1" }))).toEqual({
-      status: 404,
-      message: "Vault not found: share-1"
-    })
-    expect(encodeConnectError(new ItemError({ reason: "missing field", field: "password" }))).toEqual({
-      status: 404,
-      message: "missing field"
-    })
-    expect(encodeConnectError(new ItemError({ reason: "missing", itemId: "item-1" }))).toEqual({
-      status: 404,
-      message: "Item not found: item-1"
-    })
   })
 })

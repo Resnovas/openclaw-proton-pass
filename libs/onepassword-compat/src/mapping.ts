@@ -179,8 +179,13 @@ export const opCategoryToProtonType = (
 ): ProtonItemType | undefined => OP_TO_PROTON[category]
 
 const protonFieldToConnect = (field: ProtonField): Field => {
-  const type = field.concealed ? ("CONCEALED" as const) : ("STRING" as const)
   const lower = field.label.toLowerCase()
+  const type =
+    field.concealed
+      ? ("CONCEALED" as const)
+      : lower.includes("totp") || lower === "one-time password"
+        ? ("TOTP" as const)
+        : ("STRING" as const)
   const purpose =
     lower === "password" || lower === "passphrase"
       ? ("PASSWORD" as const)
@@ -262,12 +267,36 @@ export const protonItemToFullItem = (item: ProtonItem, vaultId: string): FullIte
 /**
  * Convert a Connect {@link Item} summary from a Proton list entry.
  *
+ * @remarks
+ * Omits field values: list endpoints return metadata only, matching Connect
+ * behaviour. Trashed Proton items surface as `ARCHIVED`.
+ *
  * @param item - the Proton item summary
  * @param vaultId - the Connect vault id
  * @returns a Connect item summary
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { protonItemToItem } from "@resnovas/opp-onepassword-compat"
+ *
+ * const summary = protonItemToItem(
+ *   {
+ *     id: "item-1",
+ *     shareId: "share-1",
+ *     vaultId: "vault-1",
+ *     title: "GitHub",
+ *     type: "login",
+ *     note: "",
+ *     fields: [],
+ *     trashed: false
+ *   },
+ *   "share-1"
+ * )
+ *
+ * assert.strictEqual(summary.category, "LOGIN")
+ * assert.strictEqual(summary.title, "GitHub")
  */
 export const protonItemToItem = (item: ProtonItem, vaultId: string): Item => ({
   id: item.id,

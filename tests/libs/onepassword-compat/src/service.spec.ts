@@ -88,8 +88,50 @@ const infoJson = JSON.stringify({
   id: "user-1",
   email: "agent@example.com",
   username: "agent",
+  personal_access_token_name: "ci-token",
   release_track: "stable"
 })
+
+const failingStubScript = (stateFile: string): string => `#!/usr/bin/env bash
+state="${stateFile}"
+case "$1" in
+  info)
+    if [ "$2" = "--output" ]; then
+      echo '${infoJson.replaceAll("'", "'\\''")}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  logout) exit 0 ;;
+  login)
+    attempts=$(( $(cat "$state" 2>/dev/null || echo 0) + 1 ))
+    echo "$attempts" > "$state"
+    exit 0
+    ;;
+  vault)
+    if [ "$2" = "list" ] && [ "$4" = "json" ]; then
+      echo "not-json"
+      exit 0
+    fi
+    exit 1
+    ;;
+  item)
+    if [ "$2" = "list" ] && [ "$6" = "json" ]; then
+      echo '${itemsJson.replaceAll("'", "'\\''")}'
+      exit 0
+    fi
+    if [ "$2" = "view" ] && [ "$8" = "json" ]; then
+      exit 1
+    fi
+    if [ "$2" = "view" ] && [ "$3" = "pass://Private/GitHub/password" ]; then
+      echo "secret-value"
+      exit 0
+    fi
+    exit 1
+    ;;
+  *) exit 1 ;;
+esac
+`
 
 const stubScript = (stateFile: string): string => `#!/usr/bin/env bash
 state="${stateFile}"
@@ -142,14 +184,16 @@ afterEach(() => {
   }
 })
 
-const startWorkspace = (agentToken = "connect-token") => {
+const startWorkspace = (agentToken = "connect-token", script = stubScript) => {
   delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
   workspaceDir = mkdtempSync(join(tmpdir(), "opp-compat-"))
   const configDir = join(workspaceDir, "config")
   mkdirSync(configDir, { recursive: true })
-  writeFileSync(join(configDir, "openclaw-agent-pat"), `${agentToken}\n`)
+  if (agentToken !== null) {
+    writeFileSync(join(configDir, "openclaw-agent-pat"), `${agentToken}\n`)
+  }
   const passCli = join(workspaceDir, "pass-cli")
-  writeFileSync(passCli, stubScript(join(workspaceDir, "login-attempts")), "utf8")
+  writeFileSync(passCli, script(join(workspaceDir, "login-attempts")), "utf8")
   chmodSync(passCli, 0o755)
 
   process.env["OPENCLAW_PROTONPASS_CONFIG_DIR"] = configDir
@@ -166,8 +210,21 @@ const layer = Layer.provideMerge(
   )
 )
 
-const run = <A, E>(body: (compat: OnePasswordCompat) => Effect.Effect<A, E>) => {
-  startWorkspace()
+const run = <A, E>(
+  body: (compat: OnePasswordCompat) => Effect.Effect<A, E>,
+  options: {
+    readonly agentToken?: string | null
+    readonly script?: typeof stubScript
+    readonly envToken?: string
+  } = {}
+) => {
+  startWorkspace(
+    options.agentToken === undefined ? "connect-token" : options.agentToken,
+    options.script ?? stubScript
+  )
+  if (options.envToken !== undefined) {
+    process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"] = options.envToken
+  }
   return Effect.gen(function* () {
     const compat = yield* OnePasswordCompat
     return yield* body(compat)
@@ -194,6 +251,25 @@ describe("OnePasswordCompat", () => {
     })
   )
 
+  it.effect("validateToken fails when no token is configured", () =>
+    Effect.gen(function* () {
+      const result = yield* run((compat) => compat.validateToken(Redacted.make("anything")), {
+        agentToken: null
+      })
+      expect(Exit.isFailure(result)).toBe(true)
+    })
+  )
+
+  it.effect("validateToken accepts a token supplied through the environment", () =>
+    Effect.gen(function* () {
+      const result = yield* run((compat) => compat.validateToken(Redacted.make("env-token")), {
+        agentToken: null,
+        envToken: "env-token"
+      })
+      expect(Exit.isSuccess(result)).toBe(true)
+    })
+  )
+
   it.effect("lists vaults from pass-cli JSON", () =>
     Effect.gen(function* () {
       const result = yield* run((compat) => compat.listVaults())
@@ -213,6 +289,20 @@ describe("OnePasswordCompat", () => {
     })
   )
 
+  it.effect("returns not found for a missing vault", () =>
+    Effect.gen(function* () {
+      const result = yield* run((compat) => compat.getVault("missing"))
+      expect(Exit.isFailure(result)).toBe(true)
+    })
+  )
+
+  it.effect("maps pass-cli failures while listing vaults", () =>
+    Effect.gen(function* () {
+      const result = yield* run((compat) => compat.listVaults(), { script: failingStubScript })
+      expect(Exit.isFailure(result)).toBe(true)
+    })
+  )
+
   it.effect("lists and loads items for a vault", () =>
     Effect.gen(function* () {
       const listed = yield* run((compat) => compat.listItems("share-1"))
@@ -226,6 +316,31 @@ describe("OnePasswordCompat", () => {
       if (Exit.isSuccess(loaded)) {
         expect(loaded.value.category).toBe("LOGIN")
       }
+
+      const byTitle = yield* run((compat) => compat.getItem("Private", "GitHub"))
+      expect(Exit.isSuccess(byTitle)).toBe(true)
+    })
+  )
+
+  it.effect("returns not found for missing vaults and items", () =>
+    Effect.gen(function* () {
+      const missingVault = yield* run((compat) => compat.listItems("missing"))
+      const missingItem = yield* run((compat) => compat.getItem("share-1", "missing"))
+      const missingVaultItem = yield* run((compat) => compat.getItem("missing", "item-1"))
+      expect(Exit.isFailure(missingVault)).toBe(true)
+      expect(Exit.isFailure(missingItem)).toBe(true)
+      expect(Exit.isFailure(missingVaultItem)).toBe(true)
+    })
+  )
+
+  it.effect("maps pass-cli failures while loading items", () =>
+    Effect.gen(function* () {
+      const listed = yield* run((compat) => compat.listItems("share-1"), { script: failingStubScript })
+      const loaded = yield* run((compat) => compat.getItem("share-1", "item-1"), {
+        script: failingStubScript
+      })
+      expect(Exit.isFailure(listed)).toBe(true)
+      expect(Exit.isFailure(loaded)).toBe(true)
     })
   )
 
@@ -241,6 +356,15 @@ describe("OnePasswordCompat", () => {
     })
   )
 
+  it.effect("maps secret read failures", () =>
+    Effect.gen(function* () {
+      const result = yield* run((compat) => compat.readSecretUri("op://Private/Missing/password"), {
+        script: failingStubScript
+      })
+      expect(Exit.isFailure(result)).toBe(true)
+    })
+  )
+
   it.effect("returns whoami details from pass-cli info", () =>
     Effect.gen(function* () {
       const result = yield* run((compat) => compat.whoami())
@@ -248,6 +372,55 @@ describe("OnePasswordCompat", () => {
       if (Exit.isSuccess(result)) {
         expect(result.value.accountUuid).toBe("user-1")
         expect(result.value.email).toBe("agent@example.com")
+        expect(result.value.name).toBe("agent")
+        expect(result.value.personalAccessTokenName).toBe("ci-token")
+      }
+    })
+  )
+
+  it.effect("maps vault lookup failures from pass-cli", () =>
+    Effect.gen(function* () {
+      const result = yield* run((compat) => compat.getVault("Private"), { script: failingStubScript })
+      expect(Exit.isFailure(result)).toBe(true)
+    })
+  )
+
+  it.effect("returns whoami without optional profile fields", () =>
+    Effect.gen(function* () {
+      const minimalInfo = JSON.stringify({ id: "user-1" })
+      const script = (stateFile: string): string => `#!/usr/bin/env bash
+state="${stateFile}"
+case "$1" in
+  info)
+    if [ "$2" = "--output" ]; then
+      echo '${minimalInfo.replaceAll("'", "'\\''")}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  logout) exit 0 ;;
+  login)
+    attempts=$(( $(cat "$state" 2>/dev/null || echo 0) + 1 ))
+    echo "$attempts" > "$state"
+    exit 0
+    ;;
+  vault)
+    if [ "$2" = "list" ] && [ "$4" = "json" ]; then
+      echo '${vaultJson.replaceAll("'", "'\\''")}'
+      exit 0
+    fi
+    exit 1
+    ;;
+  *) exit 1 ;;
+esac
+`
+      const result = yield* run((compat) => compat.whoami(), { script })
+      expect(Exit.isSuccess(result)).toBe(true)
+      if (Exit.isSuccess(result)) {
+        expect(result.value.accountUuid).toBe("user-1")
+        expect(result.value.email).toBeUndefined()
+        expect(result.value.name).toBeUndefined()
+        expect(result.value.personalAccessTokenName).toBeUndefined()
       }
     })
   )

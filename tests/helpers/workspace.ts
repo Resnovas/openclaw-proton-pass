@@ -186,6 +186,10 @@ case "$1" in
       echo "secret-value"
       exit 0
     fi
+    if [ "$2" = "view" ] && [ "$3" = "pass://Private/GitHub/totp?totp=code" ]; then
+      echo "123456"
+      exit 0
+    fi
     exit 1
     ;;
   *) exit 0 ;;

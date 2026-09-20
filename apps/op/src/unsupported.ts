@@ -75,6 +75,23 @@ export interface UnsupportedParams {
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { failUnsupported } from "@resnovas/opp-op/unsupported"
+ * import { Effect, Exit } from "effect"
+ *
+ * const exit = Effect.runSyncExit(
+ *   failUnsupported(
+ *     {
+ *       command: "document create",
+ *       feature: "1Password documents",
+ *       limitation: "Proton Pass has no file attachment items"
+ *     },
+ *     "human"
+ *   )
+ * )
+ *
+ * assert.strictEqual(Exit.isFailure(exit), true)
  */
 export const failUnsupported = (
   params: UnsupportedParams,

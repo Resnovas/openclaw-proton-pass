@@ -45,6 +45,7 @@ import { createServer, request as httpRequest, type IncomingHttpHeaders } from "
 import {
   handleRoute,
   matchConnectRoute,
+  requestMethod,
   requestPath,
   serve
 } from "../../../../apps/connect/src/server.js"
@@ -237,6 +238,7 @@ describe("matchConnectRoute", () => {
     expect(matchConnectRoute("GET", "/health")).toEqual({ _tag: "health" })
     expect(matchConnectRoute("GET", "/v1/activity")).toEqual({ _tag: "activity" })
     expect(matchConnectRoute("GET", "/v1/vaults")).toEqual({ _tag: "listVaults" })
+    expect(matchConnectRoute("POST", "/v1/vaults")).toEqual({ _tag: "notFound" })
     expect(matchConnectRoute("GET", "/v1/vaults/share-1")).toEqual({
       _tag: "getVault",
       vaultId: "share-1"
@@ -287,6 +289,13 @@ describe("requestPath", () => {
   it("defaults to root when url is missing", () => {
     const request = new EventEmitter() as IncomingMessage
     expect(requestPath(request)).toBe("/")
+  })
+})
+
+describe("requestMethod", () => {
+  it("defaults to GET when method is missing", () => {
+    const request = new EventEmitter() as IncomingMessage
+    expect(requestMethod(request)).toBe("GET")
   })
 })
 
@@ -442,6 +451,48 @@ describe("serve", () => {
 })
 
 describe("handleRoute", () => {
+  const mockResponse = () => {
+    const response = new EventEmitter() as unknown as ServerResponse & { body?: string }
+    response.writeHead = () => response
+    response.end = (chunk?: string) => {
+      response.body = chunk
+      return response
+    }
+    return response
+  }
+
+  it("includes optional account details in health output", async () => {
+    const compat = {
+      whoami: () =>
+        Effect.succeed({
+          accountUuid: "user-1",
+          email: "agent@example.com",
+          name: "agent"
+        })
+    } as unknown as typeof OnePasswordCompat.Service
+    const response = mockResponse()
+    await Effect.runPromise(handleRoute(compat, { _tag: "health" }, response))
+    const body = JSON.parse(response.body ?? "{}") as {
+      protonPass: { email?: string; name?: string }
+    }
+    expect(body.protonPass.email).toBe("agent@example.com")
+    expect(body.protonPass.name).toBe("agent")
+  })
+
+  it("omits optional account details when whoami returns only an id", async () => {
+    const compat = {
+      whoami: () => Effect.succeed({ accountUuid: "user-1" })
+    } as unknown as typeof OnePasswordCompat.Service
+    const response = mockResponse()
+    await Effect.runPromise(handleRoute(compat, { _tag: "health" }, response))
+    const body = JSON.parse(response.body ?? "{}") as {
+      protonPass: { email?: string; name?: string; accountUuid: string }
+    }
+    expect(body.protonPass.accountUuid).toBe("user-1")
+    expect(body.protonPass.email).toBeUndefined()
+    expect(body.protonPass.name).toBeUndefined()
+  })
+
   it("covers the defensive default branch", async () => {
     startWorkspace()
     const compat = await Effect.runPromise(OnePasswordCompat.pipe(Effect.provide(layer)))

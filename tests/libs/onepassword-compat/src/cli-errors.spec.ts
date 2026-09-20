@@ -88,4 +88,28 @@ describe("formatCliError", () => {
     expect(formatCliError(new VaultError({ reason: "vault list failed" }), "human")).toContain("vault list failed")
     expect(formatCliError(new ItemError({ reason: "field missing" }), "json")).toContain("field missing")
   })
+
+  it("formats unsupported commands without a suggestion", () => {
+    const error = new CliUnsupported({
+      command: "op item move",
+      feature: "item writes",
+      limitation: "not supported"
+    })
+    expect(formatCliError(error, "human")).not.toContain("undefined")
+  })
+
+  it("formats remaining error branches in JSON mode", () => {
+    expect(JSON.parse(formatCliError(new CliExit({ exitCode: 2, stderr: "boom", command: "pass-cli x" }), "json")).code).toBe(
+      "exit"
+    )
+    expect(formatCliError(new AuthError({ reason: "bad token" }), "human")).toContain("bad token")
+    expect(JSON.parse(formatCliError(new VaultError({ reason: "vault list failed" }), "json")).code).toBe("vault")
+    expect(formatCliError(new ItemError({ reason: "field missing" }), "human")).toContain("field missing")
+  })
+
+  it("rejects unknown error tags at runtime", () => {
+    expect(
+      formatCliError({ _tag: "Unexpected" } as unknown as import("@resnovas/opp-onepassword-compat").CliEncodableError, "human")
+    ).toEqual({ _tag: "Unexpected" })
+  })
 })

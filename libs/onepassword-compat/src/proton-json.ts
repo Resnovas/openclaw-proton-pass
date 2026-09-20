@@ -149,6 +149,10 @@ const contentFields = (
       if (password !== undefined) {
         fields.push({ label: "password", value: password, concealed: true })
       }
+      const totp = readString(content, "totp")
+      if (totp !== undefined) {
+        fields.push({ label: "totp", value: totp })
+      }
       const urls = content["urls"]
       if (Array.isArray(urls)) {
         urls.forEach((url, index) => {
@@ -217,10 +221,6 @@ const contentFields = (
       }
       break
     }
-    default: {
-      const unreachable: never = type
-      return unreachable
-    }
   }
 
   if (note.length > 0 && type !== "note") {
@@ -232,11 +232,24 @@ const contentFields = (
 /**
  * Normalise pass-cli vault list JSON.
  *
+ * @remarks
+ * Maps pass-cli `share_id` to the Connect vault id used in API paths.
+ *
  * @param body - decoded `vault list --output json` body
  * @returns vault rows keyed by share id
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { normaliseProtonVaults } from "@resnovas/opp-onepassword-compat"
+ *
+ * const vaults = normaliseProtonVaults({
+ *   vaults: [{ name: "OpenClaw", vault_id: "v1", share_id: "s1" }]
+ * })
+ *
+ * assert.strictEqual(vaults[0]?.shareId, "s1")
+ * assert.strictEqual(vaults[0]?.name, "OpenClaw")
  */
 export const normaliseProtonVaults = (body: PassVaultListJson): ReadonlyArray<ProtonVault> =>
   body.vaults.map((vault) => ({
@@ -263,11 +276,32 @@ const summaryToProtonItem = (
 /**
  * Normalise pass-cli item list JSON.
  *
+ * @remarks
+ * List responses omit field values; use {@link normaliseProtonItemView} for
+ * full items.
+ *
  * @param body - decoded `item list --output json` body
  * @returns item summaries without secret fields
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { normaliseProtonItemsList } from "@resnovas/opp-onepassword-compat"
+ *
+ * const items = normaliseProtonItemsList({
+ *   items: [
+ *     {
+ *       id: "i1",
+ *       share_id: "s1",
+ *       vault_id: "v1",
+ *       title: "Example",
+ *       item_type: "login"
+ *     }
+ *   ]
+ * })
+ *
+ * assert.strictEqual(items[0]?.title, "Example")
  */
 export const normaliseProtonItemsList = (body: PassItemsListJson): ReadonlyArray<ProtonItem> =>
   body.items.map((item) => summaryToProtonItem(item))
@@ -275,11 +309,35 @@ export const normaliseProtonItemsList = (body: PassItemsListJson): ReadonlyArray
 /**
  * Normalise pass-cli item view JSON.
  *
+ * @remarks
+ * Infers Proton item type from content shape when pass-cli does not repeat the
+ * list summary type. Concealed values are copied into {@link ProtonField}.
+ *
  * @param body - decoded `item view --output json` body
  * @returns a full item including field values
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { normaliseProtonItemView } from "@resnovas/opp-onepassword-compat"
+ *
+ * const item = normaliseProtonItemView({
+ *   item: {
+ *     id: "i1",
+ *     share_id: "s1",
+ *     vault_id: "v1",
+ *     state: "Active",
+ *     content: {
+ *       title: "Example",
+ *       note: "",
+ *       content: { username: "wendy", password: "secret" }
+ *     }
+ *   }
+ * })
+ *
+ * assert.strictEqual(item.type, "login")
+ * assert.strictEqual(item.fields.length >= 1, true)
  */
 export const normaliseProtonItemView = (body: PassItemViewJson): ProtonItem => {
   const item = body.item
@@ -304,10 +362,24 @@ export const normaliseProtonItemView = (body: PassItemViewJson): ProtonItem => {
   }
 }
 
+const isProtonItemType = (value: string): value is ProtonItemType =>
+  value === "login" ||
+  value === "note" ||
+  value === "credit_card" ||
+  value === "identity" ||
+  value === "ssh_key" ||
+  value === "wifi" ||
+  value === "alias" ||
+  value === "custom"
+
 const inferTypeFromContent = (
   content: Record<string, unknown> | undefined
 ): ProtonItemType => {
   if (content === undefined) return "note"
+  const declaredType = readString(content, "item_type")
+  if (declaredType !== undefined && isProtonItemType(declaredType)) {
+    return declaredType
+  }
   if ("password" in content && ("username" in content || "email" in content || "urls" in content)) {
     return "login"
   }

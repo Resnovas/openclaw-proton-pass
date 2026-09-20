@@ -40,6 +40,7 @@ import {
   opCategoryToProtonType,
   protonCategoryToOpCategory,
   protonItemToFullItem,
+  protonItemToItem,
   type ProtonItem,
   type ProtonItemType
 } from "@resnovas/opp-onepassword-compat"
@@ -115,5 +116,146 @@ describe("protonItemToFullItem", () => {
       fullItemToProtonCreate({ title: "Doc", category: "DOCUMENT", fields: [] })
     )
     expect(Exit.isFailure(result)).toBe(true)
+  })
+
+  it("maps note purpose fields and item notes", () => {
+    const full = protonItemToFullItem(
+      sampleItem("login", { note: "extra", fields: [{ label: "note", value: "inline note" }] }),
+      "share-1"
+    )
+    expect(full.fields?.some((field) => field.purpose === "NOTES")).toBe(true)
+    expect(full.fields?.some((field) => field.label === "notes" && field.value === "extra")).toBe(true)
+  })
+
+  it("maps custom item categories", () => {
+    expect(protonCategoryToOpCategory("custom")).toBe("CUSTOM")
+    expect(opCategoryToProtonType("CUSTOM")).toBe("custom")
+  })
+
+  it("maps field types and purposes for Connect export", () => {
+    const full = protonItemToFullItem(
+      sampleItem("login", {
+        note: "vault note",
+        trashed: true,
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-02",
+        fields: [
+          { label: "username", value: "user" },
+          { label: "email", value: "user@example.com" },
+          { label: "passphrase", value: "phrase", concealed: true },
+          { label: "one-time password", value: "123456" },
+          { label: "custom", value: "value", section: "extra" }
+        ]
+      }),
+      "share-1"
+    )
+    expect(full.state).toBe("ARCHIVED")
+    expect(full.createdAt).toBe("2026-01-01")
+    expect(full.fields?.some((field) => field.type === "TOTP")).toBe(true)
+    expect(full.fields?.some((field) => field.purpose === "USERNAME")).toBe(true)
+    expect(full.fields?.some((field) => field.purpose === "PASSWORD")).toBe(true)
+  })
+
+  it("extracts notes when converting Connect items for create", () => {
+    const payload = Effect.runSync(
+      fullItemToProtonCreate({
+        title: "Example",
+        category: "LOGIN",
+        fields: [
+          { label: "notes", type: "STRING", purpose: "NOTES", value: "stored note" },
+          { label: "password", type: "CONCEALED", purpose: "PASSWORD", value: "secret" }
+        ]
+      })
+    )
+    expect(payload.note).toBe("stored note")
+    expect(payload.fields.some((field) => field.label === "password")).toBe(true)
+  })
+
+  it("defaults missing titles when converting Connect items", () => {
+    const payload = Effect.runSync(
+      fullItemToProtonCreate({
+        category: "SECURE_NOTE",
+        fields: [{ label: "notes", type: "STRING", value: "hello" }]
+      })
+    )
+    expect(payload.title).toBe("Untitled")
+    expect(payload.type).toBe("note")
+  })
+
+  it("maps item summaries with lifecycle metadata", () => {
+    const summary = protonItemToItem(
+      sampleItem("login", {
+        trashed: true,
+        createdAt: "2026-01-01",
+        updatedAt: "2026-01-02"
+      }),
+      "share-1"
+    )
+    expect(summary.state).toBe("ARCHIVED")
+    expect(summary.createdAt).toBe("2026-01-01")
+    expect(summary.updatedAt).toBe("2026-01-02")
+  })
+
+  it("maps Connect fields with sections and concealed types", () => {
+    const payload = Effect.runSync(
+      fullItemToProtonCreate({
+        title: "Example",
+        fields: [
+          {
+            label: "secret",
+            type: "CONCEALED",
+            value: "hidden",
+            section: { id: "extra" }
+          },
+          {
+            label: "pass",
+            type: "STRING",
+            purpose: "PASSWORD",
+            value: "secret"
+          }
+        ]
+      })
+    )
+    expect(payload.fields.some((field) => field.section === "extra")).toBe(true)
+    expect(payload.fields.some((field) => field.concealed === true)).toBe(true)
+  })
+
+  it("defaults missing categories to login payloads", () => {
+    const payload = Effect.runSync(
+      fullItemToProtonCreate({
+        title: "Example",
+        fields: [{ label: "password", type: "CONCEALED", purpose: "PASSWORD", value: "secret" }]
+      })
+    )
+    expect(payload.type).toBe("login")
+    expect(payload.note).toBe("")
+  })
+
+  it("treats a missing fields array as empty when building create payloads", () => {
+    const payload = Effect.runSync(
+      fullItemToProtonCreate({
+        title: "Example",
+        category: "LOGIN"
+      })
+    )
+    expect(payload.fields).toEqual([])
+    expect(payload.note).toBe("")
+  })
+
+  it("maps Connect fields that only expose purpose or section metadata", () => {
+    const payload = Effect.runSync(
+      fullItemToProtonCreate({
+        title: "Example",
+        category: "LOGIN",
+        fields: [
+          { type: "CONCEALED", purpose: "PASSWORD", value: "secret", section: { id: "extra" } },
+          { type: "STRING", value: "plain" },
+          { label: "notes", type: "STRING" }
+        ]
+      })
+    )
+    expect(payload.fields.some((field) => field.label === "PASSWORD")).toBe(true)
+    expect(payload.fields.some((field) => field.section === "extra")).toBe(true)
+    expect(payload.note).toBe("")
   })
 })
