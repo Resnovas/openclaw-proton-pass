@@ -3,8 +3,6 @@ title: "1Password compatibility matrix"
 description: "The 1Password Connect and op CLI capabilities the alias implements, pinned against the vendored Connect OpenAPI specs and the op CLI help snapshot."
 ---
 
-# 1Password compatibility capability matrix
-
 Machine-readable source: [`matrix.json`](./matrix.json). CI checks this file against
 the vendored Connect OpenAPI specs (`externals/onepassword-connect-openapi/`) and
 the pinned `op` CLI help snapshot (`externals/onepassword-cli/op-help-2.30.3.txt`)
