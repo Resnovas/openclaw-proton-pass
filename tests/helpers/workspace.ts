@@ -86,13 +86,65 @@ export interface StubBehaviour {
   readonly runDelaySeconds?: number
 }
 
+const defaultOpVaultJson = JSON.stringify({
+  vaults: [{ name: "Private", vault_id: "vault-1", share_id: "share-1" }]
+})
+
+const defaultOpItemsJson = JSON.stringify({
+  items: [
+    {
+      id: "item-1",
+      share_id: "share-1",
+      vault_id: "vault-1",
+      title: "GitHub",
+      item_type: "login",
+      state: "Active"
+    }
+  ]
+})
+
+const defaultOpItemViewJson = JSON.stringify({
+  item: {
+    id: "item-1",
+    share_id: "share-1",
+    vault_id: "vault-1",
+    state: "Active",
+    content: {
+      title: "GitHub",
+      note: "",
+      content: {
+        username: "user",
+        password: "secret-value",
+        urls: ["https://github.com"]
+      }
+    }
+  }
+})
+
+const defaultOpInfoJson = JSON.stringify({
+  id: "user-1",
+  email: "agent@example.com",
+  username: "agent",
+  release_track: "stable"
+})
+
 const stubScript = (behaviour: StubBehaviour, stateFile: string): string => {
   const values = behaviour.values ?? ["resolved-value"]
   const printf = values.map((value) => `printf '%s\\0' '${value}'`).join("\n    ")
+  const vaultJson = defaultOpVaultJson.replaceAll("'", "'\\''")
+  const itemsJson = defaultOpItemsJson.replaceAll("'", "'\\''")
+  const itemViewJson = defaultOpItemViewJson.replaceAll("'", "'\\''")
+  const infoJson = defaultOpInfoJson.replaceAll("'", "'\\''")
   return `#!/usr/bin/env bash
 state="${stateFile}"
 case "$1" in
-  info) exit ${behaviour.infoExit ?? 0} ;;
+  info)
+    if [ "$2" = "--output" ]; then
+      echo '${infoJson}'
+      exit ${behaviour.infoExit ?? 0}
+    fi
+    exit ${behaviour.infoExit ?? 0}
+    ;;
   logout) exit 0 ;;
   login)
     attempts=$(( $(cat "$state" 2>/dev/null || echo 0) + 1 ))
@@ -113,6 +165,28 @@ case "$1" in
       exit ${behaviour.runExit ?? 0}
     fi
     ${printf}
+    ;;
+  vault)
+    if [ "$2" = "list" ] && [ "$4" = "json" ]; then
+      echo '${vaultJson}'
+      exit 0
+    fi
+    exit 1
+    ;;
+  item)
+    if [ "$2" = "list" ] && [ "$6" = "json" ]; then
+      echo '${itemsJson}'
+      exit 0
+    fi
+    if [ "$2" = "view" ] && [ "$8" = "json" ]; then
+      echo '${itemViewJson}'
+      exit 0
+    fi
+    if [ "$2" = "view" ] && [ "$3" = "pass://Private/GitHub/password" ]; then
+      echo "secret-value"
+      exit 0
+    fi
+    exit 1
     ;;
   *) exit 0 ;;
 esac

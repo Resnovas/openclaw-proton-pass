@@ -1,0 +1,33 @@
+{
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "op",
+  "projectType": "application",
+  "sourceRoot": "apps/op/src",
+  "tags": [
+    "type:app",
+    "scope:cli",
+    "type_platform",
+    "layer_backend"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -b apps/op/tsconfig.json"
+      }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -b apps/op/tsconfig.json"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run tests/apps/op --passWithNoTests",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}
