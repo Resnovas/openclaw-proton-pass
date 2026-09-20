@@ -105,6 +105,9 @@ const root = Cli.make("openclaw-proton-pass", {}, () =>
   Effect.logInfo("run `openclaw-proton-pass --help` to see the available commands")
 ).pipe(Cli.withSubcommands([doctorCommand, setupCommand, tokenCommand]))
 
+/** Version stamped into the bundle at build time; `dev` when running from source. */
+export const cliVersion = process.env["OPP_VERSION"] ?? "dev"
+
 /**
  * Run the CLI.
  *
@@ -128,7 +131,7 @@ const root = Cli.make("openclaw-proton-pass", {}, () =>
  */
 export const run = Cli.run(root, {
   name: "openclaw-proton-pass",
-  version: "0.1.0"
+  version: cliVersion
 })
 
 /**

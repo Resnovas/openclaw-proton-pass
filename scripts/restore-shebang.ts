@@ -40,11 +40,8 @@ for (const entry of readdirSync(dir)) {
 
   if (source.startsWith(SHEBANG)) continue
 
-  if (!source.includes(SHEBANG)) {
-    console.error(`${entry}: no shebang found at all`)
-    broken += 1
-    continue
-  }
+  // Plugin entries and other library bundles are not executables.
+  if (!source.includes(SHEBANG)) continue
 
   if (check) {
     console.error(`${entry}: shebang is not on the first line`)
