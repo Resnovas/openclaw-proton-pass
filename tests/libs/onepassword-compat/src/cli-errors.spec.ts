@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
- * Last Modified: 2026-09-18
+ * File: cli-errors.spec.ts
+ * Last Modified: 2026-09-20
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,68 +34,58 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+import { describe, expect, it } from "@effect/vitest"
+import {
+  AuthError,
+  CliExit,
+  CliUnsupported,
+  ConnectUnsupported,
+  formatCliError,
+  ItemError,
+  VaultError
+} from "@resnovas/opp-onepassword-compat"
 
-const root = dirname(fileURLToPath(import.meta.url))
+describe("formatCliError", () => {
+  const unsupported = new CliUnsupported({
+    command: "op document create",
+    feature: "documents",
+    limitation: "Proton Pass stores notes and SSH keys instead.",
+    suggestion: "Use pass-cli item create note --help."
+  })
 
-/**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
- *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
- */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
-  }
-}
+  it("formats unsupported commands for human stderr", () => {
+    const message = formatCliError(unsupported, "human")
+    expect(message).toContain("[ERROR] op document create is not supported.")
+    expect(message).toContain("documents")
+    expect(message).toContain("pass-cli item create note --help.")
+  })
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
+  it("formats unsupported commands for JSON stderr", () => {
+    const message = formatCliError(unsupported, "json")
+    expect(JSON.parse(message)).toEqual({
+      code: "unsupported",
+      command: "op document create",
+      feature: "documents",
+      message: "Proton Pass stores notes and SSH keys instead."
+    })
+  })
 
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry"),
-      "@resnovas/opp-onepassword-contract": lib("onepassword-contract"),
-      "@resnovas/opp-onepassword-compat": lib("onepassword-compat")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    // Telemetry ships on; the suite must not report to the real project.
-    setupFiles: ["tests/helpers/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
+  it("formats connect unsupported errors in both modes", () => {
+    const error = new ConnectUnsupported({
+      operation: "getFiles",
+      feature: "documents",
+      limitation: "no attachments"
+    })
+    expect(formatCliError(error, "human")).toContain("getFiles")
+    expect(JSON.parse(formatCliError(error, "json")).operation).toBe("getFiles")
+  })
+
+  it("formats cli exit, auth, vault, and item failures", () => {
+    expect(formatCliError(new CliExit({ exitCode: 2, stderr: "boom\n", command: "pass-cli x" }), "human")).toContain(
+      "exited 2"
+    )
+    expect(JSON.parse(formatCliError(new AuthError({ reason: "bad token" }), "json")).code).toBe("auth")
+    expect(formatCliError(new VaultError({ reason: "vault list failed" }), "human")).toContain("vault list failed")
+    expect(formatCliError(new ItemError({ reason: "field missing" }), "json")).toContain("field missing")
+  })
 })

@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
- * Last Modified: 2026-09-18
+ * File: pass-ref.ts
+ * Last Modified: 2026-09-20
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,68 +34,61 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+/**
+ * Convert 1Password secret references into Proton Pass `pass://` references.
+ *
+ * @module
+ * @since 0.1.0
+ */
 
-const root = dirname(fileURLToPath(import.meta.url))
+import type { OpSecretRef } from "@resnovas/opp-onepassword-contract"
+
+const PASS_SCHEME = "pass://"
 
 /**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
+ * Build a Proton Pass secret reference from a parsed `op://` reference.
  *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
+ * @remarks
+ * Maps `op://vault/item/field` to `pass://vault/item/field` and
+ * `op://vault/item/section/field` to `pass://vault/item/section/field`.
+ * Query parameters are translated where Proton Pass understands them:
+ * `attribute=otp` becomes `totp=code`, and `ssh-format=openssh` is preserved.
+ * Pure: no I/O.
+ *
+ * @param ref - the branded 1Password secret reference components
+ * @returns a `pass://` URI for pass-cli
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { opSecretRefToPassRef } from "@resnovas/opp-onepassword-compat"
+ * import { Schema } from "effect"
+ * import { OpSecretRef } from "@resnovas/opp-onepassword-contract"
+ *
+ * const ref = Schema.decodeUnknownSync(OpSecretRef)({
+ *   vault: "Private",
+ *   item: "db",
+ *   field: "password"
+ * })
+ *
+ * assert.strictEqual(opSecretRefToPassRef(ref), "pass://Private/db/password")
  */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
+export const opSecretRefToPassRef = (ref: OpSecretRef): string => {
+  const segments =
+    ref.section === undefined
+      ? [ref.vault, ref.item, ref.field]
+      : [ref.vault, ref.item, ref.section, ref.field]
+
+  const params = new URLSearchParams()
+  if (ref.attribute === "otp") {
+    params.set("totp", "code")
   }
+  if (ref.sshFormat === "openssh") {
+    params.set("ssh-format", "openssh")
+  }
+
+  const query = params.toString()
+  const path = segments.join("/")
+  return query.length === 0 ? `${PASS_SCHEME}${path}` : `${PASS_SCHEME}${path}?${query}`
 }
-
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
-
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry"),
-      "@resnovas/opp-onepassword-contract": lib("onepassword-contract"),
-      "@resnovas/opp-onepassword-compat": lib("onepassword-compat")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    // Telemetry ships on; the suite must not report to the real project.
-    setupFiles: ["tests/helpers/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
-})

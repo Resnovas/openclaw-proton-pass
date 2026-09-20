@@ -1,0 +1,456 @@
+openapi: 3.2.0
+info:
+  title: 1Password Connect Server Items API
+  description: The 1Password Connect Server API provides secure access to 1Password items and vaults in your company's apps and cloud infrastructure through a private REST API. Connect Servers bridge the gap between 1Password and your infrastructure by enabling programmatic access to secrets stored in shared vaults. You can create, read, update, and delete items, manage vaults, and retrieve files attached to items.
+  version: 1.8.1
+  contact:
+    name: 1Password Support
+    url: https://support.1password.com/
+  termsOfService: https://1password.com/legal/terms-of-service/
+  license:
+    name: MIT
+    url: https://github.com/1Password/connect/blob/main/LICENSE
+servers:
+- url: http://localhost:8080
+  description: Local Connect Server (default port 8080)
+security:
+- bearerAuth: []
+tags:
+- name: Items
+  description: Operations for creating, reading, updating, and deleting items within vaults.
+paths:
+  /v1/vaults/{vaultUuid}/items:
+    get:
+      operationId: listItems
+      summary: 1Password List Items in a Vault
+      description: Returns a list of items stored in the specified vault. Results can be filtered by title using the filter query parameter. Each returned item includes basic metadata but not the full item details or field values.
+      tags:
+      - Items
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      - $ref: '#/components/parameters/filterParam'
+      responses:
+        '200':
+          description: Successfully retrieved items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+    post:
+      operationId: createItem
+      summary: 1Password Create a New Item
+      description: Creates a new item in the specified vault. The request body must include a FullItem object containing the information needed to create the item, including the vault reference, category, title, and fields.
+      tags:
+      - Items
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FullItem'
+      responses:
+        '200':
+          description: Successfully created item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FullItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+  /v1/vaults/{vaultUuid}/items/{itemUuid}:
+    get:
+      operationId: getItemById
+      summary: 1Password Get Item Details
+      description: Returns the full details of an item identified by its UUID within the specified vault. This includes all fields, sections, URLs, and associated metadata.
+      tags:
+      - Items
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      - $ref: '#/components/parameters/itemUuidParam'
+      responses:
+        '200':
+          description: Successfully retrieved item details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FullItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+    put:
+      operationId: replaceItem
+      summary: 1Password Replace an Item
+      description: Replaces an entire item with new fields and values in the specified vault. The request body must include a complete FullItem object that will replace the existing item.
+      tags:
+      - Items
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      - $ref: '#/components/parameters/itemUuidParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FullItem'
+      responses:
+        '200':
+          description: Successfully replaced item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FullItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+    patch:
+      operationId: patchItem
+      summary: 1Password Update an Item
+      description: Applies an add, remove, or replace operation on an item or the fields of an item using the RFC6902 JSON Patch document standard. This allows partial updates to items without replacing the entire object.
+      tags:
+      - Items
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      - $ref: '#/components/parameters/itemUuidParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JsonPatch'
+      responses:
+        '200':
+          description: Successfully updated item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FullItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+    delete:
+      operationId: deleteItem
+      summary: 1Password Delete an Item
+      description: Permanently deletes an item identified by its UUID from the specified vault. This action cannot be undone.
+      tags:
+      - Items
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      - $ref: '#/components/parameters/itemUuidParam'
+      responses:
+        '204':
+          description: Successfully deleted item
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+components:
+  parameters:
+    vaultUuidParam:
+      name: vaultUuid
+      in: path
+      description: The UUID of the vault.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    itemUuidParam:
+      name: itemUuid
+      in: path
+      description: The UUID of the item.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    filterParam:
+      name: filter
+      in: query
+      description: A SCIM-style filter to narrow results. For example, use title eq "Example" to filter items by title.
+      required: false
+      schema:
+        type: string
+  schemas:
+    Error:
+      type: object
+      description: Represents an error response from the Connect server.
+      properties:
+        status:
+          type: integer
+          description: The HTTP status code.
+        message:
+          type: string
+          description: A human-readable error message.
+    JsonPatch:
+      type: array
+      description: A JSON Patch document as defined by RFC 6902 for applying partial modifications to items.
+      items:
+        type: object
+        required:
+        - op
+        - path
+        properties:
+          op:
+            type: string
+            description: The operation to perform.
+            enum:
+            - add
+            - remove
+            - replace
+          path:
+            type: string
+            description: A JSON Pointer to the target location in the item.
+          value:
+            description: The value to use in the operation. Required for add and replace.
+    GeneratorRecipe:
+      type: object
+      description: Configuration for generating a random value for a field, such as password length and character types.
+      properties:
+        length:
+          type: integer
+          description: The length of the generated value.
+          minimum: 1
+          maximum: 64
+        characterSets:
+          type: array
+          description: The character sets to use when generating the value.
+          items:
+            type: string
+            enum:
+            - LETTERS
+            - DIGITS
+            - SYMBOLS
+        excludeCharacters:
+          type: string
+          description: Characters to exclude from the generated value.
+    VaultRef:
+      type: object
+      description: A reference to a vault.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The unique identifier of the referenced vault.
+    FullItem:
+      type: object
+      description: Represents a complete 1Password item including all fields, sections, and associated metadata. Used for creating and updating items.
+      allOf:
+      - $ref: '#/components/schemas/Item'
+      - type: object
+        properties:
+          fields:
+            type: array
+            description: The fields of the item containing secrets and metadata.
+            items:
+              $ref: '#/components/schemas/Field'
+          sections:
+            type: array
+            description: Sections used to organize fields within the item.
+            items:
+              $ref: '#/components/schemas/Section'
+    Item:
+      type: object
+      description: Represents a summary of a 1Password item with basic metadata. Use the get item endpoint to retrieve full details.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The unique identifier for the item.
+        title:
+          type: string
+          description: The title of the item.
+        vault:
+          $ref: '#/components/schemas/VaultRef'
+        category:
+          type: string
+          description: The category of the item.
+          enum:
+          - LOGIN
+          - PASSWORD
+          - API_CREDENTIAL
+          - SERVER
+          - DATABASE
+          - CREDIT_CARD
+          - MEMBERSHIP
+          - PASSPORT
+          - SOFTWARE_LICENSE
+          - OUTDOOR_LICENSE
+          - SECURE_NOTE
+          - WIRELESS_ROUTER
+          - BANK_ACCOUNT
+          - DRIVER_LICENSE
+          - IDENTITY
+          - REWARD_PROGRAM
+          - DOCUMENT
+          - EMAIL_ACCOUNT
+          - SOCIAL_SECURITY_NUMBER
+          - MEDICAL_RECORD
+          - SSH_KEY
+          - CUSTOM
+        urls:
+          type: array
+          description: URLs associated with the item.
+          items:
+            $ref: '#/components/schemas/Url'
+        favorite:
+          type: boolean
+          description: Whether the item is marked as a favorite.
+        tags:
+          type: array
+          description: Tags applied to the item.
+          items:
+            type: string
+        version:
+          type: integer
+          description: The version number of the item.
+        state:
+          type: string
+          description: The state of the item.
+          enum:
+          - ARCHIVED
+          - DELETED
+        createdAt:
+          type: string
+          format: date-time
+          description: The date and time the item was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: The date and time the item was last updated.
+        lastEditedBy:
+          type: string
+          format: uuid
+          description: The UUID of the user who last edited the item.
+    Section:
+      type: object
+      description: Represents a section within an item used to organize fields into logical groups.
+      properties:
+        id:
+          type: string
+          description: The unique identifier for the section.
+        label:
+          type: string
+          description: The human-readable label for the section.
+    Url:
+      type: object
+      description: Represents a URL associated with an item.
+      properties:
+        primary:
+          type: boolean
+          description: Whether this is the primary URL for the item.
+        href:
+          type: string
+          format: uri
+          description: The URL value.
+    SectionRef:
+      type: object
+      description: A reference to a section within an item.
+      properties:
+        id:
+          type: string
+          description: The unique identifier of the referenced section.
+    Field:
+      type: object
+      description: Represents a field within an item that stores a value such as a username, password, or other data.
+      properties:
+        id:
+          type: string
+          description: The unique identifier for the field.
+        section:
+          $ref: '#/components/schemas/SectionRef'
+        type:
+          type: string
+          description: The type of the field.
+          enum:
+          - STRING
+          - EMAIL
+          - CONCEALED
+          - URL
+          - TOTP
+          - DATE
+          - MONTH_YEAR
+          - MENU
+        purpose:
+          type: string
+          description: The purpose of the field, indicating its role within the item.
+          enum:
+          - USERNAME
+          - PASSWORD
+          - NOTES
+        label:
+          type: string
+          description: The human-readable label for the field.
+        value:
+          type: string
+          description: The value stored in the field.
+        generate:
+          type: boolean
+          description: Whether the field value should be auto-generated.
+        entropy:
+          type: number
+          description: The entropy (strength) of the generated value.
+        recipe:
+          $ref: '#/components/schemas/GeneratorRecipe'
+  responses:
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication credentials are missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Bad request due to invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A Connect server access token generated from 1Password. Each request must include this token in the Authorization header.
+externalDocs:
+  description: 1Password Connect Server API Reference
+  url: https://developer.1password.com/docs/connect/api-reference/
