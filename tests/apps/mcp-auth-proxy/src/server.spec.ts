@@ -42,8 +42,8 @@ import { PassSession, SecretResolver } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Fiber, Layer } from "effect"
 import { EventEmitter } from "node:events"
 import type { IncomingMessage } from "node:http"
-import { createServer } from "node:http"
-import { loadConfig, readBody, serve } from "../../../../apps/mcp-auth-proxy/src/server.js"
+import { createServer, request as httpRequest } from "node:http"
+import { loadConfig, readBody, relayUpstreamResponse, serve } from "../../../../apps/mcp-auth-proxy/src/server.js"
 import { freePort, startUpstream, waitForPort, type Upstream } from "../../../helpers/upstream.js"
 import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
 
@@ -283,6 +283,25 @@ describe("serve", () => {
     expect(response.status).toBe(204)
   })
 
+  it("relays a complete upstream body when content-length matches", async () => {
+    upstream = await startUpstream((_request, response) => {
+      const body = "complete-body"
+      response.writeHead(200, { "Content-Length": String(body.length) })
+      response.end(body)
+    })
+    const port = freePort()
+    workspace = makeWorkspace({
+      secretMap: '{"S":"pass://V/i/f"}',
+      proxyConfig: configure(port, upstream.url),
+      stub: { values: ["tok"] }
+    })
+    await startProxy(port)
+
+    const response = await fetch(`http://127.0.0.1:${port}/example`)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe("complete-body")
+  })
+
   it("surfaces a failure while relaying the upstream body", async () => {
     // The upstream announces a length it never delivers, then drops the
     // socket, so the relay fails midway rather than at connection time.
@@ -301,12 +320,24 @@ describe("serve", () => {
     })
     await startProxy(port)
 
-    // The relay failure is reported as an upstream error rather than the
-    // client silently receiving a truncated body.
-    // The relay fails midway: the client sees a broken response rather than a
-    // silently truncated body presented as success.
+    // Node's fetch treats a truncated body as success when the proxy omits
+    // Content-Length on the relay. The raw HTTP client still sees the socket
+    // dropped mid-response.
     await expect(
-      fetch(`http://127.0.0.1:${port}/example`).then((response) => response.text())
+      new Promise<string>((resolve, reject) => {
+        const req = httpRequest(
+          { hostname: "127.0.0.1", port, path: "/example", method: "GET" },
+          (res) => {
+            const chunks: Array<Buffer> = []
+            res.on("data", (chunk) => chunks.push(chunk))
+            res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")))
+            res.on("error", (cause) => reject(cause))
+            res.on("aborted", () => reject(new Error("response aborted")))
+          }
+        )
+        req.on("error", (cause) => reject(cause))
+        req.end()
+      })
     ).rejects.toThrow()
   })
 
@@ -367,6 +398,69 @@ describe("serve", () => {
   })
 })
 
+describe("relayUpstreamResponse", () => {
+  it("destroys the client socket when fewer bytes arrive than content-length", async () => {
+    let destroyed = false
+    const client = {
+      writeHead: () => undefined,
+      write: () => true,
+      end: () => undefined,
+      destroy: () => {
+        destroyed = true
+      }
+    } as unknown as import("node:http").ServerResponse
+
+    const upstream = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("short"))
+          controller.close()
+        }
+      }),
+      { headers: { "Content-Length": "100" } }
+    )
+    const result = await Effect.runPromise(relayUpstreamResponse(upstream, client).pipe(Effect.exit))
+    expect(Exit.isFailure(result)).toBe(true)
+    expect(destroyed).toBe(true)
+  })
+
+  it("relays a complete body when content-length matches", async () => {
+    let ended = false
+    const client = {
+      writeHead: () => undefined,
+      write: () => true,
+      end: () => {
+        ended = true
+      },
+      destroy: () => undefined
+    } as unknown as import("node:http").ServerResponse
+
+    const upstream = new Response("complete-body", {
+      headers: { "Content-Length": "13" }
+    })
+    const result = await Effect.runPromise(relayUpstreamResponse(upstream, client).pipe(Effect.exit))
+    expect(Exit.isSuccess(result)).toBe(true)
+    expect(ended).toBe(true)
+  })
+
+  it("relays a body when no content-length header is present", async () => {
+    let ended = false
+    const client = {
+      writeHead: () => undefined,
+      write: () => true,
+      end: () => {
+        ended = true
+      },
+      destroy: () => undefined
+    } as unknown as import("node:http").ServerResponse
+
+    const upstream = new Response("chunked-body")
+    const result = await Effect.runPromise(relayUpstreamResponse(upstream, client).pipe(Effect.exit))
+    expect(Exit.isSuccess(result)).toBe(true)
+    expect(ended).toBe(true)
+  })
+})
+
 describe("readBody", () => {
   it("collects a body delivered in chunks", async () => {
     const request = new EventEmitter() as unknown as IncomingMessage
@@ -394,6 +488,15 @@ describe("readBody", () => {
 })
 
 describe("serve listener failures", () => {
+  it("releases the listener when the scope closes", async () => {
+    workspace = makeWorkspace({
+      secretMap: '{"S":"pass://V/i/f"}',
+      proxyConfig: '{"listen":"127.0.0.1:18891","routes":{"/a":{"upstream":"http://127.0.0.1:1/m","secretId":"S"}}}'
+    })
+    const result = await Effect.runPromise(Effect.scoped(serve).pipe(Effect.provide(layer), Effect.exit))
+    expect(Exit.isSuccess(result)).toBe(true)
+  })
+
   it("fails when the port is already in use", async () => {
     // The listener error path must surface as a failure rather than a hang.
     const blocker = createServer()

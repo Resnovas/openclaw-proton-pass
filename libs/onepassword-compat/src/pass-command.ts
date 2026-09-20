@@ -83,6 +83,19 @@ export type PassCommandEnv = Readonly<Record<string, string>>
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { runPassJson, PassVaultListJson } from "@resnovas/opp-onepassword-compat"
+ * import { Effect, Schema } from "effect"
+ *
+ * const program = runPassJson(
+ *   ["vault", "list", "--output", "json"],
+ *   PassVaultListJson,
+ *   { PROTON_PASS_SESSION_DIR: "/tmp/session" }
+ * )
+ *
+ * assert.strictEqual(Effect.isEffect(program), true)
+ * assert.strictEqual(Schema.isSchema(PassVaultListJson), true)
  */
 export const runPassJson = <A, I>(
   args: ReadonlyArray<string>,
@@ -158,12 +171,27 @@ export const runPassJson = <A, I>(
 /**
  * Run pass-cli and return raw stdout text.
  *
+ * @remarks
+ * Used for field reads where pass-cli prints a single value rather than JSON.
+ * Non-zero exit codes become {@link CliExit}.
+ *
  * @param args - pass-cli arguments after the binary name
  * @param env - session environment
  * @returns stdout text on success
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { runPassText } from "@resnovas/opp-onepassword-compat"
+ * import { Effect } from "effect"
+ *
+ * const program = runPassText(
+ *   ["item", "view", "pass://OpenClaw/example/password"],
+ *   { PROTON_PASS_SESSION_DIR: "/tmp/session" }
+ * )
+ *
+ * assert.strictEqual(Effect.isEffect(program), true)
  */
 export const runPassText = (
   args: ReadonlyArray<string>,
@@ -216,11 +244,24 @@ export const runPassText = (
 /**
  * List vaults through pass-cli JSON output.
  *
+ * @remarks
+ * Calls `pass-cli vault list --output json` and normalises share ids for
+ * Connect vault ids.
+ *
  * @param env - session environment
  * @returns normalised vault entries
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { vaultList } from "@resnovas/opp-onepassword-compat"
+ * import { Effect } from "effect"
+ *
+ * assert.strictEqual(
+ *   Effect.isEffect(vaultList({ PROTON_PASS_SESSION_DIR: "/tmp/session" })),
+ *   true
+ * )
  */
 export const vaultList = (
   env: PassCommandEnv
@@ -236,12 +277,24 @@ export const vaultList = (
 /**
  * List items in one vault through pass-cli JSON output.
  *
+ * @remarks
+ * Returns summaries without secret field values, matching Connect list items.
+ *
  * @param vault - vault share id or name
  * @param env - session environment
  * @returns normalised item summaries
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { itemList } from "@resnovas/opp-onepassword-compat"
+ * import { Effect } from "effect"
+ *
+ * assert.strictEqual(
+ *   Effect.isEffect(itemList("share-1", { PROTON_PASS_SESSION_DIR: "/tmp/session" })),
+ *   true
+ * )
  */
 export const itemList = (
   vault: string,
@@ -260,6 +313,9 @@ export const itemList = (
 /**
  * View one item through pass-cli JSON output.
  *
+ * @remarks
+ * Decodes the full item including concealed fields for Connect get item.
+ *
  * @param shareId - vault share id
  * @param itemId - item id
  * @param env - session environment
@@ -267,6 +323,17 @@ export const itemList = (
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { itemView } from "@resnovas/opp-onepassword-compat"
+ * import { Effect } from "effect"
+ *
+ * assert.strictEqual(
+ *   Effect.isEffect(
+ *     itemView("share-1", "item-1", { PROTON_PASS_SESSION_DIR: "/tmp/session" })
+ *   ),
+ *   true
+ * )
  */
 export const itemView = (
   shareId: string,
@@ -286,12 +353,29 @@ export const itemView = (
 /**
  * Read one field value through a pass URI.
  *
+ * @remarks
+ * The returned string is not redacted here; callers must wrap it before
+ * logging or crossing a protocol boundary.
+ *
  * @param passRef - a `pass://` reference
  * @param env - session environment
  * @returns the raw field value text
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { itemViewField } from "@resnovas/opp-onepassword-compat"
+ * import { Effect } from "effect"
+ *
+ * assert.strictEqual(
+ *   Effect.isEffect(
+ *     itemViewField("pass://OpenClaw/example/password", {
+ *       PROTON_PASS_SESSION_DIR: "/tmp/session"
+ *     })
+ *   ),
+ *   true
+ * )
  */
 export const itemViewField = (
   passRef: string,
@@ -302,11 +386,23 @@ export const itemViewField = (
 /**
  * Read session info through pass-cli JSON output.
  *
+ * @remarks
+ * Used by {@link OnePasswordCompat.whoami} after the session is established.
+ *
  * @param env - session environment
  * @returns parsed session info
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { sessionInfo } from "@resnovas/opp-onepassword-compat"
+ * import { Effect } from "effect"
+ *
+ * assert.strictEqual(
+ *   Effect.isEffect(sessionInfo({ PROTON_PASS_SESSION_DIR: "/tmp/session" })),
+ *   true
+ * )
  */
 export const sessionInfo = (
   env: PassCommandEnv

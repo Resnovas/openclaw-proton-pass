@@ -115,17 +115,53 @@ const isEncodable = (error: unknown): error is ConnectEncodableError =>
 /**
  * Normalise a request URL pathname for routing.
  *
+ * @remarks
+ * Strips the query string so route matching depends only on the path. Defaults
+ * to `/` when `request.url` is missing.
+ *
  * @param request - the inbound HTTP request
  * @returns the pathname without query string
  *
  * @category utils
  * @since 0.1.0
+ *
+ * @example
+ * import { requestPath } from "@resnovas/opp-connect/server"
+ * import type { IncomingMessage } from "node:http"
+ *
+ * assert.strictEqual(
+ *   requestPath({ url: "/v1/vaults?filter=name%20eq%20Demo" } as IncomingMessage),
+ *   "/v1/vaults"
+ * )
  */
 export const requestPath = (request: IncomingMessage): string => {
   const raw = request.url ?? "/"
   const index = raw.indexOf("?")
   return index === -1 ? raw : raw.slice(0, index)
 }
+
+/**
+ * Resolve the HTTP method from an incoming request.
+ *
+ * @remarks
+ * Node may omit {@link IncomingMessage.method} on malformed requests; Connect
+ * treats that as GET so public heartbeat routes still respond.
+ *
+ * @param request - incoming HTTP request
+ * @returns the method name, defaulting to GET
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { requestMethod } from "@resnovas/opp-connect/server"
+ * import { EventEmitter } from "node:events"
+ * import type { IncomingMessage } from "node:http"
+ *
+ * const request = new EventEmitter() as IncomingMessage
+ * assert.strictEqual(requestMethod(request), "GET")
+ */
+export const requestMethod = (request: IncomingMessage): string => request.method ?? "GET"
 
 /**
  * Match a pathname and HTTP method to a Connect route.
@@ -248,6 +284,29 @@ const unsupportedWrite = (operation: string) =>
     limitation: "write operations are not yet available through this server"
   })
 
+/**
+ * Execute one matched Connect route and write the HTTP response.
+ *
+ * @remarks
+ * Read routes call {@link OnePasswordCompat}; write and file routes return
+ * {@link ConnectUnsupported} until the write path is wired. Errors are encoded
+ * with {@link encodeConnectError} before the response is sent.
+ *
+ * @param compat - the shared 1Password compatibility service
+ * @param route - the route produced by {@link matchConnectRoute}
+ * @param response - the Node HTTP response to complete
+ * @returns an Effect that completes when the response has been written
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { handleRoute, matchConnectRoute } from "@resnovas/opp-connect/server"
+ * import { Effect } from "effect"
+ *
+ * const route = matchConnectRoute("GET", "/heartbeat")
+ * assert.strictEqual(route._tag, "heartbeat")
+ */
 export const handleRoute = (
   compat: OnePasswordCompat,
   route: ConnectRoute,
@@ -351,7 +410,7 @@ export const serve = Effect.gen(function* () {
 
   const handle = (request: IncomingMessage, response: ServerResponse) =>
     Effect.gen(function* () {
-      const method = request.method ?? "GET"
+      const method = requestMethod(request)
       const pathname = requestPath(request)
       const route = matchConnectRoute(method, pathname)
       const needsAuth = pathname.startsWith("/v1/")

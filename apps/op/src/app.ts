@@ -603,13 +603,45 @@ const root = Cli.make("op").pipe(
  * Parses `process.argv` and dispatches to a subcommand. Requires the services
  * in {@link layer}. Exits non-zero when a subcommand fails.
  *
+ * @param args - the full `process.argv`
+ * @returns an Effect that completes when the subcommand has finished
+ *
  * @category entrypoints
  * @since 0.1.0
+ *
+ * @example
+ * import { run } from "@resnovas/opp-op/app"
+ * import { Effect } from "effect"
+ *
+ * assert.strictEqual(Effect.isEffect(run(["node", "opp-op", "--help"])), true)
  */
 export const run = Cli.run(root, {
   name: "op",
   version: "0.1.0"
 })
+
+/**
+ * Normalise unknown CLI failures for stderr formatting.
+ *
+ * @remarks
+ * Exported so tests can assert the generic fallback path without reaching
+ * through a full command dispatch.
+ *
+ * @param error - the failure to normalise
+ * @returns a CLI-encodable error for stderr formatting
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ *
+ * @example
+ * import { normalizeCliError } from "@resnovas/opp-op/app"
+ * import { ItemError } from "@resnovas/opp-onepassword-compat"
+ *
+ * const error = normalizeCliError(new Error("unexpected failure"))
+ * assert.strictEqual(error instanceof ItemError, true)
+ * assert.match(error.reason, /unexpected failure/)
+ */
+export const normalizeCliError = toCliError
 
 /**
  * Entry point used by {@link main}.
