@@ -1,4 +1,7 @@
-# 1Password compatibility capability matrix
+---
+title: "1Password compatibility capability matrix"
+description: "Which Connect endpoints and `op` CLI commands the 1Password compatibility alias supports against Proton Pass, and the pinned spec versions it is checked against."
+---
 
 Machine-readable source: [`matrix.json`](./matrix.json). CI checks this file against
 the vendored Connect OpenAPI specs (`externals/onepassword-connect-openapi/`) and
@@ -25,7 +28,7 @@ via `pnpm check-matrix`.
 | Wifi | `WIRELESS_ROUTER` | |
 | Alias | `SECURE_NOTE` (read) | Write of unsupported categories fails |
 
-1Password `PASSWORD` items store as Proton Login. `op item delete` (archive default)
+1Password `PASSWORD` items are stored as Proton Login. `op item delete` (archive default)
 maps to Proton trash, not permanent delete.
 
 ## Status legend
