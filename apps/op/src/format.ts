@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
- * Last Modified: 2026-09-18
+ * File: format.ts
+ * Last Modified: 2026-09-20
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,70 +34,45 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+/**
+ * Resolve the 1Password CLI output format from flags and environment.
+ *
+ * @module
+ * @since 0.1.0
+ */
 
-const root = dirname(fileURLToPath(import.meta.url))
+import {
+  CLI_FORMAT_HUMAN,
+  CliFormat
+} from "@resnovas/opp-onepassword-contract"
+import { Option, Schema } from "effect"
+
+const decodeFormat = Schema.decodeUnknownOption(CliFormat)
 
 /**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
+ * Resolve CLI output format from `--format` and `OP_FORMAT`.
  *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
+ * @remarks
+ * The explicit `--format` flag wins over `OP_FORMAT`. When neither is set, or
+ * when `OP_FORMAT` is not a recognised value, the default is `human`. Pure and
+ * never throws.
+ *
+ * @param flag - optional `--format` value from the command line
+ * @returns the output format to use for stdout and stderr messages
+ *
+ * @category utils
+ * @since 0.1.0
+ *
+ * @example
+ * import { resolveFormat } from "@resnovas/opp-op/format"
+ * import { Option } from "effect"
+ *
+ * assert.strictEqual(resolveFormat(Option.some("json")), "json")
+ * assert.strictEqual(resolveFormat(Option.none()), "human")
  */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
-  }
+export const resolveFormat = (flag: Option.Option<CliFormat>): CliFormat => {
+  if (Option.isSome(flag)) return flag.value
+  const env = process.env["OP_FORMAT"]
+  if (env === undefined) return CLI_FORMAT_HUMAN
+  return Option.getOrElse(decodeFormat(env), () => CLI_FORMAT_HUMAN)
 }
-
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
-const app = (name: string) => resolve(root, `apps/${name}/src/app.ts`)
-
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry"),
-      "@resnovas/opp-onepassword-contract": lib("onepassword-contract"),
-      "@resnovas/opp-onepassword-compat": lib("onepassword-compat"),
-      "@resnovas/opp-op": app("op")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    // Telemetry ships on; the suite must not report to the real project.
-    setupFiles: ["tests/helpers/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
-})
