@@ -1,7 +1,7 @@
 /*
  * Project: openclaw-proton-pass
- * File: vitest.config.ts
- * Last Modified: 2026-09-18
+ * File: unsupported.ts
+ * Last Modified: 2026-09-20
  *
  * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
  * and notes on development. These can be found at
@@ -34,70 +34,63 @@
  * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
  */
 
-import { existsSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import type { Plugin } from "vite"
-import { defineConfig } from "vitest/config"
+/**
+ * Fail with a formatted {@link CliUnsupported} error on stderr.
+ *
+ * @module
+ * @since 0.1.0
+ */
 
-const root = dirname(fileURLToPath(import.meta.url))
+import {
+  CliUnsupported,
+  formatCliError
+} from "@resnovas/opp-onepassword-compat"
+import type { CliFormat } from "@resnovas/opp-onepassword-contract"
+import { Effect } from "effect"
 
 /**
- * Resolve NodeNext-style `./thing.js` imports to their TypeScript source.
+ * Parameters for an unsupported 1Password CLI command.
  *
- * The sources compile under `module: NodeNext`, which requires the `.js`
- * extension in relative imports. Without this the tests would have to import
- * the built output, and coverage would measure `dist` rather than the code
- * under review.
+ * @category models
+ * @since 0.1.0
  */
-const nodeNextSource: Plugin = {
-  name: "nodenext-source-resolution",
-  enforce: "pre",
-  resolveId(source, importer) {
-    if (importer === undefined || !source.startsWith(".") || !source.endsWith(".js")) {
-      return null
-    }
-    const candidate = resolve(dirname(importer), source.replace(/\.js$/, ".ts"))
-    return existsSync(candidate) ? candidate : null
-  }
+export interface UnsupportedParams {
+  readonly command: string
+  readonly feature: string
+  readonly limitation: string
+  readonly suggestion?: string
 }
 
-const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
-const app = (name: string) => resolve(root, `apps/${name}/src/app.ts`)
-
-export default defineConfig({
-  plugins: [nodeNextSource],
-  resolve: {
-    alias: {
-      "@resnovas/opp-domain": lib("domain"),
-      "@resnovas/opp-config": lib("config"),
-      "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry"),
-      "@resnovas/opp-onepassword-contract": lib("onepassword-contract"),
-      "@resnovas/opp-onepassword-compat": lib("onepassword-compat"),
-      "@resnovas/opp-op": app("op")
-    }
-  },
-  test: {
-    include: ["tests/**/*.spec.ts"],
-    environment: "node",
-    // Telemetry ships on; the suite must not report to the real project.
-    setupFiles: ["tests/helpers/setup.ts"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      reportsDirectory: "coverage",
-      include: ["libs/*/src/**/*.ts", "apps/*/src/**/*.ts"],
-      exclude: [
-        // Barrel files contain only re-exports.
-        "**/src/index.ts",
-        // Entry points exist to call runMain and nothing else. Importing one
-        // would start the program, so they cannot be instrumented in process;
-        // they are exercised instead by the subprocess tests, which run the
-        // real built binaries end to end.
-        "apps/*/src/main.ts"
-      ],
-      thresholds: { lines: 100, functions: 100, statements: 100, branches: 100 }
-    }
-  }
-})
+/**
+ * Report that a 1Password CLI command is not supported and fail.
+ *
+ * @remarks
+ * Writes a formatted message to stderr via {@link formatCliError}, sets
+ * `process.exitCode` to `1`, and fails with {@link CliUnsupported}. Never
+ * writes secret material.
+ *
+ * @param params - unsupported command metadata
+ * @param format - requested CLI output format
+ * @returns an Effect that always fails with {@link CliUnsupported}
+ *
+ * @category utils
+ * @since 0.1.0
+ */
+export const failUnsupported = (
+  params: UnsupportedParams,
+  format: CliFormat
+): Effect.Effect<never, CliUnsupported> =>
+  Effect.gen(function* () {
+    const error = new CliUnsupported({
+      command: params.command,
+      feature: params.feature,
+      limitation: params.limitation,
+      ...(params.suggestion === undefined ? {} : { suggestion: params.suggestion })
+    })
+    const message = formatCliError(error, format)
+    yield* Effect.sync(() => {
+      process.stderr.write(`${message}\n`)
+      process.exitCode = 1
+    })
+    return yield* Effect.fail(error)
+  })
