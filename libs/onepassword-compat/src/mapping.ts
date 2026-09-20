@@ -248,7 +248,12 @@ const connectFieldToProton = (field: Field): ProtonField => ({
  */
 export const protonItemToFullItem = (item: ProtonItem, vaultId: string): FullItem => {
   const fields = item.fields.map((field) => protonFieldToConnect(field))
-  if (item.note.length > 0) {
+  const hasMatchingNoteField = item.fields.some(
+    (field) =>
+      (field.label.toLowerCase() === "notes" || field.label.toLowerCase() === "note") &&
+      field.value === item.note
+  )
+  if (item.note.length > 0 && !hasMatchingNoteField) {
     fields.push({ label: "notes", type: "STRING", purpose: "NOTES", value: item.note })
   }
 

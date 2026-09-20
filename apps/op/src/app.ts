@@ -126,7 +126,7 @@ const encodeWhoamiHuman = (whoami: {
 }
 
 const concealField = (field: Field, reveal: boolean): Field => {
-  if (reveal || field.type !== "CONCEALED") return field
+  if (reveal || (field.type !== "CONCEALED" && field.type !== "TOTP")) return field
   return { ...field, value: undefined }
 }
 
@@ -191,7 +191,9 @@ const readStdin = Effect.tryPromise({
 const substituteOpRefs = (template: string) =>
   Effect.gen(function* () {
     const compat = yield* OnePasswordCompat
-    const matches = [...new Set(template.match(OP_REF_PATTERN) ?? [])]
+    const matches = [...new Set(template.match(OP_REF_PATTERN) ?? [])].sort(
+      (left, right) => right.length - left.length
+    )
     let output = template
     for (const uri of matches) {
       const secret = yield* compat.readSecretUri(uri)
@@ -416,8 +418,9 @@ const itemGetCommand = Cli.make(
           if (totpField?.label === undefined) {
             return yield* new ItemError({ reason: "item has no one-time password field" })
           }
+          const encodeOpPathSegment = (segment: string) => encodeURIComponent(segment)
           const secret = yield* compat.readSecretUri(
-            `op://${vault}/${loadedForOtp.title ?? item}/${totpField.label}?attribute=otp`
+            `op://${encodeOpPathSegment(vault)}/${encodeOpPathSegment(loadedForOtp.title ?? item)}/${encodeOpPathSegment(totpField.label)}?attribute=otp`
           )
           yield* writeSecretStdout(secret, resolved)
           return

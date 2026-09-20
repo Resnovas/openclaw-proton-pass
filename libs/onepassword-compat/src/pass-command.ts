@@ -136,13 +136,16 @@ export const runPassJson = <A, I>(
       })
     ).pipe(
       Effect.timeout(timeoutMillis),
-      Effect.mapError(
-        (cause) =>
-          new CliExit({
-            exitCode: 1,
-            stderr: String(cause),
-            command: [paths.passCli, ...args].join(" ")
-          })
+      Effect.catchAll((cause) =>
+        cause instanceof CliExit
+          ? Effect.fail(cause)
+          : Effect.fail(
+              new CliExit({
+                exitCode: 1,
+                stderr: String(cause),
+                command: [paths.passCli, ...args].join(" ")
+              })
+            )
       )
     )
 
@@ -230,13 +233,16 @@ export const runPassText = (
       })
     ).pipe(
       Effect.timeout(timeoutMillis),
-      Effect.mapError(
-        (cause) =>
-          new CliExit({
-            exitCode: 1,
-            stderr: String(cause),
-            command: [paths.passCli, ...args].join(" ")
-          })
+      Effect.catchAll((cause) =>
+        cause instanceof CliExit
+          ? Effect.fail(cause)
+          : Effect.fail(
+              new CliExit({
+                exitCode: 1,
+                stderr: String(cause),
+                command: [paths.passCli, ...args].join(" ")
+              })
+            )
       )
     )
   })
