@@ -1,0 +1,65 @@
+# Pinned 1Password CLI reference snapshot
+# Version: 2.30.3
+# Source: https://developer.1password.com/docs/cli/reference
+# Used by scripts/check-matrix.ts to verify CLI command coverage.
+
+Usage:  op [command] [flags]
+
+Available Commands:
+  completion  Generate shell completion scripts
+  document    Manage documents
+  events-api  Manage Events API integrations
+  inject      Inject secrets into a config file
+  item        Manage items
+  plugin      Manage shell plugins
+  read        Read a secret
+  run         Run a command with secrets in the environment
+  signin      Sign in to 1Password
+  signout     Sign out of 1Password
+  user        Manage users
+  vault       Manage vaults
+  whoami      Get information about the authenticated account
+
+Flags:
+  --format string   Format output (human, json)
+  -h, --help        help for op
+  -v, --version     version for op
+
+Use "op [command] --help" for more information about a command.
+
+# op item subcommands
+item create
+item delete
+item edit
+item get
+item list
+item move
+item share
+
+# op vault subcommands
+vault create
+vault delete
+vault edit
+vault get
+vault list
+vault user grant
+vault user revoke
+
+# op document subcommands
+document create
+document delete
+document edit
+document get
+document list
+
+# op user subcommands
+user get
+user list
+user provision
+
+# op events-api subcommands
+events-api create
+events-api list
+events-api get
+events-api update
+events-api delete

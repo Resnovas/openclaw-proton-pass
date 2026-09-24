@@ -2,7 +2,7 @@
   "id": "proton-pass",
   "name": "Proton Pass",
   "description": "Resolve OpenClaw credentials from Proton Pass at request time. Secrets stay in the vault; openclaw.json records only opaque ids.",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "homepage": "https://github.com/Resnovas/openclaw-proton-pass",
   "categories": [
     "security"
