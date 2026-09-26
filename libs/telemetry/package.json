@@ -14,7 +14,7 @@
   "dependencies": {
     "@resnovas/opp-config": "workspace:*",
     "effect": "^3.22.2",
-    "posthog-node": "^5.52.4"
+    "posthog-node": "^5.52.5"
   },
   "homepage": "https://github.com/Resnovas/openclaw-proton-pass"
 }
