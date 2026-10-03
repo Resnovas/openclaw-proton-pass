@@ -191,8 +191,8 @@ importers:
         specifier: ^24.0.0
         version: 24.13.5
       '@upstash/docs7':
-        specifier: ^0.1.10
-        version: 0.1.10
+        specifier: ^0.1.12
+        version: 0.1.12
       '@vitest/coverage-v8':
         specifier: ^3.2.7
         version: 3.2.7(supports-color@7.2.0)(vitest@3.2.7(@types/node@24.13.5)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.1))
@@ -1608,8 +1608,8 @@ packages:
   '@types/parse-json@4.0.2':
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
 
-  '@upstash/docs7@0.1.10':
-    resolution: {integrity: sha512-JmM+smbAzvQsaNoAzOpSXv58G6oBzYo+g1jRKqJErf/GxiMwo5Pv6nXy7VKMo/bJ2FfCluA/7CivNsBPkBKndQ==}
+  '@upstash/docs7@0.1.12':
+    resolution: {integrity: sha512-+3uDrgCO3mWy6thNDiYLm4OBK/sQundjU47zRKkvZP3+X6OC+KEOVuRTrgT5RgnaZ0JBwMdalgnEvjzdwUB3xg==}
     engines: {node: '>=20.19'}
     hasBin: true
 
@@ -4352,7 +4352,7 @@ snapshots:
 
   '@types/parse-json@4.0.2': {}
 
-  '@upstash/docs7@0.1.10':
+  '@upstash/docs7@0.1.12':
     dependencies:
       boxen: 8.0.1
       commander: 14.0.3
