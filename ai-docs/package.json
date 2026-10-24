@@ -9,6 +9,6 @@
     "@resnovas/opp-domain": "workspace:*",
     "@resnovas/opp-pass-cli": "workspace:*",
     "@resnovas/opp-telemetry": "workspace:*",
-    "effect": "^3.22.2"
+    "effect": "^3.22.3"
   }
 }
