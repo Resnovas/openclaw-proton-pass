@@ -176,8 +176,8 @@ importers:
         specifier: ^0.108.2
         version: 0.108.2(@effect/cluster@0.60.2(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/sql@0.52.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/workflow@0.19.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(@effect/rpc@0.76.2(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/sql@0.52.1(@effect/experimental@0.61.1(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(@effect/platform@0.97.2(effect@3.22.2))(effect@3.22.2))(effect@3.22.2)
       '@effect/vitest':
-        specifier: ^0.30.0
-        version: 0.30.0(effect@3.22.2)(vitest@3.2.7(@types/node@24.13.5)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.1))
+        specifier: ^0.30.1
+        version: 0.30.1(effect@3.22.2)(vitest@3.2.7(@types/node@24.13.5)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.1))
       '@nx/js':
         specifier: ^23.2.1
         version: 23.2.1(@babel/traverse@7.29.8(supports-color@7.2.0))(nx@23.2.1)(supports-color@7.2.0)
@@ -1033,11 +1033,11 @@ packages:
     peerDependencies:
       effect: ^3.22.0
 
-  '@effect/vitest@0.30.0':
-    resolution: {integrity: sha512-2qcK7F4XSwOn7Ye9vgEkrndHiiHVf9Nl+U5jvvLBKeYx4+8++O5Y8RFezaQzs/rWx8GkdlStv/s+HYMHZ/2/AQ==}
+  '@effect/vitest@0.30.1':
+    resolution: {integrity: sha512-RkVje95T+ni6vAgI787XRbM4scAe+x/5FSQxrqZH19LtvoTWeFgImaRCoJXOy5rOwvShb7skJtrRbYtqEZi65A==}
     peerDependencies:
-      effect: ^3.22.0
-      vitest: ^3.2.0
+      effect: ^3.22.4
+      vitest: ^3.2.0 || ^4.0.0
 
   '@effect/workflow@0.19.1':
     resolution: {integrity: sha512-irU6ddHdIxYOhv0cJiJTk2AUxRmPYjRJ5JdB5UCvpJC4vLCyR2XyKspiCNDiEX1aSGPhVWEXhVMWXR1cErMS3A==}
@@ -3934,7 +3934,7 @@ snapshots:
     dependencies:
       effect: 3.22.2
 
-  '@effect/vitest@0.30.0(effect@3.22.2)(vitest@3.2.7(@types/node@24.13.5)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.1))':
+  '@effect/vitest@0.30.1(effect@3.22.2)(vitest@3.2.7(@types/node@24.13.5)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.1))':
     dependencies:
       effect: 3.22.2
       vitest: 3.2.7(@types/node@24.13.5)(supports-color@7.2.0)(tsx@4.23.13)(yaml@2.9.1)
