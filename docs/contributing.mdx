@@ -178,13 +178,12 @@ JSDoc examples. When the workspace moves to Effect 4, `doctest` would extend the
 same checking to the prose pages on this site.
 </Note>
 
-### The test runner is pinned to vitest 3
+### Keep the test runner and coverage provider aligned
 
-The same constraint applies to the runner itself. `@effect/vitest` declares
-`vitest: ^3.2.0` as a peer and every test file imports from it, and its only
-releases newer than 0.30.0 are `4.0.0-rc.*`, which require Effect 4. So
-vitest 4 is unreachable until this workspace moves, and the major is ignored
-in `.github/dependabot.yml` rather than proposed and rejected every week.
+`@effect/vitest` 0.30.1 supports `vitest: ^3.2.0 || ^4.0.0` on Effect 3.
+This workspace uses Vitest 4 with its matching coverage provider. Vitest 5 and
+newer remain ignored in `.github/dependabot.yml` until the adapter supports
+them; moving to Effect 4 is not a prerequisite for using Vitest 4.
 
 `vitest` and `@vitest/coverage-v8` must also stay on the same major, and they
 are grouped so a bump cannot land half applied. A mismatch does not fail

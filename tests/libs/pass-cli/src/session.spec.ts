@@ -42,7 +42,7 @@ import { PassSession } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Layer } from "effect"
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { makeWorkspace, type StubBehaviour, type Workspace } from "../../../helpers/workspace.js"
+import { inaccessibleFileChecks, makeWorkspace, type StubBehaviour, type Workspace } from "../../../helpers/workspace.js"
 
 let workspace: Workspace | undefined
 
@@ -71,6 +71,33 @@ const start = (stub: StubBehaviour, options: { agentToken?: string | null } = {}
 }
 
 describe("the agent token source", () => {
+  it.effect("reports session unavailability when the pass-cli executable disappears", () =>
+    Effect.gen(function* () {
+      start({ infoExit: 0 })
+      rmSync(workspace!.passCli)
+      const result = yield* ensureWith({})
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(JSON.stringify(result)).toContain("SessionError")
+    })
+  )
+
+  it.effect("reports a missing token when its file cannot be inspected", () =>
+    Effect.gen(function* () {
+      start({ infoExit: 1 })
+      delete process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
+      const result = yield* Effect.flatMap(PassSession, (session) => session.ensure).pipe(
+        Effect.provide(PassSession.Default),
+        Effect.provide(Layer.provideMerge(
+          Layer.mergeAll(Paths.Default, Telemetry.Default),
+          Layer.provideMerge(inaccessibleFileChecks, NodeContext.layer)
+        )),
+        Effect.exit
+      )
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(JSON.stringify(result)).toContain("MissingAgentTokenError")
+    })
+  )
+
   const inherited = process.env["OPENCLAW_PROTONPASS_AGENT_TOKEN"]
 
   afterEach(() => {

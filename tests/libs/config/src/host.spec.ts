@@ -40,11 +40,24 @@ import {
   executableNames,
   executableSearchPath,
   homeDirectory,
+  hostEnvironment,
   hostPlatform,
   serviceManagerFor,
   stateHome
 } from "@resnovas/opp-config"
 import { join, win32 } from "node:path"
+import { Effect } from "effect"
+import { unavailableConfigProvider } from "../../../helpers/workspace.js"
+
+describe("hostEnvironment", () => {
+  it("omits inherited values when the configuration provider is unavailable", () => {
+    const env = Effect.runSync(hostEnvironment.pipe(
+      Effect.withConfigProvider(unavailableConfigProvider)
+    ))
+    expect(env["HOME"]).toBeUndefined()
+    expect(Object.values(env).every((value) => value === undefined)).toBe(true)
+  })
+})
 
 describe("hostPlatform", () => {
   it("recognises the two platforms that differ", () => {
