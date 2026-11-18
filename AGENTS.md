@@ -15,6 +15,10 @@ examples the compiler checks.
 | `ai-docs/` | The sources for `LLMS.md`. Examples here are compiled |
 | `.agents/agent-patterns/` | Practical references for the libraries this project uses |
 
+When changing the 1Password compatibility alias (`apps/op`, `apps/connect`,
+`libs/onepassword-*`), read the vendored spec under `externals/` and
+`docs/onepassword-compat/matrix.json` before writing code.
+
 ## Before you change anything
 
 Three rules explain most of the design. Breaking one is not a style

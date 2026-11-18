@@ -63,6 +63,7 @@ const nodeNextSource: Plugin = {
 }
 
 const lib = (name: string) => resolve(root, `libs/${name}/src/index.ts`)
+const app = (name: string) => resolve(root, `apps/${name}/src/app.ts`)
 
 export default defineConfig({
   plugins: [nodeNextSource],
@@ -71,7 +72,11 @@ export default defineConfig({
       "@resnovas/opp-domain": lib("domain"),
       "@resnovas/opp-config": lib("config"),
       "@resnovas/opp-pass-cli": lib("pass-cli"),
-      "@resnovas/opp-telemetry": lib("telemetry")
+      "@resnovas/opp-telemetry": lib("telemetry"),
+      "@resnovas/opp-onepassword-contract": lib("onepassword-contract"),
+      "@resnovas/opp-onepassword-compat": lib("onepassword-compat"),
+      "@resnovas/opp-op": app("op"),
+      "@resnovas/opp-connect": app("connect")
     }
   },
   test: {

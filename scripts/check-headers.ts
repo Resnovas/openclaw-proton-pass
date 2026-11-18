@@ -14,7 +14,7 @@ import { join, relative } from "node:path"
 
 const ROOT = new URL("..", import.meta.url).pathname
 const TEMPLATE = readFileSync(join(ROOT, "scripts/header.txt"), "utf8")
-const SKIP = new Set(["node_modules", "dist", ".git", ".nx", "scripts"])
+const SKIP = new Set(["node_modules", "dist", ".git", ".nx", "scripts", ".docgen"])
 const MARKER = "DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE"
 
 const sources = (dir: string): Array<string> => {
