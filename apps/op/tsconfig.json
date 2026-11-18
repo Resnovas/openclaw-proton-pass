@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../libs/config"
+    },
+    {
+      "path": "../../libs/onepassword-contract"
+    },
+    {
+      "path": "../../libs/onepassword-compat"
+    },
+    {
+      "path": "../../libs/pass-cli"
+    },
+    {
+      "path": "../../libs/telemetry"
+    }
+  ]
+}

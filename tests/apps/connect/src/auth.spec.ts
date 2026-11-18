@@ -1,0 +1,85 @@
+/*
+ * Project: openclaw-proton-pass
+ * File: auth.spec.ts
+ * Last Modified: 2026-09-20
+ *
+ * Contributing: Please read through our contributing guidelines. Included are directions for opening issues, coding standards,
+ * and notes on development. These can be found at
+ * https://github.com/Resnovas/openclaw-proton-pass/blob/main/CONTRIBUTING.md
+ *
+ * Code of Conduct: This project abides by the Contributor Covenant, v2.0. Please interact in ways that contribute to an open,
+ * welcoming, diverse, inclusive, and healthy community. Our Code of Conduct can be found at
+ * https://github.com/Resnovas/openclaw-proton-pass/blob/main/CODE_OF_CONDUCT.md
+ *
+ * Copyright (c) 2026 Jonathan Stevens T/A Resnovas. All Rights Reserved
+ * LICENSE: Fair Core License, Version 1.0, MIT Future License (FCL-1.0-MIT)
+ *
+ * This program has been provided under confidence of the copyright holder and is licensed for copying, distribution and
+ * modification under the terms of the Fair Core License, Version 1.0, MIT Future License (FCL-1.0-MIT) published as the License, or
+ * (at your option) any later version of this license. You must not move, change, disable, or circumvent the license key functionality
+ * in the Software; or modify any portion of the Software protected by the license key to: enable access to the protected
+ * functionality without a valid license key; or remove the protected functionality. This program is distributed in the hope that it
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ * PARTICULAR PURPOSE. See the Fair Core License, Version 1.0, MIT Future License for more details. You should have received a
+ * copy of the Fair Core License, Version 1.0, MIT Future License along with this program. If not, please write to:
+ * hello@resnovas.com, see the official website https://fcl.dev/ or review the GitHub repository
+ * https://github.com/keygen-sh/fcl.dev/
+ *
+ * This project abides the Resnovas Cooperation Commitment. Adapted from the GPL Cooperation Commitment (GPLCC). Before filing
+ * or continuing to prosecute any legal proceeding or claim (other than a Defensive Action) arising from termination of a Covered
+ * License, we commit to adhering to the Resnovas Cooperation Commitment. You should have received a copy of the Resnovas
+ * Cooperation Commitment along with this program. If not, please write to: hello@resnovas.com, or see
+ * https://github.com/Resnovas/openclaw-proton-pass/blob/main/COOPERATION_COMMITMENT.md
+ *
+ * DELETING THIS NOTICE AUTOMATICALLY VOIDS YOUR LICENSE
+ */
+
+import { describe, expect, it } from "@effect/vitest"
+import { ConnectUnauthorized } from "@resnovas/opp-onepassword-compat"
+import { Effect, Exit, Option, Redacted } from "effect"
+import { extractBearerToken, requireBearerAuth } from "../../../../apps/connect/src/auth.js"
+
+describe("extractBearerToken", () => {
+  it("parses a bearer header", () => {
+    const token = extractBearerToken({ authorization: "Bearer connect-token" })
+    expect(Option.isSome(token)).toBe(true)
+    if (Option.isSome(token)) {
+      expect(Redacted.value(token.value)).toBe("connect-token")
+    }
+  })
+
+  it("returns none for malformed headers", () => {
+    expect(Option.isNone(extractBearerToken({}))).toBe(true)
+    expect(Option.isNone(extractBearerToken({ authorization: "Basic abc" }))).toBe(true)
+    expect(Option.isNone(extractBearerToken({ authorization: ["Basic abc"] }))).toBe(true)
+    expect(Option.isNone(extractBearerToken({ authorization: [] }))).toBe(true)
+  })
+})
+
+describe("requireBearerAuth", () => {
+  it("delegates to OnePasswordCompat.validateToken", async () => {
+    let seen: string | undefined
+    const compat = {
+      validateToken: (token: Redacted.Redacted<string>) =>
+        Effect.sync(() => {
+          seen = Redacted.value(token)
+        })
+    }
+
+    const ok = await Effect.runPromise(
+      requireBearerAuth(compat, Option.some(Redacted.make("connect-token")))
+    )
+    expect(ok).toBeUndefined()
+    expect(seen).toBe("connect-token")
+  })
+
+  it("fails when the bearer token is absent", async () => {
+    const result = await Effect.runPromise(
+      requireBearerAuth({ validateToken: () => Effect.void }, Option.none()).pipe(Effect.exit)
+    )
+    expect(Exit.isFailure(result)).toBe(true)
+    if (Exit.isFailure(result) && result.cause._tag === "Fail") {
+      expect(result.cause.error).toBeInstanceOf(ConnectUnauthorized)
+    }
+  })
+})
