@@ -16,6 +16,7 @@ packages/openclaw-proton-pass/reports/
 
 # docgen scratch output; the published pages live in docs/reference/api.
 libs/*/.docgen/
+apps/*/.docgen/
 
 # Docs7 site link, written by `docs7 deploy`.
 docs/.docs7/

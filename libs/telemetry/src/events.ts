@@ -64,7 +64,7 @@
  * @category models
  * @since 0.1.0
  */
-export type Binary = "resolver" | "pass-run" | "mcp-auth-proxy" | "cli"
+export type Binary = "resolver" | "pass-run" | "mcp-auth-proxy" | "cli" | "opp-op"
 
 /**
  * Subcommands of the management CLI.

@@ -163,6 +163,68 @@ const respondJson = (response: ServerResponse, status: number, body: unknown) =>
   })
 
 /**
+ * Stream an upstream {@link Response} body to a client socket.
+ *
+ * @remarks
+ * Exported so tests can exercise short-body and complete-body relay paths
+ * without depending on upstream fetch behaviour.
+ *
+ * @param upstreamResponse - upstream fetch response
+ * @param response - client socket
+ * @returns an effect that completes when the body has been relayed
+ *
+ * @category entrypoints
+ * @since 0.1.0
+ *
+ * @example
+ * import { relayUpstreamResponse } from "@resnovas/opp-mcp-auth-proxy/server"
+ * import { Effect } from "effect"
+ *
+ * const upstream = new Response("ok")
+ * const client = {
+ *   writeHead: () => undefined,
+ *   write: () => true,
+ *   end: () => undefined,
+ *   destroy: () => undefined
+ * } as unknown as import("node:http").ServerResponse
+ *
+ * assert.strictEqual(
+ *   Effect.isEffect(relayUpstreamResponse(upstream, client)),
+ *   true
+ * )
+ */
+export const relayUpstreamResponse = (
+  upstreamResponse: Response,
+  response: ServerResponse
+): Effect.Effect<void, ProxyIoError> =>
+  Effect.tryPromise({
+    try: async () => {
+      response.writeHead(upstreamResponse.status, relayHeaders(upstreamResponse.headers))
+
+      if (upstreamResponse.body === null) {
+        response.end()
+        return
+      }
+      const reader = upstreamResponse.body.getReader()
+      const contentLength = upstreamResponse.headers.get("content-length")
+      let written = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = Buffer.from(value)
+        written += chunk.byteLength
+        response.write(chunk)
+      }
+      if (contentLength !== null && written < Number(contentLength)) {
+        response.destroy()
+        throw new Error(`upstream closed after ${written} of ${contentLength} bytes`)
+      }
+      response.end()
+    },
+    catch: (cause) => new ProxyIoError({ reason: String(cause) })
+  })
+
+/**
  * The running proxy.
  *
  * Credentials are memoised so an MCP call does not cost a vault round trip;
@@ -237,25 +299,7 @@ export const serve = Effect.gen(function* () {
       return upstreamResponse
     })
 
-  const relay = (upstreamResponse: Response, response: ServerResponse) =>
-    Effect.tryPromise({
-      try: async () => {
-        response.writeHead(upstreamResponse.status, relayHeaders(upstreamResponse.headers))
-
-        if (upstreamResponse.body === null) {
-          response.end()
-          return
-        }
-        const reader = upstreamResponse.body.getReader()
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          response.write(Buffer.from(value))
-        }
-        response.end()
-      },
-      catch: (cause) => new ProxyIoError({ reason: String(cause) })
-    })
+  const relay = relayUpstreamResponse
 
   const handle = (request: IncomingMessage, response: ServerResponse) =>
     Effect.gen(function* () {

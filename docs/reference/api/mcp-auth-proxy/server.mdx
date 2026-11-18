@@ -3,6 +3,40 @@ title: "server.ts"
 description: "The running proxy: configuration, credential cache, forwarding and relay. Credentials are memoised so an MCP call does not cost a vault round trip; an upstream 401 invalidates the entry and the request is retried once."
 ---
 
+## entrypoints
+
+### relayUpstreamResponse
+
+Stream an upstream `Response` body to a client socket.
+
+**Signature**
+
+```ts
+export declare const relayUpstreamResponse: (
+  upstreamResponse: Response,
+  response: ServerResponse
+) => Effect.Effect<void, ProxyIoError>
+```
+
+**Example**
+
+```ts
+import { relayUpstreamResponse } from "@resnovas/opp-mcp-auth-proxy/server"
+import { Effect } from "effect"
+
+const upstream = new Response("ok")
+const client = {
+  writeHead: () => undefined,
+  write: () => true,
+  end: () => undefined,
+  destroy: () => undefined
+} as unknown as import("node:http").ServerResponse
+
+assert.strictEqual(Effect.isEffect(relayUpstreamResponse(upstream, client)), true)
+```
+
+Added in v0.1.0
+
 ## utils
 
 ### loadConfig

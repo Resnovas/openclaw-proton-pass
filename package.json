@@ -30,7 +30,8 @@
     "docs:dev": "cd docs && pnpm dlx mint@4.2.908 dev --port 3333",
     "docs:dev:docs7": "docs7 dev ./docs --port 3334",
     "docs:deploy": "docs7 deploy ./docs",
-    "verify": "pnpm check && pnpm lint:headers && pnpm lint:prose && pnpm lint:contracts && pnpm coverage && pnpm coverage:depth && pnpm docs:check && pnpm ai-docgen:check"
+    "check-matrix": "node --experimental-strip-types scripts/check-matrix.ts check-matrix",
+    "verify": "pnpm check && pnpm lint:headers && pnpm lint:prose && pnpm lint:contracts && pnpm check-matrix && pnpm coverage && pnpm coverage:depth && pnpm docs:check && pnpm ai-docgen:check"
   },
   "devDependencies": {
     "@effect/docgen": "0.5.2",
@@ -41,12 +42,12 @@
     "@resnovas/opp-domain": "workspace:*",
     "@resnovas/opp-telemetry": "workspace:*",
     "@types/node": "^24.0.0",
-    "@upstash/docs7": "^0.1.10",
+    "@upstash/docs7": "^0.1.12",
     "@vitest/coverage-v8": "^3.2.7",
     "effect": "^3.22.2",
     "esbuild": "^0.28.2",
     "nx": "^23.2.1",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   }

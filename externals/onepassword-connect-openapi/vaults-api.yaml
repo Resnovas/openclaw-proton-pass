@@ -1,0 +1,156 @@
+openapi: 3.2.0
+info:
+  title: 1Password Connect Server Vaults API
+  description: The 1Password Connect Server API provides secure access to 1Password items and vaults in your company's apps and cloud infrastructure through a private REST API. Connect Servers bridge the gap between 1Password and your infrastructure by enabling programmatic access to secrets stored in shared vaults. You can create, read, update, and delete items, manage vaults, and retrieve files attached to items.
+  version: 1.8.1
+  contact:
+    name: 1Password Support
+    url: https://support.1password.com/
+  termsOfService: https://1password.com/legal/terms-of-service/
+  license:
+    name: MIT
+    url: https://github.com/1Password/connect/blob/main/LICENSE
+servers:
+- url: http://localhost:8080
+  description: Local Connect Server (default port 8080)
+security:
+- bearerAuth: []
+tags:
+- name: Vaults
+  description: Operations for listing and retrieving vaults available to the Connect server.
+paths:
+  /v1/vaults:
+    get:
+      operationId: listVaults
+      summary: 1Password List Vaults
+      description: Returns a list of all vaults the Connect server has been authorized to access. Each vault includes its unique identifier, name, description, and attribute version.
+      tags:
+      - Vaults
+      parameters:
+      - $ref: '#/components/parameters/filterParam'
+      responses:
+        '200':
+          description: Successfully retrieved vaults
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vault'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+  /v1/vaults/{vaultUuid}:
+    get:
+      operationId: getVaultById
+      summary: 1Password Get Vault Details
+      description: Returns detailed information about a specific vault identified by its UUID, including its name, description, attribute version, content version, and item count.
+      tags:
+      - Vaults
+      parameters:
+      - $ref: '#/components/parameters/vaultUuidParam'
+      responses:
+        '200':
+          description: Successfully retrieved vault details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vault'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-microcks-operation:
+        delay: 0
+        dispatcher: FALLBACK
+components:
+  parameters:
+    vaultUuidParam:
+      name: vaultUuid
+      in: path
+      description: The UUID of the vault.
+      required: true
+      schema:
+        type: string
+        format: uuid
+    filterParam:
+      name: filter
+      in: query
+      description: A SCIM-style filter to narrow results. For example, use title eq "Example" to filter items by title.
+      required: false
+      schema:
+        type: string
+  schemas:
+    Error:
+      type: object
+      description: Represents an error response from the Connect server.
+      properties:
+        status:
+          type: integer
+          description: The HTTP status code.
+        message:
+          type: string
+          description: A human-readable error message.
+    Vault:
+      type: object
+      description: Represents a 1Password vault that contains items. Vaults are used to organize and control access to secrets.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The unique identifier for the vault.
+        name:
+          type: string
+          description: The name of the vault.
+        description:
+          type: string
+          description: A description of the vault's purpose.
+        attributeVersion:
+          type: integer
+          description: The version of the vault attributes.
+        contentVersion:
+          type: integer
+          description: The version of the vault contents.
+        items:
+          type: integer
+          description: The number of items in the vault.
+        type:
+          type: string
+          description: The type of the vault.
+          enum:
+          - USER_CREATED
+          - PERSONAL
+          - EVERYONE
+          - TRANSFER
+        createdAt:
+          type: string
+          format: date-time
+          description: The date and time the vault was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: The date and time the vault was last updated.
+  responses:
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication credentials are missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A Connect server access token generated from 1Password. Each request must include this token in the Authorization header.
+externalDocs:
+  description: 1Password Connect Server API Reference
+  url: https://developer.1password.com/docs/connect/api-reference/

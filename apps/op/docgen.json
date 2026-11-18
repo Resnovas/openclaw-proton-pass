@@ -1,0 +1,10 @@
+{
+  "$schema": "../../node_modules/@effect/docgen/schema.json",
+  "srcDir": "src",
+  "outDir": ".docgen",
+  "exclude": ["src/main.ts"],
+  "enforceVersion": false,
+  "enforceDescriptions": true,
+  "parseCompilerOptions": "../../tsconfig.docgen.json",
+  "examplesCompilerOptions": "../../tsconfig.docgen.json"
+}
