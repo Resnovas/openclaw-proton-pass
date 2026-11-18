@@ -61,6 +61,73 @@ afterEach(() => {
 const invoke = (args: ReadonlyArray<string>) =>
   Effect.runPromise(run(["node", "op", ...args]).pipe(Effect.provide(layer), Effect.exit))
 
+/**
+ * Replace the workspace pass-cli with one whose GitHub login item carries a
+ * TOTP seed under `title`, and which answers the code only for that title.
+ */
+const writeOtpStub = (passCli: string, title: string) => {
+  const totpView = JSON.stringify({
+    item: {
+      id: "item-1",
+      share_id: "share-1",
+      vault_id: "vault-1",
+      state: "Active",
+      content: {
+        title,
+        note: "",
+        content: {
+          username: "user",
+          password: "secret-value",
+          totp: "otpauth://totp/GitHub:agent?secret=JBSWY3DPEHPK3PXP",
+          urls: ["https://github.com"]
+        }
+      }
+    }
+  }).replaceAll("'", "'\\''")
+  writeFileSync(
+    passCli,
+    `#!/usr/bin/env bash
+case "$1" in
+  info)
+  if [ "$2" = "--output" ]; then
+    echo '{"id":"user-1","email":"agent@example.com","username":"agent","release_track":"stable"}'
+    exit 0
+  fi
+  exit 0
+  ;;
+  logout) exit 0 ;;
+  login) exit 0 ;;
+  vault)
+  if [ "$2" = "list" ] && [ "$4" = "json" ]; then
+    echo '{"vaults":[{"name":"Private","vault_id":"vault-1","share_id":"share-1"}]}'
+    exit 0
+  fi
+  exit 1
+  ;;
+  item)
+  if [ "$2" = "list" ] && [ "$6" = "json" ]; then
+    echo '{"items":[{"id":"item-1","share_id":"share-1","vault_id":"vault-1","title":"${title}","item_type":"login","state":"Active"}]}'
+    exit 0
+  fi
+  if [ "$2" = "view" ] && [ "$8" = "json" ]; then
+    echo '${totpView}'
+    exit 0
+  fi
+  if [ "$2" = "view" ] && [ "$3" = "pass://Private/${title}/totp?totp=code" ]; then
+    echo "123456"
+    exit 0
+  fi
+  exit 1
+  ;;
+  run) exit 0 ;;
+  *) exit 0 ;;
+esac
+`,
+    "utf8"
+  )
+  chmodSync(passCli, 0o755)
+}
+
 describe("opp-op app", () => {
   it("reports whoami details", async () => {
     workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
@@ -149,72 +216,40 @@ describe("opp-op app", () => {
 
   it("reads a one-time password when requested", async () => {
     workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
-    const totpView = JSON.stringify({
-      item: {
-        id: "item-1",
-        share_id: "share-1",
-        vault_id: "vault-1",
-        state: "Active",
-        content: {
-          title: "GitHub",
-          note: "",
-          content: {
-            username: "user",
-            password: "secret-value",
-            totp: "otpauth://totp/GitHub:agent?secret=JBSWY3DPEHPK3PXP",
-            urls: ["https://github.com"]
-          }
-        }
-      }
-    }).replaceAll("'", "'\\''")
-    writeFileSync(
-      workspace.passCli,
-      `#!/usr/bin/env bash
-case "$1" in
-  info)
-    if [ "$2" = "--output" ]; then
-      echo '{"id":"user-1","email":"agent@example.com","username":"agent","release_track":"stable"}'
-      exit 0
-    fi
-    exit 0
-    ;;
-  logout) exit 0 ;;
-  login) exit 0 ;;
-  vault)
-    if [ "$2" = "list" ] && [ "$4" = "json" ]; then
-      echo '{"vaults":[{"name":"Private","vault_id":"vault-1","share_id":"share-1"}]}'
-      exit 0
-    fi
-    exit 1
-    ;;
-  item)
-    if [ "$2" = "list" ] && [ "$6" = "json" ]; then
-      echo '{"items":[{"id":"item-1","share_id":"share-1","vault_id":"vault-1","title":"GitHub","item_type":"login","state":"Active"}]}'
-      exit 0
-    fi
-    if [ "$2" = "view" ] && [ "$8" = "json" ]; then
-      echo '${totpView}'
-      exit 0
-    fi
-    if [ "$2" = "view" ] && [ "$3" = "pass://Private/GitHub/totp?totp=code" ]; then
-      echo "123456"
-      exit 0
-    fi
-    exit 1
-    ;;
-  run) exit 0 ;;
-  *) exit 0 ;;
-esac
-`,
-      "utf8"
-    )
-    chmodSync(workspace.passCli, 0o755)
+    writeOtpStub(workspace.passCli, "GitHub")
 
     const { result, output } = await captureStdout(() =>
       invoke(["item", "get", "GitHub", "--vault", "Private", "--otp"])
     )
     expect(Exit.isSuccess(result)).toBe(true)
     expect(output.trim()).toBe("123456")
+  })
+
+  it("reads a one-time password for a title containing URI delimiters", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
+    writeOtpStub(workspace.passCli, "Dev #2?")
+
+    const { result, output } = await captureStdout(() =>
+      invoke(["item", "get", "Dev #2?", "--vault", "Private", "--otp"])
+    )
+    expect(Exit.isSuccess(result)).toBe(true)
+    expect(output.trim()).toBe("123456")
+  })
+
+  it("conceals TOTP seeds unless --reveal is given", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
+    writeOtpStub(workspace.passCli, "GitHub")
+
+    const concealed = await captureStdout(() =>
+      invoke(["item", "get", "GitHub", "--vault", "Private", "--format", "json"])
+    )
+    expect(Exit.isSuccess(concealed.result)).toBe(true)
+    expect(concealed.output).not.toContain("JBSWY3DPEHPK3PXP")
+
+    const revealed = await captureStdout(() =>
+      invoke(["item", "get", "GitHub", "--vault", "Private", "--format", "json", "--reveal"])
+    )
+    expect(revealed.output).toContain("JBSWY3DPEHPK3PXP")
   })
 
   it("reports missing otp fields", async () => {
@@ -239,6 +274,33 @@ esac
     )
     expect(Exit.isSuccess(result)).toBe(true)
     expect(output).toBe("user=secret-value\n")
+  })
+
+  it("substitutes a reference that prefixes another without corrupting the longer one", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
+    writeFileSync(
+      workspace.passCli,
+      `#!/usr/bin/env bash
+case "$1" in
+  info) exit 0 ;;
+  item)
+    if [ "$3" = "pass://Private/GitHub/pass" ]; then echo "SHORT"; exit 0; fi
+    if [ "$3" = "pass://Private/GitHub/password" ]; then echo "LONG"; exit 0; fi
+    exit 1
+    ;;
+  *) exit 0 ;;
+esac
+`,
+      "utf8"
+    )
+    chmodSync(workspace.passCli, 0o755)
+
+    const { result, output } = await withStdin(
+      "a=op://Private/GitHub/pass b=op://Private/GitHub/password\n",
+      () => captureStdout(() => invoke(["inject"]))
+    )
+    expect(Exit.isSuccess(result)).toBe(true)
+    expect(output).toBe("a=SHORT b=LONG\n")
   })
 
   it("passes inject templates without secret references through unchanged", async () => {

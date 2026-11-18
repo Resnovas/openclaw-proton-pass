@@ -191,15 +191,15 @@ const readStdin = Effect.tryPromise({
 const substituteOpRefs = (template: string) =>
   Effect.gen(function* () {
     const compat = yield* OnePasswordCompat
-    const matches = [...new Set(template.match(OP_REF_PATTERN) ?? [])].sort(
-      (left, right) => right.length - left.length
-    )
-    let output = template
-    for (const uri of matches) {
+    const secrets = new Map<string, string>()
+    for (const uri of new Set(template.match(OP_REF_PATTERN) ?? [])) {
       const secret = yield* compat.readSecretUri(uri)
-      output = output.replaceAll(uri, Redacted.value(secret))
+      secrets.set(uri, Redacted.value(secret))
     }
-    return output
+    // One pass over the template replaces each whole match, so a reference
+    // that prefixes a longer one, or text inside a resolved secret, is never
+    // substituted a second time.
+    return template.replace(OP_REF_PATTERN, (uri) => secrets.get(uri)!)
   })
 
 const runChild = (rawArgv: ReadonlyArray<string>) =>
@@ -418,9 +418,10 @@ const itemGetCommand = Cli.make(
           if (totpField?.label === undefined) {
             return yield* new ItemError({ reason: "item has no one-time password field" })
           }
-          const encodeOpPathSegment = (segment: string) => encodeURIComponent(segment)
+          // Titles and labels may contain `/`, `?` or `#`; encode each path
+          // segment so the reference parses back to the same item and field.
           const secret = yield* compat.readSecretUri(
-            `op://${encodeOpPathSegment(vault)}/${encodeOpPathSegment(loadedForOtp.title ?? item)}/${encodeOpPathSegment(totpField.label)}?attribute=otp`
+            `op://${encodeURIComponent(vault)}/${encodeURIComponent(loadedForOtp.title ?? item)}/${encodeURIComponent(totpField.label)}?attribute=otp`
           )
           yield* writeSecretStdout(secret, resolved)
           return
