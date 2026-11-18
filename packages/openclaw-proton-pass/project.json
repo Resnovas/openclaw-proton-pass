@@ -3,6 +3,11 @@
   "name": "openclaw-proton-pass",
   "projectType": "library",
   "sourceRoot": "packages/openclaw-proton-pass",
+  "release": {
+    "version": {
+      "versionActions": "scripts/release-version-actions.ts"
+    }
+  },
   "tags": [
     "type:package",
     "scope:dist"

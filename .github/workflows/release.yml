@@ -129,6 +129,9 @@ jobs:
           node --experimental-strip-types scripts/restore-shebang.ts \
             packages/openclaw-proton-pass/bin
 
+      - name: Check the publishable package
+        run: node --experimental-strip-types scripts/check-package.ts
+
       # The maps are 10 MB each and useless to an installer; PostHog has them
       # now, so they do not belong in the tarball.
       - name: Drop source maps from the package
