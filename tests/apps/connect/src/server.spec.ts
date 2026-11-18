@@ -347,7 +347,30 @@ describe("serve", () => {
       protonPass: { session: string; accountUuid?: string }
     }
     expect(body.protonPass.session).toBe("active")
-    expect(body.protonPass.accountUuid).toBe("user-1")
+    expect(body.protonPass.accountUuid).toBeUndefined()
+    expect(response.body).not.toContain("user-1")
+    expect(response.body).not.toContain("agent@example.com")
+  })
+
+  it("requires a bearer token on non-canonical paths that reach vault routes", async () => {
+    const port = freePort()
+    startWorkspace()
+    await startConnect(port)
+
+    for (const path of ["//v1/vaults", "//v1/vaults/share-1/items/item-1", "/v1//vaults"]) {
+      const response = await connectRequest(port, path)
+      expect(response.status, path).toBe(401)
+      expect(response.body, path).not.toContain("secret-value")
+    }
+  })
+
+  it("requires a bearer token before revealing that a route is unknown", async () => {
+    const port = freePort()
+    startWorkspace()
+    await startConnect(port)
+
+    const response = await connectRequest(port, "/nowhere")
+    expect(response.status).toBe(401)
   })
 
   it("returns unsupported for activity and file routes", async () => {
@@ -461,7 +484,7 @@ describe("handleRoute", () => {
     return response
   }
 
-  it("includes optional account details in health output", async () => {
+  it("never includes account details in health output", async () => {
     const compat = {
       whoami: () =>
         Effect.succeed({
@@ -473,24 +496,21 @@ describe("handleRoute", () => {
     const response = mockResponse()
     await Effect.runPromise(handleRoute(compat, { _tag: "health" }, response))
     const body = JSON.parse(response.body ?? "{}") as {
-      protonPass: { email?: string; name?: string }
+      protonPass: Record<string, unknown>
     }
-    expect(body.protonPass.email).toBe("agent@example.com")
-    expect(body.protonPass.name).toBe("agent")
+    expect(body.protonPass).toEqual({ session: "active" })
   })
 
-  it("omits optional account details when whoami returns only an id", async () => {
+  it("reports an active session when whoami returns only an id", async () => {
     const compat = {
       whoami: () => Effect.succeed({ accountUuid: "user-1" })
     } as unknown as typeof OnePasswordCompat.Service
     const response = mockResponse()
     await Effect.runPromise(handleRoute(compat, { _tag: "health" }, response))
     const body = JSON.parse(response.body ?? "{}") as {
-      protonPass: { email?: string; name?: string; accountUuid: string }
+      protonPass: Record<string, unknown>
     }
-    expect(body.protonPass.accountUuid).toBe("user-1")
-    expect(body.protonPass.email).toBeUndefined()
-    expect(body.protonPass.name).toBeUndefined()
+    expect(body.protonPass).toEqual({ session: "active" })
   })
 
   it("covers the defensive default branch", async () => {

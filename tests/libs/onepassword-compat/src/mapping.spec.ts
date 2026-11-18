@@ -127,6 +127,22 @@ describe("protonItemToFullItem", () => {
     expect(full.fields?.some((field) => field.label === "notes" && field.value === "extra")).toBe(true)
   })
 
+  it("emits one notes field when normalisation already mapped the note into fields", () => {
+    const full = protonItemToFullItem(
+      sampleItem("login", {
+        note: "remember me",
+        fields: [
+          { label: "username", value: "user" },
+          { label: "notes", value: "remember me" }
+        ]
+      }),
+      "share-1"
+    )
+    expect(full.fields?.filter((field) => field.purpose === "NOTES")).toEqual([
+      { label: "notes", type: "STRING", purpose: "NOTES", value: "remember me" }
+    ])
+  })
+
   it("maps custom item categories", () => {
     expect(protonCategoryToOpCategory("custom")).toBe("CUSTOM")
     expect(opCategoryToProtonType("CUSTOM")).toBe("custom")

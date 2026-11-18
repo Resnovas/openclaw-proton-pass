@@ -47,7 +47,7 @@ import {
   vaultList,
   PassVaultListJson
 } from "@resnovas/opp-onepassword-compat"
-import { Effect, Exit, Layer } from "effect"
+import { Cause, Effect, Exit, Layer, Option } from "effect"
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -158,6 +158,28 @@ exit 2
     }
   })
 
+  it("keeps pass-cli's own exit code and stderr through the timeout wrapper", async () => {
+    startWorkspace(`#!/usr/bin/env bash
+echo "item not found" 1>&2
+exit 3
+`)
+    const text = await run(runPassText(["item", "view", "pass://x"], env))
+    const json = await run(
+      runPassJson(["vault", "list", "--output", "json"], PassVaultListJson, env)
+    )
+    for (const result of [text, json]) {
+      expect(Exit.isFailure(result)).toBe(true)
+      if (Exit.isFailure(result)) {
+        const failure = Cause.failureOption(result.cause)
+        expect(Option.isSome(failure)).toBe(true)
+        if (Option.isSome(failure)) {
+          expect(failure.value.exitCode).toBe(3)
+          expect(failure.value.stderr).toContain("item not found")
+        }
+      }
+    }
+  })
+
   it("maps invalid JSON to CliExit", async () => {
     startWorkspace(`#!/usr/bin/env bash
 echo "not json"
@@ -218,5 +240,22 @@ exit 0
 `, "100")
     const result = await run(runPassText(["info"], env))
     expect(Exit.isFailure(result)).toBe(true)
+  })
+
+  it("maps JSON command timeouts to CliExit", async () => {
+    startWorkspace(`#!/usr/bin/env bash
+sleep 2
+echo '{"vaults":[]}'
+exit 0
+`, "100")
+    const result = await run(
+      runPassJson(["vault", "list", "--output", "json"], PassVaultListJson, env)
+    )
+    expect(Exit.isFailure(result)).toBe(true)
+    if (Exit.isFailure(result)) {
+      const failure = Cause.failureOption(result.cause)
+      expect(Option.isSome(failure) && failure.value.exitCode).toBe(1)
+      expect(JSON.stringify(result.cause)).toContain("TimeoutException")
+    }
   })
 })

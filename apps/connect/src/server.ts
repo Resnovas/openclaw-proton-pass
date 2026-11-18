@@ -38,8 +38,8 @@
  * The running 1Password Connect compatibility HTTP server.
  *
  * Serves the Connect API surface backed by Proton Pass through
- * {@link OnePasswordCompat}. Vault routes require a Bearer token; `/heartbeat`
- * and `/health` do not.
+ * {@link OnePasswordCompat}. Every route except `/heartbeat` and `/health`
+ * requires a Bearer token, and `/health` never reports account identity.
  *
  * @module
  * @since 0.1.0
@@ -317,16 +317,13 @@ export const handleRoute = (
       case "heartbeat":
         return yield* respondText(response, 200, ".", "text/plain")
       case "health": {
+        // `/health` is unauthenticated, so it reports only whether the Proton
+        // session works; account identity stays behind the Bearer token.
         const body = yield* compat.whoami().pipe(
-          Effect.map((info) => ({
+          Effect.map(() => ({
             name: "1Password Connect API",
             version: CONNECT_API_VERSION,
-            protonPass: {
-              session: "active" as const,
-              accountUuid: info.accountUuid,
-              ...(info.email === undefined ? {} : { email: info.email }),
-              ...(info.name === undefined ? {} : { name: info.name })
-            }
+            protonPass: { session: "active" as const }
           })),
           Effect.catchAll(() =>
             Effect.succeed({
@@ -396,8 +393,9 @@ export const handleRoute = (
  * The running Connect HTTP server.
  *
  * @remarks
- * Listens on the configured loopback address until interrupted. Every `/v1/*`
- * route validates the Bearer token before dispatching.
+ * Listens on the configured loopback address until interrupted. Every route
+ * other than `/heartbeat` and `/health` validates the Bearer token before
+ * dispatching, so unknown paths also answer 401 to unauthenticated callers.
  *
  * @category entrypoints
  * @since 0.1.0
@@ -413,9 +411,12 @@ export const serve = Effect.gen(function* () {
       const method = requestMethod(request)
       const pathname = requestPath(request)
       const route = matchConnectRoute(method, pathname)
-      const needsAuth = pathname.startsWith("/v1/")
+      // Decide authentication from the matched route, not the raw pathname:
+      // the matcher ignores empty segments, so `//v1/vaults` reaches vault
+      // routes without starting with `/v1/`. Only the two public probes skip it.
+      const isPublic = route._tag === "heartbeat" || route._tag === "health"
 
-      if (needsAuth) {
+      if (!isPublic) {
         const token = extractBearerToken(request.headers)
         yield* requireBearerAuth(compat, token)
       }
