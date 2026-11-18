@@ -41,6 +41,7 @@ import {
   HOP_BY_HOP,
   matchRoute,
   outboundHeaders,
+  RELAY_DROP_HEADERS,
   relayHeaders,
   requestMethod,
   requestUrl
@@ -218,6 +219,11 @@ describe("relayHeaders", () => {
     expect(relayHeaders([["content-length", "42"]])["content-length"]).toBeUndefined()
   })
 
+  it.each([...RELAY_DROP_HEADERS])("drops the relay framing header %s", (name) => {
+    const relayed = relayHeaders([[name, "x"]])
+    expect(Object.keys(relayed).map((key) => key.toLowerCase())).not.toContain(name)
+  })
+
   it("always closes the connection, so framing is read-until-close", () => {
     expect(relayHeaders([])["Connection"]).toBe("close")
   })
@@ -226,6 +232,8 @@ describe("relayHeaders", () => {
     const relayed = relayHeaders([
       ["content-type", "text/event-stream"],
       ["content-length", "9"],
+      ["content-encoding", "gzip"],
+      ["transfer-encoding", "chunked"],
       ["cache-control", "no-cache"]
     ])
     expect(Object.keys(relayed).sort()).toEqual(["Connection", "cache-control", "content-type"])

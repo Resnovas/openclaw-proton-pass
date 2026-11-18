@@ -60,6 +60,19 @@ export const HOP_BY_HOP: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * Upstream response headers dropped before relaying the body downstream.
+ *
+ * `fetch` decompresses the body transparently, so `content-encoding` would
+ * lie about the bytes on the wire. `content-length` and `transfer-encoding`
+ * describe framing that no longer matches once the body is re-streamed.
+ */
+export const RELAY_DROP_HEADERS: ReadonlySet<string> = new Set([
+  "content-length",
+  "content-encoding",
+  "transfer-encoding"
+])
+
+/**
  * Find the route serving a request path.
  *
  * A trailing slash is accepted either way, because an operator writing
@@ -223,13 +236,15 @@ export const requestUrl = (request: { readonly url?: string | undefined }): stri
 /**
  * The headers to send back to the client from an upstream response.
  *
- * Content-Length is dropped because the body may be an open event stream of
- * unknown length, so framing is "read until close" instead.
+ * Content-coding and framing headers are dropped because `fetch` has already
+ * decompressed the body and the relay re-streams it with read-until-close
+ * framing instead.
  *
  * @remarks
- * Pure and total. Drops `Content-Length`, because the body may be an open
- * event stream of unknown length, and sets `Connection: close` so framing
- * becomes read-until-close.
+ * Pure and total. Drops `content-length`, `content-encoding` and
+ * `transfer-encoding`, because the relayed body is identity-encoded and may be
+ * an open event stream of unknown length, and sets `Connection: close` so
+ * framing becomes read-until-close.
  *
  * @param headers - the upstream response headers
  * @returns the headers to write on the downstream response
@@ -239,20 +254,22 @@ export const requestUrl = (request: { readonly url?: string | undefined }): stri
  *
  * const headers = relayHeaders([
  *   ["content-type", "text/event-stream"],
- *   ["content-length", "42"]
+ *   ["content-length", "42"],
+ *   ["content-encoding", "gzip"]
  * ])
  *
  * assert.strictEqual(headers["content-type"], "text/event-stream")
  *
- * // Dropped, because an open event stream has no length to declare; framing
- * // becomes read-until-close.
+ * // Dropped: fetch already decoded the body, and an open event stream has no
+ * // length to declare; framing becomes read-until-close.
  * assert.strictEqual("content-length" in headers, false)
+ * assert.strictEqual("content-encoding" in headers, false)
  * assert.strictEqual(headers["Connection"], "close")
  */
 export const relayHeaders = (headers: Iterable<readonly [string, string]>): Record<string, string> => {
   const relayed: Record<string, string> = {}
   for (const [name, value] of headers) {
-    if (name.toLowerCase() === "content-length") continue
+    if (RELAY_DROP_HEADERS.has(name.toLowerCase())) continue
     relayed[name] = value
   }
   relayed["Connection"] = "close"

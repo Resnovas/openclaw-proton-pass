@@ -15,6 +15,20 @@ Headers describing a single hop, which must not be forwarded across one.
 export declare const HOP_BY_HOP: ReadonlySet<string>
 ```
 
+### RELAY_DROP_HEADERS
+
+Upstream response headers dropped before relaying the body downstream.
+
+`fetch` decompresses the body transparently, so `content-encoding` would
+lie about the bytes on the wire. `content-length` and `transfer-encoding`
+describe framing that no longer matches once the body is re-streamed.
+
+**Signature**
+
+```ts
+export declare const RELAY_DROP_HEADERS: ReadonlySet<string>
+```
+
 ### matchRoute
 
 Find the route serving a request path.
@@ -105,8 +119,9 @@ assert.strictEqual("Content-Length" in headers, false)
 
 The headers to send back to the client from an upstream response.
 
-Content-Length is dropped because the body may be an open event stream of
-unknown length, so framing is "read until close" instead.
+Content-coding and framing headers are dropped because `fetch` has already
+decompressed the body and the relay re-streams it with read-until-close
+framing instead.
 
 **Signature**
 
@@ -121,14 +136,16 @@ import { relayHeaders } from "@resnovas/opp-mcp-auth-proxy/routing"
 
 const headers = relayHeaders([
   ["content-type", "text/event-stream"],
-  ["content-length", "42"]
+  ["content-length", "42"],
+  ["content-encoding", "gzip"]
 ])
 
 assert.strictEqual(headers["content-type"], "text/event-stream")
 
-// Dropped, because an open event stream has no length to declare; framing
-// becomes read-until-close.
+// Dropped: fetch already decoded the body, and an open event stream has no
+// length to declare; framing becomes read-until-close.
 assert.strictEqual("content-length" in headers, false)
+assert.strictEqual("content-encoding" in headers, false)
 assert.strictEqual(headers["Connection"], "close")
 ```
 

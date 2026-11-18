@@ -206,7 +206,12 @@ export const relayUpstreamResponse = (
         return
       }
       const reader = upstreamResponse.body.getReader()
-      const contentLength = upstreamResponse.headers.get("content-length")
+      // fetch decodes a content-coded body, so its content-length counts
+      // compressed bytes and cannot detect truncation of the decoded stream.
+      const contentLength =
+        upstreamResponse.headers.get("content-encoding") === null
+          ? upstreamResponse.headers.get("content-length")
+          : null
       let written = 0
       for (;;) {
         const { done, value } = await reader.read()
