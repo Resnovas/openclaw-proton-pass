@@ -35,11 +35,32 @@
  */
 
 import { NodeContext } from "@effect/platform-node"
+import { Error as PlatformError, FileSystem } from "@effect/platform"
 import { Paths } from "@resnovas/opp-config"
-import { Layer } from "effect"
+import { ConfigError, ConfigProvider, Effect, Layer } from "effect"
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+
+/** A provider outage, distinct from a missing optional configuration value. */
+export const unavailableConfigProvider = ConfigProvider.make({
+  flattened: ConfigProvider.fromMap(new Map()).flattened,
+  load: () => Effect.fail(ConfigError.Unsupported([], "configuration unavailable"))
+})
+
+/** Keep real filesystem operations, but model an inaccessible existence probe. */
+export const inaccessibleFileChecks = Layer.effect(
+  FileSystem.FileSystem,
+  Effect.map(FileSystem.FileSystem, (fs) => ({
+    ...fs,
+    exists: (path: string) => Effect.fail(new PlatformError.SystemError({
+      reason: "PermissionDenied",
+      module: "FileSystem",
+      method: "exists",
+      pathOrDescriptor: path
+    }))
+  }))
+)
 
 /** A disposable configuration directory plus the environment pointing at it. */
 export interface Workspace {

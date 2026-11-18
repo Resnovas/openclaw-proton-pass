@@ -41,7 +41,7 @@ import { Telemetry } from "@resnovas/opp-telemetry"
 import { Effect, Layer } from "effect"
 import { mkdirSync, rmSync } from "node:fs"
 import { doctor, renderChecks } from "../../../../apps/cli/src/doctor.js"
-import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
+import { inaccessibleFileChecks, makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
 
 let workspace: Workspace | undefined
 
@@ -142,6 +142,16 @@ describe("doctor and the agent token", () => {
 })
 
 describe("doctor", () => {
+  it("reports inaccessible files as missing rather than aborting diagnostics", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}" })
+    const checks = await Effect.runPromise(doctor.pipe(
+      Effect.provide(inaccessibleFileChecks),
+      Effect.provide(layer)
+    ))
+    expect(checks.find((check) => check.label.includes("secret map"))?.ok).toBe(false)
+    expect(checks.find((check) => check.label.includes("proxy routes"))?.ok).toBe(false)
+  })
+
   it("reports everything present in a complete workspace", async () => {
     workspace = makeWorkspace({ secretMap: "{}", proxyConfig: "{}" })
     mkdirSync(workspace.sessionDir, { recursive: true })

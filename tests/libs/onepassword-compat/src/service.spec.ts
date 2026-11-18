@@ -48,6 +48,7 @@ import { Effect, Exit, Layer, Redacted } from "effect"
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { inaccessibleFileChecks } from "../../../helpers/workspace.js"
 
 const vaultJson = JSON.stringify({
   vaults: [{ name: "Private", vault_id: "vault-1", share_id: "share-1" }]
@@ -232,6 +233,25 @@ const run = <A, E>(
 }
 
 describe("OnePasswordCompat", () => {
+  it.effect("rejects authentication when the token file cannot be inspected", () =>
+    Effect.gen(function* () {
+      startWorkspace()
+      const result = yield* Effect.flatMap(OnePasswordCompat, (compat) =>
+        compat.validateToken(Redacted.make("connect-token"))
+      ).pipe(
+        Effect.provide(OnePasswordCompat.Default),
+        Effect.provide(PassSession.Default),
+        Effect.provide(Layer.provideMerge(
+          Layer.mergeAll(Paths.Default, Telemetry.Default),
+          Layer.provideMerge(inaccessibleFileChecks, NodeContext.layer)
+        )),
+        Effect.exit
+      )
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(JSON.stringify(result)).toContain("ConnectUnauthorized")
+    })
+  )
+
   it.effect("validateToken accepts the configured agent token", () =>
     Effect.gen(function* () {
       const result = yield* run((compat) =>
@@ -257,6 +277,23 @@ describe("OnePasswordCompat", () => {
         agentToken: null
       })
       expect(Exit.isFailure(result)).toBe(true)
+    })
+  )
+
+  it.effect("rejects authentication when the configured token cannot be read", () =>
+    Effect.gen(function* () {
+      startWorkspace()
+      // A directory exists but is not a readable token file. This models a
+      // broken mount without relying on permission bits when running as root.
+      const tokenPath = process.env["OPENCLAW_PROTONPASS_AGENT_PAT"]!
+      rmSync(tokenPath)
+      mkdirSync(tokenPath)
+      const result = yield* Effect.flatMap(OnePasswordCompat, (compat) =>
+        compat.validateToken(Redacted.make("connect-token"))
+      ).pipe(Effect.provide(layer), Effect.exit)
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(JSON.stringify(result)).toContain("ConnectUnauthorized")
+      expect(JSON.stringify(result)).not.toContain("connect-token")
     })
   )
 

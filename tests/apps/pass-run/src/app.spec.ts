@@ -36,6 +36,7 @@
 
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
+import { readFileSync } from "node:fs"
 import { layer, main } from "../../../../apps/pass-run/src/app.js"
 import { withArgv, withExitCode } from "../../../helpers/process.js"
 import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
@@ -77,6 +78,22 @@ describe("pass-run app", () => {
     workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
     const { exitCode } = await withExitCode(() => withArgv(["echo", "hi"], runMain))
     expect(exitCode).toBe(0)
+  })
+
+  it("audits referenced variable names without exposing their secret references", async () => {
+    workspace = makeWorkspace({ secretMap: "{}", stub: { infoExit: 0 } })
+    const previous = process.env["OPP_TEST_SECRET"]
+    process.env["OPP_TEST_SECRET"] = "pass://Private/Example/password"
+    try {
+      const { exitCode } = await withExitCode(() => withArgv(["echo", "hi"], runMain))
+      expect(exitCode).toBe(0)
+      const reason = readFileSync(workspace.runReason, "utf8")
+      expect(reason).toContain("OPP_TEST_SECRET")
+      expect(reason).not.toContain("pass://")
+    } finally {
+      if (previous === undefined) delete process.env["OPP_TEST_SECRET"]
+      else process.env["OPP_TEST_SECRET"] = previous
+    }
   })
 
   it("accepts the -- separator before the command", async () => {

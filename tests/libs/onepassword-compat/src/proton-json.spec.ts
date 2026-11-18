@@ -106,6 +106,25 @@ describe("normaliseProtonItemView", () => {
     expect(item.fields.some((field) => field.label === "website 2")).toBe(true)
   })
 
+  it("omits absent credentials and non-string fields instead of inventing values", () => {
+    const login = normaliseProtonItemView(baseItem({
+      item_type: "login",
+      urls: [42, "https://example.com"]
+    }))
+    expect(login.fields).toEqual([{ label: "website 2", value: "https://example.com" }])
+    const custom = normaliseProtonItemView(baseItem({ item_type: "custom", count: 42 }))
+    expect(custom.fields).toEqual([{ label: "item_type", value: "custom" }])
+  })
+
+  it("keeps empty notes empty with and without a repeated item type", () => {
+    const withoutContent = baseItem({})
+    const absent = normaliseProtonItemView({
+      item: { ...withoutContent.item, content: { title: "Empty", note: "" } }
+    })
+    expect(absent.fields).toEqual([])
+    expect(normaliseProtonItemView(baseItem({ item_type: "note" })).fields).toEqual([])
+  })
+
   it("maps note-only items without content", () => {
     const item = normaliseProtonItemView({
       item: {

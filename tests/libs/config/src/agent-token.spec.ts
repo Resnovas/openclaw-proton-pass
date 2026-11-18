@@ -37,6 +37,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { agentTokenFromEnvironment } from "@resnovas/opp-config"
 import { ConfigProvider, Effect, Option, Redacted } from "effect"
+import { unavailableConfigProvider } from "../../../helpers/workspace.js"
 
 const read = (env: Record<string, string>) =>
   Effect.runSync(
@@ -77,5 +78,8 @@ describe("agentTokenFromEnvironment", () => {
     expect(Option.isNone(Effect.runSync(agentTokenFromEnvironment.pipe(
       Effect.withConfigProvider(ConfigProvider.fromMap(new Map()))
     )))).toBe(true)
+    expect(Effect.runSync(agentTokenFromEnvironment.pipe(
+      Effect.withConfigProvider(unavailableConfigProvider)
+    ))).toEqual(Option.none())
   })
 })

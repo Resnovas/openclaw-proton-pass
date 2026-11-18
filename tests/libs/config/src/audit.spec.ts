@@ -37,6 +37,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { auditContext } from "@resnovas/opp-config"
 import { ConfigProvider, Effect, Option } from "effect"
+import { unavailableConfigProvider } from "../../../helpers/workspace.js"
 
 const read = (env: Record<string, string>) =>
   Effect.runSync(
@@ -78,5 +79,8 @@ describe("auditContext", () => {
     // Its caller is on the resolution path. A ConfigError there would turn a
     // missing optional label into a failed credential lookup.
     expect(Option.isNone(read({}).profile)).toBe(true)
+    expect(Effect.runSync(auditContext.pipe(
+      Effect.withConfigProvider(unavailableConfigProvider)
+    ))).toEqual({ label: Option.none(), profile: Option.none() })
   })
 })

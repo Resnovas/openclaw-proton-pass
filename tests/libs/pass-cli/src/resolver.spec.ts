@@ -41,7 +41,7 @@ import { Telemetry } from "@resnovas/opp-telemetry"
 import type { SecretId } from "@resnovas/opp-domain"
 import { SecretResolver } from "@resnovas/opp-pass-cli"
 import { Effect, Exit, Layer, Redacted } from "effect"
-import { readFileSync } from "node:fs"
+import { readFileSync, writeFileSync } from "node:fs"
 import { makeWorkspace, type StubBehaviour, type Workspace } from "../../../helpers/workspace.js"
 
 let workspace: Workspace | undefined
@@ -189,6 +189,22 @@ describe("SecretResolver.resolve", () => {
         if (outcome?._tag === "Value") {
           expect(Redacted.value(outcome.value)).toBe("the-secret")
         }
+      }
+    })
+  )
+
+  it.effect("preserves a final value even if pass-cli omits its trailing NUL", () =>
+    Effect.gen(function* () {
+      setup('{"A":"pass://V/i/f"}')
+      writeFileSync(workspace!.passCli, `#!/usr/bin/env bash
+if [ "$1" = run ]; then printf '%s' 'unterminated-value'; fi
+`)
+      const result = yield* resolving([id("A")])
+      expect(Exit.isSuccess(result)).toBe(true)
+      if (Exit.isSuccess(result)) {
+        const outcome = result.value.get(id("A"))
+        expect(outcome?._tag).toBe("Value")
+        if (outcome?._tag === "Value") expect(Redacted.value(outcome.value)).toBe("unterminated-value")
       }
     })
   )

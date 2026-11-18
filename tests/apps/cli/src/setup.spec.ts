@@ -50,7 +50,7 @@ import {
   systemdIsRunning,
   systemdUnit
 } from "../../../../apps/cli/src/setup.js"
-import { makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
+import { inaccessibleFileChecks, makeWorkspace, type Workspace } from "../../../helpers/workspace.js"
 
 let workspace: Workspace | undefined
 
@@ -340,6 +340,18 @@ describe("setup", () => {
       }
     })
     expect(written).toHaveLength(1)
+  })
+
+  it("seeds configuration and falls back to a launcher when file probes fail", async () => {
+    workspace = makeWorkspace({})
+    await Effect.runPromise(setup("auto").pipe(
+      Effect.provide(inaccessibleFileChecks),
+      Effect.provide(layer)
+    ))
+    expect(JSON.parse(readFileSync(workspace.secretMap, "utf8"))).toHaveProperty("CONTEXT7_API_KEY")
+    const launcher = readFileSync(artefactPath.none(), "utf8")
+    expect(launcher).toContain("mcp-auth-proxy")
+    expect(launcher).not.toContain("__ENTRY__")
   })
 
   it("rewrites the service file on every run", async () => {

@@ -41,6 +41,7 @@ import { Effect, Exit, Logger } from "effect"
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { unavailableConfigProvider } from "../../../helpers/workspace.js"
 
 let dir: string | undefined
 const inherited = { PATH: process.env["PATH"], USERNAME: process.env["USERNAME"] }
@@ -102,6 +103,13 @@ describe("icaclsArguments", () => {
 })
 
 describe("restrictToOwner", () => {
+  it("warns without granting access when the account provider is unavailable", async () => {
+    const lines = await run(restrictToOwner("win32", "C:\\token", "file").pipe(
+      Effect.withConfigProvider(unavailableConfigProvider)
+    ))
+    expect(lines.some((line) => line.includes("USERNAME is unset"))).toBe(true)
+  })
+
   it("applies the POSIX mode off Windows", async () => {
     dir = mkdtempSync(join(tmpdir(), "opp-perm-"))
     const target = join(dir, "token")
